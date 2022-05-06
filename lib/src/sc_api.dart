@@ -3362,7 +3362,13 @@ class ScFnSearch extends ScBaseInvocable {
 
   @override
   String helpFull() {
-    return r"""== Story-specific Search Operators ==
+    return r"""If given a collection as the first argument, this function does a case-insensitive search for the second argument and returns a collection of matching items.
+
+If given a single string value, this function makes an API call to use Shortcut's full-text search functionality, returning a map with a "stories" and "epics" entries for story and epic search results, respectively.
+
+Search operators that Shortcut's API supports:
+
+== Story-specific Search Operators ==
 type: estimate: has:attachment has:task has:epic
 is:blocked is:blocker is:story
 

@@ -87,4 +87,10 @@ This generates a new `lib/src/options.g.dart` file.
 
 ## License
 
-The cli\_repl code has been adapted from the [cli_repl](https://github.com/jathak/cli_repl) library by Jennifer Thakar, which is licensed under BSD 3-Clause "New" or "Revised" License.
+### Original Code
+
+All code original to this project is licensed under the [Blue Oak Model License](https://blueoakcouncil.org/license/1.0.0).
+
+### Project: cli\_repl
+
+The cli\_repl code in this project has been copied and adapted from the [cli_repl](https://github.com/jathak/cli_repl) library by Jennifer Thakar, which is licensed under BSD 3-Clause "New" or "Revised" License.
