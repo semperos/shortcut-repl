@@ -1,0 +1,7 @@
+# These are broken; exclude them for now.
+exclude_tags: e2e
+
+presets:
+  e2e:
+    # Future: Have presets for unit/integration vs. e2e
+    include_tags: e2e

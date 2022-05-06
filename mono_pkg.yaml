@@ -1,0 +1,10 @@
+sdk:
+  - dev
+  - stable
+
+stages:
+  - analysis:
+    - analyze: --fatal-infos .
+    - format
+  - unit_test:
+    - test
