@@ -11,9 +11,33 @@ import 'package:sc_cli/src/sc_config.dart';
 import 'package:sc_cli/src/sc_lang.dart';
 
 mainEntryPoint(List<String> args, Function(Options options) isolateFn) async {
+  int numInterrupts = 0;
+  DateTime timeLastInterrupt = DateTime.now();
   ProcessSignal.sigint.watch().listen((signal) {
-    stderr.writeln('\n\nUntil next time! 👋');
-    exit(0);
+    final now = DateTime.now();
+    final duration = now.difference(timeLastInterrupt);
+    if (duration.inMilliseconds > 5000) {
+      numInterrupts = 0;
+    }
+
+    numInterrupts++;
+    timeLastInterrupt = DateTime.now();
+    if (numInterrupts == 1) {
+      stderr.writeln(r'''
+
+(!) Press Ctrl-c again to exit, or just press enter if you hit it by mistake.
+
+TAB autocompletes at cursor.
+
+Ctrl-a moves cursor to start of line.    Ctrl-e moves cursor to end of line.
+Ctrl-b moves cursor back one character.  Ctrl-f moves cursor forward one character.
+Ctrl-k kills text after cursor.          Ctrl-l clears the screen.
+Ctrl-w kills previous word.
+''');
+    } else if (numInterrupts >= 2) {
+      stderr.writeln('\n\nUntil next time! 👋');
+      exit(0);
+    }
   });
 
   final options = parseOptions(args);

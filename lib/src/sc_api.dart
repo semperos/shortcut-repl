@@ -1558,16 +1558,15 @@ class ScFnSelect extends ScBaseInvocable {
     } else {
       final sourceMap = args[0];
       if (sourceMap is ScMap) {
-        // List<MapEntry<ScExpr, ScExpr>> entries = [];
+        final getFn = ScFnGet();
+        final notFound = ScSymbol('__sc_not-found');
         final targetMap = ScMap({});
         for (final key in args.innerList) {
-          final value = sourceMap[key];
-          if (value != null) {
+          final value = getFn.invoke(env, ScList([sourceMap, key, notFound]));
+          if (value != notFound) {
             targetMap[key] = value;
-            // entries.add(MapEntry(key, value));
           }
         }
-        // return ScMap(Map.fromEntries(entries));
         return targetMap;
       } else if (sourceMap is ScEntity) {
         final getFn = ScFnGet();
@@ -1895,11 +1894,15 @@ class ScFnDefault extends ScBaseInvocable {
   static List<String> identifiers = [
     "group",
     "group_id",
+    "group-id",
     "team",
     "workflow",
     "workflow_id",
     "workflow_state",
-    "workflow_state_id"
+    "workflow_state_id",
+    "workflow-id",
+    "workflow-state",
+    "workflow-state-id"
   ];
 
   @override
