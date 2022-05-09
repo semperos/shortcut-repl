@@ -1,10 +1,12 @@
+import 'package:sc_cli/src/sc_lang.dart';
 import 'package:test/test.dart';
 
 import 'package:sc_cli/src/sc_api.dart';
 import 'package:sc_cli/src/sc_config.dart';
 
 final client = ScLiveClient(getShortcutHost(), getShortcutApiToken());
-final env = ScEnv.fromMap(client, {});
+
+ScEnv e() => ScEnv.fromMap(client, {});
 
 void main() {
   // group('Live Client', () {
@@ -12,7 +14,21 @@ void main() {
   //     expect(env.evalProgram('epic-workflow'), TypeMatcher<ScEpicWorkflow>());
   //   });
   // });
+  group('Code loading', () {
+    test('via load function', () {
+      final env = e();
+      expect(
+          () => env.evalProgram(
+              r'''load "test/test_resources/test_unparsable.shortcut"'''),
+          throwsA(isA<PrematureEndOfProgram>()));
+      expect(env.evalProgram(r'''load "test/test_resources/test.shortcut"'''),
+          TypeMatcher<ScExpr>());
+      expect(env.bindings, contains(ScSymbol('with-estimate')));
+      expect(env.evalProgram("double 21"), ScNumber(42));
+    });
+  });
   group('ScNumber', () {
+    final env = e();
     test('Greater than', () {
       expect(env.evalProgram('>'), ScBoolean.veritas());
       expect(env.evalProgram('> 2'), ScBoolean.veritas());
@@ -66,6 +82,7 @@ void main() {
     });
   });
   group('Collections', () {
+    final env = e();
     test('Lists', () {
       expect(
           env.evalProgram(

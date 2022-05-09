@@ -67,6 +67,8 @@ class PipedLispGrammarDefinition extends GrammarDefinition {
   Parser characterEscape() => char('\\') & any();
   Parser characterRaw() => pattern('^"');
 
+  // This handles `def` when top-level. See `invocation` for handling it
+  // within parens.
   Parser define() {
     return ref0(defineToken) &
         ref0(space).plus() &
@@ -107,8 +109,7 @@ class PipedLispGrammarDefinition extends GrammarDefinition {
 
   Parser space() => whitespace() | ref0(comma) | ref0(comment);
   Parser comma() => char(',');
-  Parser comment() =>
-      (char(';') | char('#')) & Token.newlineParser().neg().star();
+  Parser comment() => char(';') & Token.newlineParser().neg().star();
 
   Parser bracket(String brackets, Parser parser) =>
       char(brackets[0]) & parser & char(brackets[1]);
@@ -144,6 +145,21 @@ class PipedLispParserDefinition extends PipedLispGrammarDefinition {
         final List<ScExpr> exprs = List<ScExpr>.from(each[1]);
         if (exprs.isEmpty) {
           return ScNil();
+        } else if (exprs.first == ScSymbol('def')) {
+          exprs.removeAt(0); // remove thd def symbol
+          if (exprs.length >= 2) {
+            final defName = exprs[0];
+            if (defName is ScSymbol) {
+              final defBody = exprs.skip(1).toList();
+              return ScDefinition(
+                  defName, ScList([ScList(defBody), ScList([])]));
+            } else {
+              throw BadDef(
+                  "The `def` form expects a symbol for its name, but received a ${defName.informalTypeName()}");
+            }
+          } else {
+            throw BadDef("A definition must have at least a name and a value.");
+          }
         } else if (exprs.first == ScSymbol('fn')) {
           exprs.removeAt(0); // remove the fn symbol
           if (exprs.isEmpty) {

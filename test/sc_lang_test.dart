@@ -6,12 +6,13 @@ import 'package:sc_cli/src/sc_lang.dart';
 import 'package:test/test.dart';
 
 final client = ScLiveClient(getShortcutHost(), getShortcutApiToken());
+ScEnv e() => ScEnv.fromMap(client, {});
 
 void main() {
-  final env = ScEnv.fromMap(client, {});
-  final scParser = env.scParser;
+  final scParser = e().scParser;
   group('Eval', () {
     group('Identities', () {
+      final env = e();
       test('Numbers', () {
         expect(scEval(env, scRead(env, '42')), ScNumber(42));
         expect(scEval(env, scRead(env, '42.0')), ScNumber(42.0));
@@ -20,6 +21,7 @@ void main() {
       });
     });
     group('Arithmetic', () {
+      final env = e();
       test('Addition', () {
         expect(scEval(env, scRead(env, '(+)')), ScNumber(0));
         expect(scEval(env, scRead(env, '(+ 2 3)')), ScNumber(5));
@@ -78,16 +80,20 @@ void main() {
     });
     test('Comments', () {
       expect(scParser.parse(';; Wow\n42').value[0], [ScNumber(42)]);
-      expect(scParser.parse('# Wow\n42').value[0], [ScNumber(42)]);
       // For now, this is how we'll handle whole programs that are a comment: a nil will be appended before it's parsed + evaluated.
       expect(scParser.accept(';\nnil'), true);
     });
   });
 
   group('Evaluating', () {
+    final env = e();
+    test('Multiple expressions', () {
+      expect(() => env.evalProgram('1 2 3'),
+          throwsA(TypeMatcher<UninvocableException>()));
+      expect(env.evalProgram('(fn [] 1 2 3)'), ScNumber(3));
+    });
     test('Piped expressions', () {
       // expect(readProgram('identity 42 | + 3'), 42);
-      final env = ScEnv.fromMap(client, {});
       expect(env.evalProgram('()'), ScNil());
       expect(env.evalProgram('42'), ScNumber(42));
       expect(env.evalProgram('0.42'), ScNumber(0.42));
@@ -116,17 +122,33 @@ void main() {
 
   group('Defining', () {
     test('Evaluation', () {
+      final env = e();
       env.evalProgram('def a + 42 2');
       expect(env[ScSymbol('a')], ScNumber(44));
+      env.evalProgram(r'''def double
+      value %(* % 2)''');
+      expect(env.evalProgram('double 21'), ScNumber(42));
+    });
+    test('Def invocation', () {
+      final env = e();
+      final prog =
+          r"""(def with-estimate value (fn [story estimate] (extend story { "estimate" estimate })))""";
+      expect(scParser.accept(prog), true);
+      expect(env.evalProgram(prog), TypeMatcher<ScFunction>());
+      final fn = env.evalProgram(prog) as ScFunction;
+      expect(fn.params.length, 2);
+      expect(env.bindings, contains(ScSymbol('with-estimate')));
     });
   });
 
   group('Functions', () {
     test('With fn', () {
+      final env = e();
       expect(scParser.parse('(fn alpha [a b] b)').value[0][0],
           TypeMatcher<ScFunction>());
       expect(env.evalProgram('(fn [])'), ScNil());
-      expect(env.evalProgram('(fn [a])'), ScNil());
+      expect(() => env.evalProgram('(fn [a])'),
+          throwsA(isA<BadArgumentsException>()));
       expect(env.evalProgram('((fn answer [] 42))'), ScNumber(42));
       expect(env.evalProgram('((fn answer [] 42 26))'), ScNumber(26));
       expect(env.evalProgram('(fn a [a] a) 26'), ScNumber(26));
@@ -143,6 +165,7 @@ void main() {
   });
 
   group('Anonymous functions', () {
+    final env = e();
     test('Zero arguments', () {
       expect(env.evalProgram('invoke %()'), ScNil());
       expect(env.evalProgram('invoke %(+)'), ScNumber(0));

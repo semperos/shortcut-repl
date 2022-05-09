@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:io/ansi.dart';
+import 'package:petitparser/matcher.dart';
 import 'package:sc_cli/cli_repl.dart';
 
 import 'package:sc_cli/src/options.dart';
@@ -24,6 +25,7 @@ mainEntryPoint(List<String> args, Function(Options options) isolateFn) async {
     timeLastInterrupt = DateTime.now();
     if (numInterrupts == 1) {
       stderr.writeln(r'''
+
 
 (!) Press Ctrl-c again to exit, or just press enter if you hit it by mistake.
 
@@ -83,8 +85,11 @@ void evalProgram(Options options) {
   stdout.writeln(expr.printToString(env));
 }
 
-bool replValidator(String str) {
-  return str.trim().isEmpty || true;
+bool Function(String str) replValidator(ScEnv env) {
+  return (String str) {
+    final trimmed = str.trim();
+    return trimmed.isEmpty || env.scParser.accept(trimmed);
+  };
 }
 
 void startRepl(Options options, Function(Options options) isolateFn) async {
@@ -128,8 +133,8 @@ Function startProdReplServerIsolateFn(Options options) {
     unawaited(loadCaches(env));
     final repl = Repl(
         prompt: '\nsc> ',
-        continuation: '>>> ',
-        validator: replValidator,
+        continuation: ',,,   ',
+        validator: replValidator(env),
         env: env);
     await for (final x in repl.runAsync()) {
       handleRepl(env, repl, sendPort, x);
@@ -354,7 +359,7 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
         env.isExpectingBindingAnswer = true;
         env.interactiveStartBinding(e.symbol);
         stderr.write(wrapWith(
-            "${e.symbol}\n${'^' * e.symbol.toString().length} This symbol isn't defined.\n\n",
+            "${e.symbol}\n${'^' * e.symbol.toString().length} This symbol isn't defined.\n",
             [yellow]));
         repl.prompt =
             wrapWith("\nDo you want to define it? (y/n) > ", [green])!;

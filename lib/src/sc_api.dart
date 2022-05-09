@@ -67,6 +67,7 @@ class ScEnv {
   late List<ScEntity> parentEntityHistory;
   int parentEntityHistoryCursor = 0;
 
+  /// IDEA Have the functions here mapped to their _classes_ so that debug mode can re-construct them with each evaluation for better code reloading support.
   /// The default bindings of this [ScEnv] give identifiers values in code.
   static Map<ScSymbol, dynamic> defaultBindings = {
     ScSymbol('*1'): ScNil(),
@@ -1354,6 +1355,9 @@ A future extension to the language either for help or arbitrary metadata may be 
       if (1 == (params.length - args.length)) {
         if (env.parentEntity != null) {
           args.insert(0, env.parentEntity!);
+        } else {
+          throw BadArgumentsException(
+              "The function expects ${params.length} arguments, but received ${args.length}");
         }
       } else {
         throw BadArgumentsException(
@@ -1853,7 +1857,7 @@ With an argument that is a function, prints the full help for that function.
 For more help, consult:
 
  - Shortcut API Documentation: https://shortcut.com/api/rest/v3
- - TODO Link to this repository and/or online documentation.
+ - This tool's GitHub repository: https://github.com/semperos/shortcut-cli
 """;
   }
 }
@@ -2082,10 +2086,12 @@ class ScFnCd extends ScBaseInvocable {
     if (args.isEmpty) {
       env.parentEntity = null;
       env[ScSymbol('.')] = ScNil();
+      env.parentEntityHistoryCursor = 0;
       return ScNil();
     } else if (args.length == 1) {
       final newParentEntity = args.first;
       final oldParentEntity = env.parentEntity;
+      env.parentEntityHistoryCursor = 0;
       if (newParentEntity is ScEntity) {
         setParentEntity(env, newParentEntity);
         // Feature: Keep the env.json up-to-date with most recent parent entity.
@@ -3299,17 +3305,47 @@ class ScFnLoad extends ScBaseInvocable {
       }
 
       ScExpr returnValue = ScNil();
-      for (final line in sourceFile.readAsLinesSync()) {
-        // Given how the parser is written, a program cannot just
-        // be comments. However, given we're doing "one program
-        // per line" here, we need to do something a bit janky
-        // to satisfy both constraints.
-        //
-        // Editing the parser involved a lot of changes. This is
-        // good enough.
+      StringBuffer multiLineProgram = StringBuffer();
+      final fileLines = sourceFile.readAsLinesSync();
+      for (var i = 0; i < fileLines.length; i++) {
+        final line = fileLines[i];
         final trimmed = line.trim();
-        if (trimmed.startsWith(';') || trimmed.startsWith('#')) {
+        if (multiLineProgram.isNotEmpty) {
+          // Continue building up multi-line program.
+          multiLineProgram.write(trimmed);
+          final currentProgram = multiLineProgram.toString();
+          if (env.scParser.accept(currentProgram)) {
+            returnValue = env.evalProgram(currentProgram);
+            multiLineProgram.clear();
+          } else if (i == fileLines.length - 1) {
+            throw PrematureEndOfProgram(
+                "The code in $sourceFile fails to load because the file ended in the middle of parsing. Check matching delimiters and try again.");
+          } else {
+            continue;
+          }
+        } else if (trimmed.startsWith(';') || trimmed.startsWith('#')) {
+          // Given how the parser is written, a program cannot just
+          // be comments. However, given we're doing "one program
+          // per line" here, we need to do something a bit janky
+          // to satisfy both constraints.
+          //
+          // Editing the parser involved a lot of changes. This is
+          // good enough.
           returnValue = env.evalProgram('$line\nnil');
+        } else if (!env.scParser.accept(trimmed)) {
+          // Allow multi-line programs
+          multiLineProgram.write(trimmed);
+          final currentProgram = multiLineProgram.toString();
+          // Single-line parenthetical program
+          if (env.scParser.accept(currentProgram)) {
+            returnValue = env.evalProgram(currentProgram);
+            multiLineProgram.clear();
+          } else if (i == fileLines.length - 1) {
+            throw PrematureEndOfProgram(
+                "The code in $sourceFile fails to load because the file ended in the middle of parsing. Check matching delimiters and try again.");
+          } else {
+            continue;
+          }
         } else {
           returnValue = env.evalProgram(line);
         }
@@ -5594,6 +5630,7 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
   };
 
   static final Set<ScString> memberKeys = {
+    ScString('author_id'),
     ScString('requested_by_id'),
   };
 
@@ -8104,6 +8141,10 @@ class SourceFileNotFound extends ExceptionWithMessage {
   SourceFileNotFound(String filePath)
       : super(
             "Source file '$filePath' not found relative to current working directory or in shortcut-cli config directory.");
+}
+
+class PrematureEndOfProgram extends ExceptionWithMessage {
+  PrematureEndOfProgram(String message) : super(message);
 }
 
 class BadRequestException extends ExceptionWithMessage {

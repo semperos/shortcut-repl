@@ -6,7 +6,7 @@ This is a personal, open-source effort and not an officially-sponsored tool.
 
 ## Usage
 
-These instructions assume you've named this program `sc` on your `PATH`.
+These instructions assume you've named this program `sc` and put it on your `PATH`.
 
 First, ensure you have a [Shortcut API token](https://app.shortcut.com/internal/settings/account/api-tokens) defined as `SHORTCUT_API_TOKEN` in your environment. I suggest using a tool like [sops](https://github.com/mozilla/sops) to encrypt this credential:
 
@@ -16,10 +16,8 @@ export SHORTCUT_API_TOKEN=$(sops --decrypt --extract '["shortcut"]["api_token"]'
 
 With that, you can run `sc` in one of two modes:
 
-* Interactive Read-Eval-Print Loop (REPL)
-* CLI command
-
-Most things that can be done at the REPL can be done as one-off commands as well.
+* Interactive Read-Eval-Print Loop (REPL) using `sc -r`
+* CLI command for one-off programs using `sc -e`
 
 ### REPL
 
@@ -35,12 +33,12 @@ Once the REPL starts, you should see this prompt:
 sc>
 ```
 
-The prompt is rudimentary; you probably want to wrap your call to `sc -r` with `rlwrap` or a similar tool.
+Press `Ctrl-c` to see instructions for using the interactive console itself.
 
-Execute `?` or `help` to get overall help. Pass arguments to these commands to get more fine-grained documentation.
+Execute `?` or `help` to see a list of all bindings, or pass a function as an argument to these commands to get more complete documentation for that function:
 
 ```
-sc> ? story
+sc> ? ?
 ```
 
 ## Development
@@ -68,22 +66,6 @@ dart run build_runner build
 ```
 
 This generates a new `lib/src/options.g.dart` file.
-
-## Ideas
-
-- [x] `pwd`
-- [x] `.` alias for `pwd`
-- [x] Strip leading `sc>` to allow easier copy and paste
-- [x] Don't make `where` require a query arg
-- [x] Add `search` function that takes either an ScQuery or a string query directly
-- Extend searching with ability to set page size
-- [x] Consider removing `fetch` branch to execute search once `search` is implemented
-- Optionally print `ScExpr`s as JSON to allow for easier manipulation via tools like `jq` or `zq`
-- Style the titles of entities with underline and/or different coloration per-letter to display progress.
-- [x] Change `sc>` prompt when a question is being asked and when the next thing evaluated will be bound. Maybe `sc?>` and  `sc*>`?
-- [x] Polymorphic fetcher: all public IDs will be unique, use parallel requests to get first-OK response and use that. (Status: Non-parallel version implemented)
-- Dependency/relationship tree between stories
-- Option to log to a file in a debug mode
 
 ## License
 
