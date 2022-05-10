@@ -190,7 +190,7 @@ class ScEnv {
     // ScSymbol('done'): ScFnDone(),
     ScSymbol('next-state'): ScFnNextState(),
     ScSymbol('prev-state'): ScFnPreviousState(),
-    ScSymbol('prevous-state'): ScFnPreviousState(),
+    ScSymbol('previous-state'): ScFnPreviousState(),
     ScSymbol('story'): ScFnStory(),
     ScSymbol('task'): ScFnTask(),
     ScSymbol('epic'): ScFnEpic(),
@@ -1248,15 +1248,15 @@ class ScQuotedSymbol extends ScExpr implements ScBaseInvocable {
   }
 
   @override
-  String help() {
+  String get help {
     return 'Quoted symbol evaluates to itself, but can be invoked to `get` itself out of collections';
   }
 
   @override
-  String helpFull() {
-    return r"""Quoted symbols evaluate to themselves unless they're used in an invocable/function context.
-
-If there is a parent entity defined (you've `cd`ed into an entity), then a quoted symbol will try to look itself up in the data of that entity.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""If there is a parent entity defined (you've `cd`ed into an entity), then a quoted symbol will try to look itself up in the data of that entity.
 
 When used within a structure that gets serialized to JSON and sent to Shortcut, quoted symbols become simple strings of their names (e.g., .name => "name").
 """;
@@ -1319,8 +1319,8 @@ abstract class ScBaseInvocable extends ScExpr {
   }
 
   ScExpr invoke(ScEnv env, ScList args);
-  String help();
-  String helpFull();
+  String get help;
+  String get helpFull;
 }
 
 class ScFunction extends ScBaseInvocable {
@@ -1337,13 +1337,15 @@ class ScFunction extends ScBaseInvocable {
   }
 
   @override
-  String help() {
+  String get help {
     return "This is a standalone function; no help found.";
   }
 
   @override
-  String helpFull() {
-    return r"""Standalone function definitions do not support storing help information at this time.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""Standalone function definitions do not support storing help information at this time.
 
 A future extension to the language either for help or arbitrary metadata may be added.""";
   }
@@ -1398,15 +1400,15 @@ class ScAnonymousFunction extends ScBaseInvocable {
   }
 
   @override
-  String help() {
+  String get help {
     return "No help found: Anonymous function definitions do not support help.";
   }
 
   @override
-  String helpFull() {
-    return r"""No help found: Anonymous function definitions do not support help.
-
-Neither do standalone `fn` definitions yet; keep an eye out!""";
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""Neither do standalone `fn` definitions yet; keep an eye out!""";
   }
 
   @override
@@ -1481,15 +1483,15 @@ class ScFnIdentity extends ScBaseInvocable {
   }
 
   @override
-  String help() {
+  String get help {
     return "Returns the value it's given.";
   }
 
   @override
-  String helpFull() {
-    return r"""Returns the value it's given.
-
-You can use `identity` to return a function as a value, rather than invoking it which is the default. This is a way to alias built-in functions or define your own using anonymous function syntax:
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""You can use `identity` to return a function as a value, rather than invoking it which is the default. This is a way to alias built-in functions or define your own using anonymous function syntax:
 
 def add identity +""";
   }
@@ -1501,15 +1503,15 @@ class ScFnIf extends ScBaseInvocable {
   factory ScFnIf() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "If the first argument is truthy, invoke the first function; else the second.";
   }
 
   @override
-  String helpFull() {
-    return r"""If the first argument is truthy, invoke the first function; else the second.
-
-The "then" and "else" functions expect zero arguments.""";
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""The "then" and "else" functions expect zero arguments.""";
   }
 
   @override
@@ -1545,13 +1547,15 @@ class ScFnSelect extends ScBaseInvocable {
   factory ScFnSelect() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Return a map that only has the specified entries of this map.";
   }
 
   @override
-  String helpFull() {
-    return r"""The first argument must be a map or an entity. A sub-map is returned consisting only of the keys specified by the rest of the arguments to this function.""";
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""The first argument must be a map or an entity. A sub-map is returned consisting only of the keys specified by the rest of the arguments to this function.""";
   }
 
   @override
@@ -1597,13 +1601,15 @@ class ScFnWhere extends ScBaseInvocable {
   factory ScFnWhere() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Return items from a collection that match the given map spec or function.';
   }
 
   @override
-  String helpFull() {
-    return r"""The `where` or `filter` function is a tool for finding items in collections.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""The `where` or `filter` function is a tool for finding items in collections.
 
 = If the first argument is a list: =
 
@@ -1708,15 +1714,15 @@ class ScFnLimit extends ScBaseInvocable {
   factory ScFnLimit() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Limit the number of items in the collection to the given number.';
   }
 
   @override
-  String helpFull() {
-    return r"""Take a certain number of items from a collection.
-
-If provided a number, that many items starting at the beginning of the collection are returned.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""If provided a number, that many items starting at the beginning of the collection are returned.
 
 If provided a function, this behaves as a "take while", returning as many items as return truthy for the given function, stopping at the first that doesn't.""";
   }
@@ -1763,15 +1769,15 @@ class ScFnSkip extends ScBaseInvocable {
   factory ScFnSkip() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Skip the first N items of the given collection.';
   }
 
   @override
-  String helpFull() {
-    return r"""Skip/drop a certain number of items from a collection.
-
-If provided a number, that many items starting at the beginning of the collection are returned.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""If provided a number, that many items starting at the beginning of the collection are returned.
 
 If provided a function, this behaves as a "skip while", skipping as many items as return truthy for the given function, stopping at the first that doesn't.""";
   }
@@ -1825,17 +1831,46 @@ class ScFnHelp extends ScBaseInvocable {
       ScMap m = ScMap({});
       ScEnv.defaultBindings.forEach((key, value) {
         if (value is ScBaseInvocable) {
-          // env.out.writeln("$key\t: ${value.help()}");
-          m[key] = ScString(value.help());
+          m[key] = ScString(value.help);
         }
       });
       final ks = m.keys.toList();
       ks.sort();
       printTable(env, ks, m);
     } else {
-      var topic = args[0];
-      if (topic is ScBaseInvocable) {
-        env.out.writeln(wrapWith(topic.helpFull(), [yellow]));
+      final query = args[0];
+      if (query is ScBaseInvocable) {
+        env.out.writeln(wrapWith(query.helpFull, [yellow]));
+      } else if (query is ScString) {
+        final searchFn = ScFnSearch();
+        final bindingsWithHelp = ScMap({});
+        env.bindings.forEach((key, value) {
+          if (value is ScBaseInvocable) {
+            bindingsWithHelp[key] = ScString(value.helpFull);
+          } else {
+            bindingsWithHelp[key] = value;
+          }
+        });
+        final matchingBindings =
+            searchFn.invoke(env, ScList([bindingsWithHelp, query]));
+        if (matchingBindings is ScMap) {
+          ScMap m = ScMap({});
+          matchingBindings.innerMap.forEach((key, _) {
+            final boundValue = env.bindings[key];
+            if (boundValue is ScBaseInvocable) {
+              m[key] = ScString(boundValue.help);
+            } else {
+              m[key] = boundValue;
+            }
+          });
+          final ks = m.keys.toList();
+          ks.sort();
+          printTable(env, ks, m);
+          // NB: Don't feel great about somewhat pretty-printing rather than giving data.
+          return ScNil();
+        } else {
+          return ScMap({});
+        }
       } else {
         env.out.writeln("<No help found>");
       }
@@ -1844,15 +1879,19 @@ class ScFnHelp extends ScBaseInvocable {
   }
 
   @override
-  String help() {
+  String get help {
     return 'Print help documentation. Provide a function to get specific help.';
   }
 
   @override
-  String helpFull() {
-    return r"""With no arguments, prints a listing of all default language bindings and their help summaries.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""With no arguments, prints a listing of all default language bindings and their help summaries.
 
 With an argument that is a function, prints the full help for that function.
+
+With an argument that is a string, searches through bindings (both name and full help text if available) and returns matching ones.
 
 For more help, consult:
 
@@ -1867,15 +1906,15 @@ class ScFnPrint extends ScBaseInvocable {
   String strToAppend;
 
   @override
-  String help() {
+  String get help {
     return "Print values to the output stream.";
   }
 
   @override
-  String helpFull() {
-    return r"""Print values to the output stream.
-
-The output stream is STDOUT by default. A future version of this program might make the output stream destination configurable; keep an eye out!""";
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""The output stream is STDOUT by default. A future version of this program might make the output stream destination configurable; keep an eye out!""";
   }
 
   @override
@@ -1910,13 +1949,15 @@ class ScFnDefault extends ScBaseInvocable {
   ];
 
   @override
-  String help() {
+  String get help {
     return "Retrieve a default value, or set a new one.";
   }
 
   @override
-  String helpFull() {
-    return r"""If one argument is provided, the default value for that identifier is returned.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""If one argument is provided, the default value for that identifier is returned.
 
 If two arguments are provided, the second argument is the new default value for the given identifier.
 
@@ -2036,13 +2077,15 @@ class ScFnSetup extends ScBaseInvocable {
   factory ScFnSetup() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Setup your local environment's default workflow, workflow state, and team.";
   }
 
   @override
-  String helpFull() {
-    return r"""Interactive entity creation (in particular, stories) is meant to be as painless as possible. This requires some initial setup of defaults, which this function handles.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""Interactive entity creation (in particular, stories) is meant to be as painless as possible. This requires some initial setup of defaults, which this function handles.
 
 Invoking `setup` starts an interaction at the REPL where you're shown all the workflows defined in your workspace and prompted to pick your default one.
 
@@ -2071,14 +2114,17 @@ class ScFnCd extends ScBaseInvocable {
   factory ScFnCd() => _instance;
 
   @override
-  String help() {
-    return 'Change the current parent entity ("directory") you\'re operating in.';
+  String get help {
+    return r"""Change the current parent entity ("directory") you're operating in.""";
   }
 
   @override
-  String helpFull() {
-    // TODO: implement helpFull
-    return help();
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""Shortcut's domain model treats stories as containers for tasks; epics as containers for stories; milestones as containers for epics.
+
+You can `cd` into an entity to make that entity your current "parent entity." Many of the built-in functions assume you are inside a parent entity and change their behavior accordingly.""";
   }
 
   @override
@@ -2139,13 +2185,15 @@ class ScFnCd extends ScBaseInvocable {
 
 class ScFnHistory extends ScBaseInvocable {
   @override
-  String help() {
+  String get help {
     return "Return history of parent entities you have `cd`ed into, in reverse order so latest are at the bottom. Max 100 entries.";
   }
 
   @override
-  String helpFull() {
-    return r"""Every time you `cd` into an entity, that entity is saved to a list. This function returns that list, reversed so most recent are at the bottom (most visible at the console).
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""Every time you `cd` into an entity, that entity is saved to a list. This function returns that list, reversed so most recent are at the bottom (most visible at the console).
 
 Note that Shortcut tasks can be `cd`ed into, but at this time are not persisted to the history due to a limitation in the JSON format chosen to store parent entities and the fact that to fetch a task you must know its story ID.""";
   }
@@ -2163,14 +2211,14 @@ Note that Shortcut tasks can be `cd`ed into, but at this time are not persisted 
 
 class ScFnBackward extends ScBaseInvocable {
   @override
-  String help() {
+  String get help {
     return "Change your parent entity to the previous one in your history.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2200,14 +2248,14 @@ class ScFnBackward extends ScBaseInvocable {
 
 class ScFnForward extends ScBaseInvocable {
   @override
-  String help() {
+  String get help {
     return "Change your parent entity to the next one in your history.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2233,14 +2281,14 @@ class ScFnForward extends ScBaseInvocable {
 
 class ScFnLs extends ScBaseInvocable {
   @override
-  String help() {
+  String get help {
     return 'List items within a context.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2255,14 +2303,14 @@ class ScFnCwd extends ScBaseInvocable {
       '[Help] `cd` into a Shortcut entity or entity ID to use `cwd`, `pwd`, and `.`';
 
   @override
-  String help() {
+  String get help {
     return 'Return the working "directory"—the current parent entity we have `cd`ed into.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2287,14 +2335,14 @@ class ScFnCwd extends ScBaseInvocable {
 
 class ScFnPwd extends ScBaseInvocable {
   @override
-  String help() {
+  String get help {
     return 'Print the working "directory"—the current parent entity we have `cd`ed into.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2320,14 +2368,14 @@ class ScFnPwd extends ScBaseInvocable {
 
 class ScFnMv extends ScBaseInvocable {
   @override
-  String help() {
+  String get help {
     return "Move a Shortcut entity from one container to another (e.g., a story to a new epic).";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2376,14 +2424,14 @@ class ScFnMv extends ScBaseInvocable {
 
 class ScFnData extends ScBaseInvocable {
   @override
-  String help() {
+  String get help {
     return "Return the entity's complete, raw data.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2416,14 +2464,14 @@ class ScFnData extends ScBaseInvocable {
 
 class ScFnDetails extends ScBaseInvocable {
   @override
-  String help() {
+  String get help {
     return "Return the entity's most important details as a map.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2456,14 +2504,14 @@ class ScFnDetails extends ScBaseInvocable {
 
 class ScFnSummary extends ScBaseInvocable {
   @override
-  String help() {
+  String get help {
     return "Return a summary of the Shortcut entity's state.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2480,13 +2528,15 @@ class ScFnInvoke extends ScBaseInvocable {
   factory ScFnInvoke() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Invoke the provided function.";
   }
 
   @override
-  String helpFull() {
-    return r"""Function invocation happens by default in many syntactic positions:
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""Function invocation happens by default in many syntactic positions:
 
 - A function evaluated by itself
 - A function evaluated by itself with arguments following
@@ -2527,14 +2577,14 @@ class ScFnApply extends ScBaseInvocable {
   factory ScFnApply() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Apply the given function to the list of arguments.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2566,14 +2616,14 @@ class ScFnForEach extends ScBaseInvocable {
   factory ScFnForEach() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Execute a function for each item in a list.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2607,14 +2657,14 @@ class ScFnReduce extends ScBaseInvocable {
   factory ScFnReduce() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Reduce a list of things down to a single value. Takes a list, an optional starting accumulator, and a function of (acc, item).";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2663,14 +2713,14 @@ class ScFnConcat extends ScBaseInvocable {
   factory ScFnConcat() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Combine multiple collections into one.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2726,13 +2776,15 @@ class ScFnExtend extends ScBaseInvocable {
   factory ScFnExtend() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Combine multiple maps into one, concatenating values that are collections.';
   }
 
   @override
-  String helpFull() {
-    return r"""The `concat` function naively concatenates its arguments. The `extend` function works (1) exclusively with maps, and (2) _extends_ map values via concatenation, recursively.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""The `concat` function naively concatenates its arguments. The `extend` function works (1) exclusively with maps, and (2) _extends_ map values via concatenation, recursively.
 
 Compare:
 
@@ -2786,14 +2838,14 @@ class ScFnKeys extends ScBaseInvocable {
   factory ScFnKeys() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Return the keys of this map or entity's data.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2821,14 +2873,14 @@ class ScFnWhenNil extends ScBaseInvocable {
   factory ScFnWhenNil() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "If argument is nil, returns the default value provided instead.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2854,14 +2906,14 @@ class ScFnGet extends ScBaseInvocable {
   factory ScFnGet() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Retrieve an item from a source at a selector.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2908,14 +2960,14 @@ class ScFnGetIn extends ScBaseInvocable {
   factory ScFnGetIn() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Retrieve an item from a source at a selector.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2947,14 +2999,14 @@ class ScFnContains extends ScBaseInvocable {
   factory ScFnContains() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Returns true if the collection contains the given item.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -2997,14 +3049,14 @@ class ScFnCount extends ScBaseInvocable {
   factory ScFnCount() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'The length of the collection, the count of its items.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -3034,13 +3086,15 @@ class ScFnSort extends ScBaseInvocable {
   factory ScFnSort() => _instance;
 
   @override
-  String help() {
-    return 'Sort the collection. Maps are sorted by keys.';
+  String get help {
+    return 'Sort the collection (maps by their keys).';
   }
 
   @override
-  String helpFull() {
-    return r"""Return a copy of the original collection, sorted. Maps are sorted by their keys.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""Return a copy of the original collection, sorted. Maps are sorted by their keys.
 
 If you need to sort by a derivative value of each item, try `sort-by`.""";
   }
@@ -3120,14 +3174,14 @@ class ScFnSplit extends ScBaseInvocable {
   factory ScFnSplit() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Split the collection by the given separator.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -3166,14 +3220,14 @@ class ScFnJoin extends ScBaseInvocable {
   factory ScFnJoin() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Join the collection into a string using the given separator.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -3212,14 +3266,14 @@ class ScFnFile extends ScBaseInvocable {
   factory ScFnFile() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Returns a file object given its relative or absolute path as a string.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -3246,14 +3300,14 @@ class ScFnReadFile extends ScBaseInvocable {
   factory ScFnReadFile() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Return string contents of a file.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -3279,14 +3333,14 @@ class ScFnLoad extends ScBaseInvocable {
   factory ScFnLoad() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Read and evaluate the given source code file.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -3312,7 +3366,7 @@ class ScFnLoad extends ScBaseInvocable {
         final trimmed = line.trim();
         if (multiLineProgram.isNotEmpty) {
           // Continue building up multi-line program.
-          multiLineProgram.write(trimmed);
+          multiLineProgram.write("$trimmed ");
           final currentProgram = multiLineProgram.toString();
           if (env.scParser.accept(currentProgram)) {
             returnValue = env.evalProgram(currentProgram);
@@ -3334,7 +3388,7 @@ class ScFnLoad extends ScBaseInvocable {
           returnValue = env.evalProgram('$line\nnil');
         } else if (!env.scParser.accept(trimmed)) {
           // Allow multi-line programs
-          multiLineProgram.write(trimmed);
+          multiLineProgram.write("$trimmed ");
           final currentProgram = multiLineProgram.toString();
           // Single-line parenthetical program
           if (env.scParser.accept(currentProgram)) {
@@ -3361,13 +3415,15 @@ class ScFnOpen extends ScBaseInvocable {
   factory ScFnOpen() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Open an entity's page in the Shortcut web app.";
   }
 
   @override
-  String helpFull() {
-    return r"""Every Shortcut entity has an `app_url` entry that can be opened in a web browser to view the details of that entity.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""Every Shortcut entity has an `app_url` entry that can be opened in a web browser to view the details of that entity.
 
 Caveat: Only Linux and macOS supported, this function shells out to `xdg-open` or `open` respectively. If on another platform, copy the `app_url` directly.""";
   }
@@ -3392,13 +3448,15 @@ class ScFnSearch extends ScBaseInvocable {
   factory ScFnSearch() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Search through a local list or for stories & epics via the Shortcut API.';
   }
 
   @override
-  String helpFull() {
-    return r"""If given a collection as the first argument, this function does a case-insensitive search for the second argument and returns a collection of matching items.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""If given a collection as the first argument, this function does a case-insensitive search for the second argument and returns a collection of matching items.
 
 If given a single string value, this function makes an API call to use Shortcut's full-text search functionality, returning a map with a "stories" and "epics" entries for story and epic search results, respectively.
 
@@ -3446,6 +3504,14 @@ technical-area: skill-set: product-area:""";
           return ScBoolean.fromBool(
               jsonStr.toLowerCase().contains(queryStr.toLowerCase()));
         });
+      } else if (coll is ScMap) {
+        return coll.where((k, v) {
+          final keyJson = jsonEncoder.convert(scExprToValue(k));
+          final valueJson = jsonEncoder.convert(scExprToValue(v));
+          final jsonStr = '$keyJson $valueJson';
+          return ScBoolean.fromBool(
+              jsonStr.toLowerCase().contains(queryStr.toLowerCase()));
+        });
       } else {
         throw BadArgumentsException(
             "The `search` function when passed 2 arguments expects its first to be a list, but received a ${coll.informalTypeName()}");
@@ -3463,15 +3529,15 @@ class ScFnFindStories extends ScBaseInvocable {
   factory ScFnFindStories() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Find stories given specific parameters.";
   }
 
   @override
-  String helpFull() {
-    return r"""Find stories given specific parameters.
-
-Parameters that accept a collection employ "OR" semantics, not "AND".
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""Parameters that accept a collection employ "OR" semantics, not "AND".
 For example, specifying two owner ids will return all stories owned by _either_
 of the owners, not just stories they co-own.
 
@@ -3511,14 +3577,14 @@ class ScFnFetch extends ScBaseInvocable {
   factory ScFnFetch() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Fetch an entity via the Shortcut API.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -3534,14 +3600,14 @@ class ScFnFetchAll extends ScBaseInvocable {
   factory ScFnFetchAll() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Fetch and cache members, teams, and workflows.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -3569,14 +3635,14 @@ class ScFnUpdate extends ScBaseInvocable {
   factory ScFnUpdate() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Update the given entity in Shortcut with the given update map.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -3620,13 +3686,15 @@ class ScFnNextState extends ScBaseInvocable {
   factory ScFnNextState() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Update the given entity (or parent entity, if unspecified) to the next workflow state.";
   }
 
   @override
-  String helpFull() {
-    return r"""Tasks, stories, epics, and milestones can be in one of several states. This function updates such an entity to the next logical state.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""Tasks, stories, epics, and milestones can be in one of several states. This function updates such an entity to the next logical state.
 
 - Tasks: Can be either done or not, so this moves an undone task to a done state.
 - Stories: Stories live within a Workflow and every Workflow has a canonical sequence of states. This moves the given story to the next one within the same Story Workflow.
@@ -3735,13 +3803,15 @@ class ScFnPreviousState extends ScBaseInvocable {
   factory ScFnPreviousState() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Update the given entity (or parent entity, if unspecified) to the previous workflow state.";
   }
 
   @override
-  String helpFull() {
-    return r"""Tasks, stories, epics, and milestones can be in one of several states. This function updates such an entity to the previous logical state.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""Tasks, stories, epics, and milestones can be in one of several states. This function updates such an entity to the previous logical state.
 
 - Tasks: Can be either done or not, so this moves a completed task to an incomplete state.
 - Stories: Stories live within a Workflow and every Workflow has a canonical sequence of states. This moves the given story to the previous one within the same Story Workflow.
@@ -3851,15 +3921,15 @@ class ScFnCreate extends ScBaseInvocable {
   factory ScFnCreate() => _instance;
 
   @override
-  String help() {
-    return 'Create the given entity in Shortcut, either interactively or with the given data map.';
+  String get help {
+    return 'Create the given entity in Shortcut, either interactively (no args) or with the given data map.';
   }
 
   @override
-  String helpFull() {
-    return r"""Create the given entity in Shortcut, either interactively (no args) or using a given data map.
-
-This function takes into account both the current parent entity (if present) and defaults (if defined).""";
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""This function takes into account both the current parent entity (if present) and defaults (if defined).""";
   }
 
   @override
@@ -4006,14 +4076,14 @@ class ScFnCreateStory extends ScBaseInvocable {
   factory ScFnCreateStory() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Create a Shortcut story given a data map.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4048,14 +4118,14 @@ class ScFnCreateEpic extends ScBaseInvocable {
   factory ScFnCreateEpic() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Create a Shortcut epic given a data map.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4083,14 +4153,14 @@ class ScFnCreateMilestone extends ScBaseInvocable {
   factory ScFnCreateMilestone() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Create a Shortcut milestone given a data map.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4118,14 +4188,14 @@ class ScFnCreateIteration extends ScBaseInvocable {
   factory ScFnCreateIteration() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Create a Shortcut iteration given a data map.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4153,14 +4223,14 @@ class ScFnCreateTask extends ScBaseInvocable {
   factory ScFnCreateTask() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Create a Shortcut task given a story ID and data map.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4205,14 +4275,14 @@ class ScFnMe extends ScBaseInvocable {
   static ScMember? me;
 
   @override
-  String help() {
+  String get help {
     return 'Fetch the current member based on the API token.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4228,14 +4298,14 @@ class ScFnMember extends ScBaseInvocable {
   factory ScFnMember() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Fetch the current member based on the API token.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4261,15 +4331,15 @@ class ScFnMembers extends ScBaseInvocable {
   factory ScFnMembers() => _instance;
 
   @override
-  String help() {
-    return "Return members in this workspace.";
+  String get help {
+    return "Return _all_ members in this workspace.";
   }
 
   @override
-  String helpFull() {
-    return r"""Return _all_ members in this workspace.
-
-If parent entity is a team, this returns only members of the team (equivalent of `ls`).""";
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""If parent entity is a team, this returns only members of the team (equivalent of `ls`).""";
   }
 
   @override
@@ -4291,13 +4361,15 @@ class ScFnWorkflow extends ScBaseInvocable {
   factory ScFnWorkflow() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Return the Shortcut workflow with this ID.";
   }
 
   @override
-  String helpFull() {
-    return r"""A workflow defines an ordered sequence of unstarted, in progress, and done states that a story can be in.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""A workflow defines an ordered sequence of unstarted, in progress, and done states that a story can be in.
 
 A workspace can have multiple workflows defined, but a given story falls only within one workflow.""";
   }
@@ -4327,15 +4399,15 @@ class ScFnWorkflows extends ScBaseInvocable {
   factory ScFnWorkflows() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Return all story workflows in this workspace.";
   }
 
   @override
-  String helpFull() {
-    return r"""Return all story workflows in this workspace.
-
-A workflow state must be assigned a story when created, so you can use this function to find all workflows and then pick a workflow state from within one of them.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""A workflow state must be assigned a story when created, so you can use this function to find all workflows and then pick a workflow state from within one of them.
 
 You can interactively set a default workflow by running the `setup` function.""";
   }
@@ -4357,13 +4429,15 @@ class ScFnEpicWorkflow extends ScBaseInvocable {
   factory ScFnEpicWorkflow() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Return the Shortcut epic workflow for the current workspace.";
   }
 
   @override
-  String helpFull() {
-    return r"""A Shortcut workspace only has one epic workflow. That workflow has states that can be adjusted.
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""A Shortcut workspace only has one epic workflow. That workflow has states that can be adjusted.
 
 This function fetches the epic workflow defined for the workspace, along with its states.""";
   }
@@ -4385,14 +4459,14 @@ class ScFnTeam extends ScBaseInvocable {
   factory ScFnTeam() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Return the Shortcut team with this ID.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4418,14 +4492,14 @@ class ScFnTeams extends ScBaseInvocable {
   factory ScFnTeams() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Return teams in this workspace.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4444,14 +4518,14 @@ class ScFnStory extends ScBaseInvocable {
   factory ScFnStory() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Fetch a story given its identifier.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4476,14 +4550,14 @@ class ScFnTask extends ScBaseInvocable {
   factory ScFnTask() => _instance;
 
   @override
-  String help() {
-    return 'Fetch a story given its identifier.';
+  String get help {
+    return 'Fetch a task given its identifier.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4539,14 +4613,14 @@ class ScFnEpic extends ScBaseInvocable {
   factory ScFnEpic() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Fetch an epic given its identifier.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4571,15 +4645,15 @@ class ScFnEpics extends ScBaseInvocable {
   factory ScFnEpics() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Fetch epics, either all or based on the current parent entity.';
   }
 
   @override
-  String helpFull() {
-    return r"""Fetch Shortcut epics.
-
-If no arguments are provided, the `epics` function checks the current parent entity:
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""If no arguments are provided, the `epics` function checks the current parent entity:
 
 - If a milestone, returns only epics attached to that milestone.
 - If an iteration, returns only epics for stories that are part of the iteration.
@@ -4609,14 +4683,14 @@ class ScFnMilestone extends ScBaseInvocable {
   factory ScFnMilestone() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Fetch a milestone given its identifier.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4641,15 +4715,15 @@ class ScFnMilestones extends ScBaseInvocable {
   factory ScFnMilestones() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Fetch all milestones in the current workspace.';
   }
 
   @override
-  String helpFull() {
-    return r"""Fetch all milestones in the current workspace.
-
-The Shortcut API endpoint does not provide any filtering capabilities, so you'll need to filter here at the console.""";
+  String get helpFull {
+    return help +
+        '\n\n' +
+        r"""The Shortcut API endpoint does not provide any filtering capabilities, so you'll need to filter here at the console.""";
   }
 
   @override
@@ -4675,14 +4749,14 @@ class ScFnIteration extends ScBaseInvocable {
   factory ScFnIteration() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Fetch an iteration given its identifier.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4707,14 +4781,14 @@ class ScFnIterations extends ScBaseInvocable {
   factory ScFnIterations() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Fetch iterations, either all or based on the current parent entity.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4753,14 +4827,14 @@ class ScFnMax extends ScBaseInvocable {
   factory ScFnMax() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Returns the largest argument.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4790,14 +4864,14 @@ class ScFnMin extends ScBaseInvocable {
   factory ScFnMin() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Returns the smallest argument.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4828,14 +4902,14 @@ class ScFnEquals extends ScBaseInvocable {
   factory ScFnEquals() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Returns true if arguments equal one another.";
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -4862,13 +4936,13 @@ class ScFnGreaterThan extends ScBaseInvocable {
   factory ScFnGreaterThan() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Returns true if earlier arguments are greater than later ones.";
   }
 
   @override
-  String helpFull() {
-    return r"""Compares all arguments from left to right, returning true if earlier arguments are greater than later ones.""";
+  String get helpFull {
+    return help;
   }
 
   @override
@@ -4896,13 +4970,13 @@ class ScFnLessThan extends ScBaseInvocable {
   factory ScFnLessThan() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Returns true if earlier arguments are less than later ones.";
   }
 
   @override
-  String helpFull() {
-    return r"""Compares all arguments from left to right, returning true if earlier arguments are greater than later ones.""";
+  String get helpFull {
+    return help;
   }
 
   @override
@@ -4931,13 +5005,13 @@ class ScFnGreaterThanOrEqualTo extends ScBaseInvocable {
   factory ScFnGreaterThanOrEqualTo() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Returns true if earlier arguments are greater than or equal to later ones.";
   }
 
   @override
-  String helpFull() {
-    return r"""Compares all arguments from left to right, returning true if earlier arguments are greater than or equal to later ones.""";
+  String get helpFull {
+    return help;
   }
 
   @override
@@ -4966,13 +5040,13 @@ class ScFnLessThanOrEqualTo extends ScBaseInvocable {
   factory ScFnLessThanOrEqualTo() => _instance;
 
   @override
-  String help() {
+  String get help {
     return "Returns true if earlier arguments are less than or equal to later ones.";
   }
 
   @override
-  String helpFull() {
-    return r"""Compares all arguments from left to right, returning true if earlier arguments are less than or equal to later ones.""";
+  String get helpFull {
+    return help;
   }
 
   @override
@@ -5000,14 +5074,14 @@ class ScFnAdd extends ScBaseInvocable {
   factory ScFnAdd() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Adds values together.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -5030,14 +5104,14 @@ class ScFnSubtract extends ScBaseInvocable {
   factory ScFnSubtract() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Subtracts later arguments from earlier ones.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -5060,14 +5134,14 @@ class ScFnMultiply extends ScBaseInvocable {
   factory ScFnMultiply() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Multiplies its arguments.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -5090,14 +5164,14 @@ class ScFnDivide extends ScBaseInvocable {
   factory ScFnDivide() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Divides earlier arguments by later ones.';
   }
 
   @override
-  String helpFull() {
+  String get helpFull {
     // TODO: implement helpFull
-    return help();
+    return help;
   }
 
   @override
@@ -5124,13 +5198,13 @@ class ScFnModulo extends ScBaseInvocable {
   factory ScFnModulo() => _instance;
 
   @override
-  String help() {
+  String get help {
     return 'Return the modulo of the two numbers.';
   }
 
   @override
-  String helpFull() {
-    return 'Return the module of the two numbers.';
+  String get helpFull {
+    return help;
   }
 
   @override
