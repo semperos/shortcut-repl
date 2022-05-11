@@ -39,7 +39,7 @@ Function startDevReplServerIsolateFn(Options options) {
     final repl = Repl(
         prompt: '\nsc> ',
         continuation: '>>> ',
-        validator: replValidator,
+        validator: replValidator(env),
         env: env);
     await for (final x in repl.runAsync()) {
       handleRepl(env, repl, sendPort, x);

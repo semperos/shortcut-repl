@@ -1560,16 +1560,37 @@ class ScFnSelect extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.length < 2) {
+    ScExpr? sourceMap;
+    ScExpr? selector;
+    if (args.length == 2) {
+      sourceMap = args[0];
+      selector = args[1];
+    } else if (args.length == 1) {
+      selector = args[0];
+      if (env.parentEntity != null) {
+        final pe = env.parentEntity!;
+        sourceMap = pe;
+      } else {
+        throw BadArgumentsException(
+            "The `select` function expects either an explicit map or entity as its first argument, or that you have `cd`ed into an entity. Neither is the case.");
+      }
+    }
+
+    if (sourceMap == null) {
       throw BadArgumentsException(
-          "The `select` function expects at least 2 arguments: a map and at least one key to pull from the map.");
+          "The `select` function expects either an explicit map or entity as its first argument, or that you have `cd`ed into an entity. Neither is the case.");
+    } else if (selector == null) {
+      throw BadArgumentsException(
+          "The `select` function's second argument must be a list of keys to select.");
+    } else if (selector is! ScList) {
+      throw BadArgumentsException(
+          "The `select` function's second argument must be a list of keys to select.");
     } else {
-      final sourceMap = args[0];
       if (sourceMap is ScMap) {
         final getFn = ScFnGet();
         final notFound = ScSymbol('__sc_not-found');
         final targetMap = ScMap({});
-        for (final key in args.innerList) {
+        for (final key in selector.innerList) {
           final value = getFn.invoke(env, ScList([sourceMap, key, notFound]));
           if (value != notFound) {
             targetMap[key] = value;
@@ -1580,7 +1601,7 @@ class ScFnSelect extends ScBaseInvocable {
         final getFn = ScFnGet();
         final notFound = ScSymbol('__sc_not-found');
         final targetMap = ScMap({});
-        for (final key in args.innerList) {
+        for (final key in selector.innerList) {
           final value = getFn.invoke(env, ScList([sourceMap, key, notFound]));
           if (value != notFound) {
             targetMap[key] = value;
@@ -1589,7 +1610,7 @@ class ScFnSelect extends ScBaseInvocable {
         return targetMap;
       } else {
         throw BadArgumentsException(
-            "The `select` function's first argument must be a map or entity, but received a ${sourceMap.informalTypeName()}");
+            "The `select` function expects a map/entity and a list of keys to select out of it.");
       }
     }
   }
@@ -1642,7 +1663,7 @@ The second argument is expected to be a function that takes two arguments: a key
       throw BadArgumentsException(
           "The `where` function expects two arguments: a query and a map of where clauses.");
     }
-    final ScExpr coll = args.first;
+    final ScExpr coll = args[0];
     if (coll is ScList) {
       final ScExpr secondArg = args[1];
       if (secondArg is ScBaseInvocable) {
@@ -5926,6 +5947,20 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
   String informalTypeName() {
     return 'entity';
   }
+
+  @override
+  bool operator ==(Object other) {
+    final thisType = runtimeType;
+    final otherType = other.runtimeType;
+    if (other is ScEntity) {
+      return thisType == otherType && id == other.id;
+    } else {
+      return false;
+    }
+  }
+
+  @override
+  int get hashCode => 31 + id.hashCode;
 
   String toJson() {
     JsonEncoder jsonEncoder = JsonEncoder.withIndent('  ');
