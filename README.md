@@ -49,11 +49,11 @@ sc> ? ?
 # Get dependencies
 dart pub get
 
-# Executable
+# Executable saved as sc in the current directory
 dart compile exe -o sc ./bin/sc_cli.dart
 
-# Development, REPL
-dart run ./bin/sc_cli_dev.dart -r
+# Build code and run REPL
+dart run ./bin/sc_cli.dart -r
 ```
 
 ### Adding new CLI Arguments
