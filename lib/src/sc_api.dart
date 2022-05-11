@@ -86,6 +86,7 @@ class ScEnv {
     ScSymbol('just'): ScFnIdentity(),
     ScSymbol('return'): ScFnIdentity(),
     ScSymbol('value'): ScFnIdentity(), // esp. for fn as value
+    ScSymbol('type'): ScFnType(),
 
     ScSymbol('for-each'): ScFnForEach(),
     ScSymbol('map'): ScFnForEach(),
@@ -1494,6 +1495,51 @@ class ScFnIdentity extends ScBaseInvocable {
         r"""You can use `identity` to return a function as a value, rather than invoking it which is the default. This is a way to alias built-in functions or define your own using anonymous function syntax:
 
 def add identity +""";
+  }
+}
+
+class ScFnType extends ScBaseInvocable {
+  @override
+  // TODO: implement help
+  String get help => "Return the type of this value.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull =>
+      r"""The language provided by this program is a rudimentary Lisp. The "type" of a value is informational; you cannot program with the types, so they are returned as strings.
+
+  The data types are:
+
+  - number
+  - string
+  - list
+  - map
+  - function
+  - entity
+
+  The "entity" type has the following sub-types:
+
+  - story
+  - task
+  - epic
+  - milestone
+  - iteration
+  - workflow
+  - workflow state
+  - epic workflow
+  - epic workflow state
+
+  While the Shortcut API and data model support other entities, they are not represented as first-class entities in this tool at this time. Consult the JSON structure of Shortcut API endpoints that include them for further information.
+  """;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      return ScString(args[0].informalTypeName());
+    } else {
+      throw BadArgumentsException(
+          "The `type` function expects one argument, but received ${args.length}");
+    }
   }
 }
 
