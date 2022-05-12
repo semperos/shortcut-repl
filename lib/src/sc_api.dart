@@ -188,6 +188,7 @@ class ScEnv {
     ScSymbol('prev-state'): ScFnPreviousState(),
     ScSymbol('previous-state'): ScFnPreviousState(),
     ScSymbol('story'): ScFnStory(),
+    ScSymbol('stories'): ScFnStories(),
     ScSymbol('task'): ScFnTask(),
     ScSymbol('epic'): ScFnEpic(),
     ScSymbol('epics'): ScFnEpics(),
@@ -430,6 +431,18 @@ def . just %(cwd)
           title = desc.value;
         } else {
           title = '<No description found>';
+        }
+      } else if (pe is ScMember) {
+        final profile = pe.data[ScString('profile')];
+        if (profile is ScMap) {
+          final name = profile[ScString('name')];
+          if (name is ScString) {
+            title = name.value;
+          } else {
+            title = '<No name in member profile found>';
+          }
+        } else {
+          title = '<No member profile found>';
         }
       } else {
         final name = pe.data[ScString('name')];
@@ -4685,6 +4698,64 @@ class ScFnEpic extends ScBaseInvocable {
   }
 }
 
+class ScFnStories extends ScBaseInvocable {
+  @override
+  String get help =>
+      'Fetch epics, either all or based on the current parent entity.';
+
+  @override
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""If no arguments are provided, the `stories` function checks the current parent entity:
+
+- If an epic, returns stories within the epic.
+- If a milestone, returns stories within epics attached to that milestone.
+- If an iteration, returns only stories that are part of the iteration.
+- If a team, returns only stories assigned to that team.
+- If a member, returns only stories owned by that member.
+- Else: returns stories owned by `me` that are either unstarted or in progress.
+
+If an argument is provided, it must be an epic, iteration, team, member, or milestone.
+
+Use the `find-stories` function to use more fine-grained criteria for retrieving stories.""";
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty && env.parentEntity == null) {
+      throw BadArgumentsException(
+          "The `stories` function expects a parent entity, or 1 argument that is an epic, iteration, team, member, or milestone.");
+    } else {
+      ScEntity entity = env.resolveArgEntity(args, 'epics');
+      if (entity is ScEpic) {
+        return waitOn(env.client.getStoriesInEpic(env, entity.id.value));
+      } else if (entity is ScIteration) {
+        return waitOn(env.client.getStoriesInIteration(env, entity.id.value));
+      } else if (entity is ScTeam) {
+        return waitOn(env.client.getStoriesInTeam(env, entity.id.value));
+      } else if (entity is ScMilestone) {
+        final epics = epicsInMilestone(env, entity);
+        final stories = ScList([]);
+        for (final epic in epics.innerList) {
+          final e = epic as ScEpic;
+          final ss = waitOn(env.client.getStoriesInEpic(env, e.id.value));
+          stories.innerList.addAll(ss.innerList);
+        }
+        return stories;
+      } else if (entity is ScMember) {
+        final findStoriesFn = ScFnFindStories();
+        final ScMap findMap = ScMap({
+          ScString("owner_ids"): ScList([entity]),
+        });
+        return findStoriesFn.invoke(env, ScList([findMap]));
+      } else {
+        throw BadArgumentsException(
+            "The `stories` function expects an epic, iteration, team, or milestone argument, but received a ${entity.informalTypeName()}");
+      }
+    }
+  }
+}
+
 class ScFnEpics extends ScBaseInvocable {
   static final ScFnEpics _instance = ScFnEpics._internal();
   ScFnEpics._internal();
@@ -4696,17 +4767,16 @@ class ScFnEpics extends ScBaseInvocable {
   }
 
   @override
-  String get helpFull {
-    return help +
-        '\n\n' +
-        r"""If no arguments are provided, the `epics` function checks the current parent entity:
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""If no arguments are provided, the `epics` function checks the current parent entity:
 
 - If a milestone, returns only epics attached to that milestone.
 - If an iteration, returns only epics for stories that are part of the iteration.
 - Else: returns _all_ epics in the current workspace.
 
 Warning: That last eventuality can be an expensive call.""";
-  }
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -4866,6 +4936,16 @@ class ScFnIterations extends ScBaseInvocable {
     }
   }
 }
+
+// TODO START HERE ScFnMyStories
+// final findStoriesFn = ScFnFindStories();
+// final meFn = ScFnMe();
+// final ScMap findMap = ScMap({
+//   ScString("owner_ids"): ScList([meFn.invoke(env, ScList([]))]),
+//   ScString("workflow_state_types"):
+//       ScList([ScString("unstarted"), ScString("started")]),
+// });
+// return findStoriesFn.invoke(env, ScList([findMap]));
 
 class ScFnMax extends ScBaseInvocable {
   static final ScFnMax _instance = ScFnMax._internal();
@@ -7558,7 +7638,6 @@ class ScLiveClient extends ScClient {
       }
 
       if (response.statusCode == 404) {
-        stderr.writeln("NOT FOUND $path");
         throw EntityNotFoundException("Entity not found at $path");
       } else if (response.statusCode == 400) {
         throw BadRequestException(
@@ -7837,6 +7916,10 @@ ScEntity? entityFromJson(Map<String, dynamic> json) {
         break;
       case 'team':
         entity = ScTeam(ScString(entityId));
+        entity.title = ScString(title);
+        break;
+      case 'member':
+        entity = ScMember(ScString(entityId));
         entity.title = ScString(title);
         break;
       case 'workflow':
