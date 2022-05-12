@@ -37,7 +37,7 @@ Ctrl-k kills text after cursor.          Ctrl-l clears the screen.
 Ctrl-w kills previous word.
 ''');
     } else if (numInterrupts >= 2) {
-      stderr.writeln('\n\nUntil next time! 👋');
+      stderr.writeln('\nUntil next time! 👋');
       exit(0);
     }
   });
@@ -46,7 +46,7 @@ Ctrl-w kills previous word.
 
   if (options.help) {
     printUsage();
-    return;
+    exit(0);
   } else if (options.isReplMode) {
     startRepl(options, isolateFn);
     // NB: Don't exit, let server+client run.
@@ -55,7 +55,7 @@ Ctrl-w kills previous word.
     exit(0);
   } else {
     printUsage();
-    exit(0);
+    exit(1);
   }
 }
 
@@ -73,7 +73,10 @@ ${parser.usage}
 void evalProgram(Options options) {
   final program = options.program!; // null checked by caller
   final client = ScLiveClient(getShortcutHost(), getShortcutApiToken());
+  final baseConfigDirPath =
+      options.baseConfigDir ?? getDefaultBaseConfigDirPath();
   final env = ScEnv.readFromDisk(
+      baseConfigDirPath: baseConfigDirPath,
       client: client,
       out: stdout,
       err: stderr,
@@ -122,7 +125,10 @@ Future<Isolate> startReplServer(
 Function startProdReplServerIsolateFn(Options options) {
   return (SendPort sendPort) async {
     final client = ScLiveClient(getShortcutHost(), getShortcutApiToken());
+    final baseConfigDirPath =
+        options.baseConfigDir ?? getDefaultBaseConfigDirPath();
     final env = ScEnv.readFromDisk(
+        baseConfigDirPath: baseConfigDirPath,
         client: client,
         out: stdout,
         err: stderr,
@@ -324,8 +330,8 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
             throw UnimplementedError();
         }
         repl.prompt = '\nsc> ';
-      } else if (env.isExpectingBindingAnswer) {
-        final answer = expr.toString().toLowerCase();
+      } else if (env.isExpectingBindingAnswer && expr is ScString) {
+        final answer = expr.value.toLowerCase();
         if (answer == 'y' || answer == 'yes') {
           env.bindNextValue = true;
           env.isExpectingBindingAnswer = false;

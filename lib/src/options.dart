@@ -6,11 +6,18 @@ part 'options.g.dart';
 /// package.
 ArgParser get parser => _$populateOptionsParser(ArgParser(usageLineLength: 80));
 
-/// The command line options for this app
+/// The command line options for sc
 @CliOptions()
 class Options {
   @CliOption(abbr: 'h', negatable: false, help: 'Prints usage information.')
   final bool help;
+
+  @CliOption(
+      abbr: 'c',
+      name: 'config-directory',
+      help:
+          'Base directory to store configuration and caches. Defaults to ~/.config/shortcut-cli. Override here or with SHORTCUT_CONFIG_DIR environment variable.')
+  String? baseConfigDir;
 
   @CliOption(
       abbr: 'e',
@@ -35,7 +42,8 @@ class Options {
   @CliOption(
       abbr: 'a',
       name: 'ansi-color',
-      help: 'Whether or not to use ANSI codes for colored output.')
+      help:
+          'Whether or not to use ANSI codes for colored output. This flag is only partially honored at this time, with ANSI printing for the majority of functions.')
   bool? isAnsiEnabled;
 
   Options(this.help, this.isReplMode);

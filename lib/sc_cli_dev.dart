@@ -27,7 +27,10 @@ Function startDevReplServerIsolateFn(Options options) {
     }
 
     final client = ScLiveClient(getShortcutHost(), getShortcutApiToken());
+    final baseConfigDirPath =
+        options.baseConfigDir ?? getDefaultBaseConfigDirPath();
     final env = ScEnv.readFromDisk(
+        baseConfigDirPath: baseConfigDirPath,
         client: client,
         out: stdout,
         err: stderr,

@@ -18,22 +18,17 @@ class ScEnv {
   ScMap workflowsById = ScMap({});
   ScMap workflowStatesById = ScMap({});
   ScEpicWorkflow? epicWorkflow;
-
   bool isFetchingEager;
+  late final String baseConfigDirPath;
 
-  ScEnv({
-    this.isReplMode = false,
-    this.isAnsiEnabled = true,
-    this.isFetchingEager = false,
-    this.interactivityState = ScInteractivityState.normal,
-    this.envFile,
-    this.historyFile,
-    required this.history,
-    required this.client,
-    this.parentEntity,
-    required this.out,
-    required this.err,
-  });
+  ScEnv(this.client)
+      : isReplMode = false,
+        isAnsiEnabled = true,
+        interactivityState = ScInteractivityState.normal,
+        out = stdout,
+        err = stderr,
+        isFetchingEager = false,
+        history = [];
 
   late Parser<dynamic> scParser;
 
@@ -57,7 +52,7 @@ class ScEnv {
   final bool isReplMode;
 
   /// Should strings be printed using ANSI color codes?
-  final bool isAnsiEnabled;
+  bool isAnsiEnabled;
 
   /// Client to Shortcut API
   final ScClient client;
@@ -237,40 +232,34 @@ class ScEnv {
     isAnsiEnabled = false,
     required IOSink out,
     required IOSink err,
+    required String baseConfigDirPath,
   }) {
-    final envFile = getEnvFile();
+    final envFile = getEnvFile(baseConfigDirPath);
     String contents = envFile.readAsStringSync();
     if (contents.isEmpty) {
       contents = '{}';
     }
-    final historyFile = getHistoryFile();
+    final historyFile = getHistoryFile(baseConfigDirPath);
     final history = historyFile.readAsLinesSync();
     final json = jsonDecode(contents);
-    final env = ScEnv.fromMap(client, json,
-        envFile: envFile,
-        history: history,
-        historyFile: historyFile,
-        isAnsiEnabled: isAnsiEnabled,
-        isReplMode: isReplMode);
+    ScEnv env = ScEnv(client);
+    env.baseConfigDirPath = baseConfigDirPath;
+    env.envFile = envFile;
+    env.history = history;
+    env.historyFile = historyFile;
+    env.isAnsiEnabled = isAnsiEnabled;
+    env = ScEnv.extendEnvfromMap(env, json);
     return env;
   }
 
-  factory ScEnv.fromMap(
-    ScClient client,
-    Map<String, dynamic> data, {
-    bool isAnsiEnabled = false,
-    bool isReplMode = false,
-    File? envFile,
-    File? historyFile,
-    IOSink? err,
-    IOSink? out,
-    List<String>? history,
-  }) {
-    ScEntity? parentEntity;
-    out ??= stdout;
-    err ??= stderr;
-    history ??= [];
+  /// Used in tests.
+  factory ScEnv.fromMap(ScClient client, Map<String, dynamic> data) {
+    final env = ScEnv(client);
+    return ScEnv.extendEnvfromMap(env, data);
+  }
 
+  static ScEnv extendEnvfromMap(ScEnv env, Map<String, dynamic> data) {
+    ScEntity? parentEntity;
     final p = data['parent'] as Map<String, dynamic>?;
     if (p == null) {
       parentEntity = null;
@@ -278,18 +267,8 @@ class ScEnv {
       parentEntity = entityFromJson(p);
     }
 
-    final env = ScEnv(
-      client: client,
-      envFile: envFile,
-      err: err,
-      history: history,
-      historyFile: historyFile,
-      isAnsiEnabled: isAnsiEnabled,
-      isFetchingEager: data['isFetchingEager'] ?? false,
-      isReplMode: isReplMode,
-      out: out,
-      parentEntity: parentEntity,
-    );
+    env.parentEntity = parentEntity;
+    env.isFetchingEager = data['isFetchingEager'] ?? false;
 
     final defaultWorkflowId = data['defaultWorkflowId'];
     if (defaultWorkflowId != null) {
@@ -326,8 +305,8 @@ class ScEnv {
           }
         }
       } catch (_) {
-        err.writeln(
-            "Your $envFile failed to load correctly. Please fix its JSON if you manually edited it, or remove it for a new one to be generated.");
+        stderr.writeln(
+            "Your ${env.envFile} failed to load correctly. Please fix its JSON if you manually edited it, or remove it for a new one to be generated.");
       }
       env.parentEntityHistory = l;
       if (parentEntity != null) {
@@ -541,28 +520,28 @@ def . just %(cwd)
 
   void writeCachesToDisk() {
     if (membersById.isNotEmpty) {
-      final f = getCacheMembersFile();
+      final f = getCacheMembersFile(baseConfigDirPath);
       final sink = f.openWrite(mode: FileMode.writeOnly);
       final json = membersById.toJson();
       sink.write(json);
       sink.close();
     }
     if (teamsById.isNotEmpty) {
-      final f = getCacheTeamsFile();
+      final f = getCacheTeamsFile(baseConfigDirPath);
       final sink = f.openWrite(mode: FileMode.writeOnly);
       final json = teamsById.toJson();
       sink.write(json);
       sink.close();
     }
     if (workflowsById.isNotEmpty) {
-      final f = getCacheWorkflowsFile();
+      final f = getCacheWorkflowsFile(baseConfigDirPath);
       final sink = f.openWrite(mode: FileMode.writeOnly);
       final json = workflowsById.toJson();
       sink.write(json);
       sink.close();
     }
     if (epicWorkflow != null) {
-      final f = getCacheEpicWorkflowFile();
+      final f = getCacheEpicWorkflowFile(baseConfigDirPath);
       final sink = f.openWrite(mode: FileMode.writeOnly);
       final json = epicWorkflow?.data.toJson();
       sink.write(json);
@@ -572,10 +551,10 @@ def . just %(cwd)
 
   Future<void> loadCachesFromDisk() async {
     try {
-      final membersFile = getCacheMembersFile();
-      final teamsFile = getCacheTeamsFile();
-      final workflowsFile = getCacheWorkflowsFile();
-      final epicWorkflowFile = getCacheEpicWorkflowFile();
+      final membersFile = getCacheMembersFile(baseConfigDirPath);
+      final teamsFile = getCacheTeamsFile(baseConfigDirPath);
+      final workflowsFile = getCacheWorkflowsFile(baseConfigDirPath);
+      final epicWorkflowFile = getCacheEpicWorkflowFile(baseConfigDirPath);
 
       final membersStr = await membersFile.readAsString();
       final teamsStr = await teamsFile.readAsString();
@@ -615,7 +594,7 @@ def . just %(cwd)
       stderr.writeln(e);
       stderr.writeln(st);
       stderr.writeln(
-          '[ERROR] Your cache files are malformed. Please delete the "cache*.json" files in ${getBaseConfigDirPath()}');
+          '[ERROR] Your cache files are malformed. Please delete the "cache*.json" files in $baseConfigDirPath');
     }
   }
 
@@ -3419,7 +3398,7 @@ class ScFnLoad extends ScBaseInvocable {
       final sourceFilePath = (args.first as ScString).value;
       var sourceFile = File(sourceFilePath);
       if (!sourceFile.existsSync()) {
-        sourceFile = File(getBaseConfigDirPath() + '/' + sourceFilePath);
+        sourceFile = File(env.baseConfigDirPath + '/' + sourceFilePath);
         if (!sourceFile.existsSync()) {
           throw SourceFileNotFound(sourceFilePath);
         }
@@ -7301,60 +7280,60 @@ class ScLiveClient extends ScClient {
 
   @override
   Future<ScEpic> getEpic(ScEnv env, String epicPublicId) async {
-    final taba = await authedCall("/epics/$epicPublicId");
+    final taba = await authedCall(env, "/epics/$epicPublicId");
     return taba.epic(env);
   }
 
   @override
   Future<ScList> getEpics(ScEnv env) async {
-    final taba = await authedCall("/epics");
+    final taba = await authedCall(env, "/epics");
     return taba.epics(env);
   }
 
   @override
   Future<ScEpic> updateEpic(
       ScEnv env, String epicPublicId, Map<String, dynamic> updateMap) async {
-    final taba = await authedCall("/epics/$epicPublicId",
+    final taba = await authedCall(env, "/epics/$epicPublicId",
         httpVerb: HttpVerb.put, body: updateMap);
     return taba.epic(env);
   }
 
   @override
   Future<ScIteration> getIteration(ScEnv env, String iterationPublicId) async {
-    final taba = await authedCall("/iterations/$iterationPublicId");
+    final taba = await authedCall(env, "/iterations/$iterationPublicId");
     return taba.iteration(env);
   }
 
   @override
   Future<ScMilestone> getMilestone(ScEnv env, String milestonePublicId) async {
-    final taba = await authedCall("/milestones/$milestonePublicId");
+    final taba = await authedCall(env, "/milestones/$milestonePublicId");
     return taba.milestone(env);
   }
 
   @override
   Future<ScStory> getStory(ScEnv env, String storyPublicId) async {
-    final taba = await authedCall("/stories/$storyPublicId");
+    final taba = await authedCall(env, "/stories/$storyPublicId");
     return taba.story(env);
   }
 
   @override
   Future<ScList> getEpicsInMilestone(
       ScEnv env, String milestonePublicId) async {
-    final taba = await authedCall("/milestones/$milestonePublicId/epics");
+    final taba = await authedCall(env, "/milestones/$milestonePublicId/epics");
     return taba.epics(env);
   }
 
   @override
   Future<ScEpic> createEpic(ScEnv env, Map<String, dynamic> epicData) async {
-    final taba =
-        await authedCall("/epics", httpVerb: HttpVerb.post, body: epicData);
+    final taba = await authedCall(env, "/epics",
+        httpVerb: HttpVerb.post, body: epicData);
     return taba.epic(env);
   }
 
   @override
   Future<ScIteration> createIteration(
       ScEnv env, Map<String, dynamic> iterationData) async {
-    final taba = await authedCall("/iterations",
+    final taba = await authedCall(env, "/iterations",
         httpVerb: HttpVerb.post, body: iterationData);
     return taba.iteration(env);
   }
@@ -7362,35 +7341,36 @@ class ScLiveClient extends ScClient {
   @override
   Future<ScMilestone> createMilestone(
       ScEnv env, Map<String, dynamic> milestoneData) async {
-    final taba = await authedCall("/milestones",
+    final taba = await authedCall(env, "/milestones",
         httpVerb: HttpVerb.post, body: milestoneData);
     return taba.milestone(env);
   }
 
   @override
   Future<ScStory> createStory(ScEnv env, Map<String, dynamic> storyData) async {
-    final taba =
-        await authedCall("/stories", httpVerb: HttpVerb.post, body: storyData);
+    final taba = await authedCall(env, "/stories",
+        httpVerb: HttpVerb.post, body: storyData);
     return taba.story(env);
   }
 
   @override
   Future<ScList> getStoriesInEpic(ScEnv env, String epicPublicId) async {
-    final taba = await authedCall("/epics/$epicPublicId/stories");
+    final taba = await authedCall(env, "/epics/$epicPublicId/stories");
     return taba.stories(env);
   }
 
   @override
   Future<ScList> getStoriesInIteration(
       ScEnv env, String iterationPublicId) async {
-    final taba = await authedCall("/iterations/$iterationPublicId/stories");
+    final taba =
+        await authedCall(env, "/iterations/$iterationPublicId/stories");
     return taba.stories(env);
   }
 
   @override
   Future<ScIteration> updateIteration(ScEnv env, String iterationPublicId,
       Map<String, dynamic> updateMap) async {
-    final taba = await authedCall("/iterations/$iterationPublicId",
+    final taba = await authedCall(env, "/iterations/$iterationPublicId",
         httpVerb: HttpVerb.put, body: updateMap);
     return taba.iteration(env);
   }
@@ -7398,7 +7378,7 @@ class ScLiveClient extends ScClient {
   @override
   Future<ScMilestone> updateMilestone(ScEnv env, String milestonePublicId,
       Map<String, dynamic> updateMap) async {
-    final taba = await authedCall("/milestones/$milestonePublicId",
+    final taba = await authedCall(env, "/milestones/$milestonePublicId",
         httpVerb: HttpVerb.put, body: updateMap);
     return taba.milestone(env);
   }
@@ -7406,21 +7386,21 @@ class ScLiveClient extends ScClient {
   @override
   Future<ScStory> updateStory(
       ScEnv env, String storyPublicId, Map<String, dynamic> updateMap) async {
-    final taba = await authedCall("/stories/$storyPublicId",
+    final taba = await authedCall(env, "/stories/$storyPublicId",
         httpVerb: HttpVerb.put, body: updateMap);
     return taba.story(env);
   }
 
   @override
   Future<ScMember> getCurrentMember(ScEnv env) async {
-    final tabaShallow = await authedCall('/member');
+    final tabaShallow = await authedCall(env, '/member');
     final shallowMember = tabaShallow.currentMember(env);
     return await getMember(env, shallowMember.id.value);
   }
 
   @override
   Future<ScMap> search(ScEnv env, ScString queryString) async {
-    final taba = await authedCall('/search',
+    final taba = await authedCall(env, '/search',
         body: {'query': queryString.value}, httpVerb: HttpVerb.get);
     return taba.search(env);
   }
@@ -7439,7 +7419,7 @@ class ScLiveClient extends ScClient {
   @override
   Future<ScTask> createTask(
       ScEnv env, String storyPublicId, Map<String, dynamic> taskData) async {
-    final taba = await authedCall("/stories/$storyPublicId/tasks",
+    final taba = await authedCall(env, "/stories/$storyPublicId/tasks",
         httpVerb: HttpVerb.post, body: taskData);
     return taba.task(env, storyPublicId);
   }
@@ -7448,91 +7428,92 @@ class ScLiveClient extends ScClient {
   Future<ScTask> getTask(
       ScEnv env, String storyPublicId, String taskPublicId) async {
     final taba =
-        await authedCall("/stories/$storyPublicId/tasks/$taskPublicId");
+        await authedCall(env, "/stories/$storyPublicId/tasks/$taskPublicId");
     return taba.task(env, storyPublicId);
   }
 
   @override
   Future<ScTask> updateTask(ScEnv env, String storyPublicId,
       String taskPublicId, Map<String, dynamic> updateMap) async {
-    final taba = await authedCall("/stories/$storyPublicId/tasks/$taskPublicId",
+    final taba = await authedCall(
+        env, "/stories/$storyPublicId/tasks/$taskPublicId",
         httpVerb: HttpVerb.put, body: updateMap);
     return taba.task(env, storyPublicId);
   }
 
   @override
   Future<ScList> getWorkflows(ScEnv env) async {
-    final taba = await authedCall("/workflows");
+    final taba = await authedCall(env, "/workflows");
     return taba.workflows(env);
   }
 
   @override
   Future<ScTeam> getTeam(ScEnv env, String teamPublicId) async {
-    final taba = await authedCall("/groups/$teamPublicId");
+    final taba = await authedCall(env, "/groups/$teamPublicId");
     return taba.team(env, teamPublicId);
   }
 
   @override
   Future<ScList> getTeams(ScEnv env) async {
-    final taba = await authedCall("/groups");
+    final taba = await authedCall(env, "/groups");
     return taba.teams(env);
   }
 
   @override
   Future<ScWorkflow> getWorkflow(ScEnv env, String workflowPublicId) async {
-    final taba = await authedCall("/workflows/$workflowPublicId");
+    final taba = await authedCall(env, "/workflows/$workflowPublicId");
     return taba.workflow(env, workflowPublicId);
   }
 
   @override
   Future<ScEpicWorkflow> getEpicWorkflow(ScEnv env) async {
-    final taba = await authedCall("/epic-workflow");
+    final taba = await authedCall(env, "/epic-workflow");
     return taba.epicWorkflow(env);
   }
 
   @override
   Future<ScList> getMembers(ScEnv env) async {
-    final taba = await authedCall("/members");
+    final taba = await authedCall(env, "/members");
     return taba.members(env);
   }
 
   @override
   Future<ScMember> getMember(ScEnv env, String memberPublicId) async {
-    final taba = await authedCall("/members/$memberPublicId");
+    final taba = await authedCall(env, "/members/$memberPublicId");
     return taba.member(env);
   }
 
   @override
   Future<ScList> getStoriesInTeam(ScEnv env, String teamPublicId) async {
-    final taba = await authedCall("/groups/$teamPublicId/stories");
+    final taba = await authedCall(env, "/groups/$teamPublicId/stories");
     return taba.stories(env);
   }
 
   @override
   Future<ScList> getIterations(ScEnv env) async {
-    final taba = await authedCall("/iterations");
+    final taba = await authedCall(env, "/iterations");
     return taba.iterations(env);
   }
 
   @override
   Future<ScList> findStories(ScEnv env, Map<String, dynamic> findMap) async {
-    final taba = await authedCall("/stories/search",
+    final taba = await authedCall(env, "/stories/search",
         httpVerb: HttpVerb.post, body: findMap);
     return taba.stories(env);
   }
 
   @override
   Future<ScList> getMilestones(ScEnv env) async {
-    final taba = await authedCall("/milestones");
+    final taba = await authedCall(env, "/milestones");
     return taba.milestones(env);
   }
 
-  Future<ThereAndBackAgain> authedCall(String path,
+  Future<ThereAndBackAgain> authedCall(ScEnv env, String path,
       {HttpVerb httpVerb = HttpVerb.get, Map<String, dynamic>? body}) async {
     if (recordedCallsFile == null) {
       shouldRecordCalls = checkShouldRecordCalls();
       recordedCallsFile ??= File([
-        getBaseConfigDirPath(),
+        getDefaultBaseConfigDirPath(),
         'recorded-calls.jsonl'
       ].join(Platform.pathSeparator));
     }
@@ -7577,6 +7558,7 @@ class ScLiveClient extends ScClient {
       }
 
       if (response.statusCode == 404) {
+        stderr.writeln("NOT FOUND $path");
         throw EntityNotFoundException("Entity not found at $path");
       } else if (response.statusCode == 400) {
         throw BadRequestException(

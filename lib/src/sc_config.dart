@@ -24,9 +24,9 @@ bool checkShouldRecordCalls() {
   return Platform.environment['SHORTCUT_RECORD_CALLS'] != null;
 }
 
-File getEnvFile() {
-  final baseDirPath = getBaseConfigDirPath();
-  final envFile = File([baseDirPath, envFilePath].join(Platform.pathSeparator));
+File getEnvFile(String baseConfigDirPath) {
+  final envFile =
+      File([baseConfigDirPath, envFilePath].join(Platform.pathSeparator));
   if (!envFile.existsSync()) {
     envFile.parent.createSync(recursive: true);
     envFile.writeAsStringSync('{}');
@@ -34,10 +34,9 @@ File getEnvFile() {
   return envFile;
 }
 
-File getHistoryFile() {
-  final baseDirPath = getBaseConfigDirPath();
+File getHistoryFile(String baseConfigDirPath) {
   final historyFile =
-      File([baseDirPath, historyFilePath].join(Platform.pathSeparator));
+      File([baseConfigDirPath, historyFilePath].join(Platform.pathSeparator));
   if (!historyFile.existsSync()) {
     historyFile.parent.createSync(recursive: true);
     historyFile.writeAsStringSync('');
@@ -45,10 +44,9 @@ File getHistoryFile() {
   return historyFile;
 }
 
-File getCacheMembersFile() {
-  final baseDirPath = getBaseConfigDirPath();
-  final cacheMembersFile =
-      File([baseDirPath, cacheMembersFilePath].join(Platform.pathSeparator));
+File getCacheMembersFile(String baseConfigDirPath) {
+  final cacheMembersFile = File(
+      [baseConfigDirPath, cacheMembersFilePath].join(Platform.pathSeparator));
   if (!cacheMembersFile.existsSync()) {
     cacheMembersFile.parent.createSync(recursive: true);
     cacheMembersFile.writeAsStringSync('{}');
@@ -56,10 +54,9 @@ File getCacheMembersFile() {
   return cacheMembersFile;
 }
 
-File getCacheTeamsFile() {
-  final baseDirPath = getBaseConfigDirPath();
-  final cacheTeamsFile =
-      File([baseDirPath, cacheTeamsFilePath].join(Platform.pathSeparator));
+File getCacheTeamsFile(String baseConfigDirPath) {
+  final cacheTeamsFile = File(
+      [baseConfigDirPath, cacheTeamsFilePath].join(Platform.pathSeparator));
   if (!cacheTeamsFile.existsSync()) {
     cacheTeamsFile.parent.createSync(recursive: true);
     cacheTeamsFile.writeAsStringSync('{}');
@@ -67,10 +64,9 @@ File getCacheTeamsFile() {
   return cacheTeamsFile;
 }
 
-File getCacheWorkflowsFile() {
-  final baseDirPath = getBaseConfigDirPath();
-  final cacheWorkflowsFile =
-      File([baseDirPath, cacheWorkflowsFilePath].join(Platform.pathSeparator));
+File getCacheWorkflowsFile(String baseConfigDirPath) {
+  final cacheWorkflowsFile = File(
+      [baseConfigDirPath, cacheWorkflowsFilePath].join(Platform.pathSeparator));
   if (!cacheWorkflowsFile.existsSync()) {
     cacheWorkflowsFile.parent.createSync(recursive: true);
     cacheWorkflowsFile.writeAsStringSync('{}');
@@ -78,10 +74,9 @@ File getCacheWorkflowsFile() {
   return cacheWorkflowsFile;
 }
 
-File getCacheEpicWorkflowFile() {
-  final baseDirPath = getBaseConfigDirPath();
-  final cacheWorkflowsFile = File(
-      [baseDirPath, cacheEpicWorkflowFilePath].join(Platform.pathSeparator));
+File getCacheEpicWorkflowFile(String baseConfigDirPath) {
+  final cacheWorkflowsFile = File([baseConfigDirPath, cacheEpicWorkflowFilePath]
+      .join(Platform.pathSeparator));
   if (!cacheWorkflowsFile.existsSync()) {
     cacheWorkflowsFile.parent.createSync(recursive: true);
     cacheWorkflowsFile.writeAsStringSync('{}');
@@ -93,7 +88,7 @@ File getCacheEpicWorkflowFile() {
 /// because constructors cannot use async and this is called from the [ScEnv]
 /// constructor. Creates the directory if it doesn't exist; callers may need
 /// to create individual files that they manage.
-String getBaseConfigDirPath() {
+String getDefaultBaseConfigDirPath() {
   var baseDir = Platform.environment['HOME'];
   baseDir ??= '.';
   final configDirPath = Platform.environment['SHORTCUT_CONFIG_DIR'] ??
