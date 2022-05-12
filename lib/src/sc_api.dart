@@ -318,8 +318,57 @@ class ScEnv {
     return env;
   }
 
-  ScExpr evalProgram(String program) {
-    final expr = scEval(this, readProgram(program));
+  ScExpr interpretProgram(String sourceName, List<String> sourceLines) {
+    ScExpr returnValue = ScNil();
+    final multiLineExprString = StringBuffer();
+    for (var i = 0; i < sourceLines.length; i++) {
+      final line = sourceLines[i];
+      final trimmed = line.trim();
+      if (multiLineExprString.isNotEmpty) {
+        // Continue building up multi-line program.
+        multiLineExprString.write("$trimmed ");
+        final currentProgram = multiLineExprString.toString();
+        if (scParser.accept(currentProgram)) {
+          returnValue = interpretExprString(currentProgram);
+          multiLineExprString.clear();
+        } else if (i == sourceLines.length - 1) {
+          throw PrematureEndOfProgram(
+              "The code in $sourceName fails to load because the file ended in the middle of parsing. Check matching delimiters and try again.");
+        } else {
+          continue;
+        }
+      } else if (trimmed.startsWith(';') || trimmed.startsWith('#')) {
+        // Given how the parser is written, a program cannot just
+        // be comments. However, given we're doing "one program
+        // per line" here, we need to do something a bit janky
+        // to satisfy both constraints.
+        //
+        // Editing the parser involved a lot of changes. This is
+        // good enough.
+        returnValue = interpretExprString('$line\nnil');
+      } else if (!scParser.accept(trimmed)) {
+        // Allow multi-line programs
+        multiLineExprString.write("$trimmed ");
+        final currentExprString = multiLineExprString.toString();
+        // Single-line parenthetical program
+        if (scParser.accept(currentExprString)) {
+          returnValue = interpretExprString(currentExprString);
+          multiLineExprString.clear();
+        } else if (i == sourceLines.length - 1) {
+          throw PrematureEndOfProgram(
+              "The code in $sourceName fails to load because the file ended in the middle of parsing. Check matching delimiters and try again.");
+        } else {
+          continue;
+        }
+      } else {
+        returnValue = interpretExprString(line);
+      }
+    }
+    return returnValue;
+  }
+
+  ScExpr interpretExprString(String exprString) {
+    final expr = scEval(this, readExprString(exprString));
     if (isReplMode) {
       final star2 = this[ScSymbol('*2')];
       final star1 = this[ScSymbol('*1')];
@@ -330,8 +379,8 @@ class ScEnv {
     return expr;
   }
 
-  ScExpr readProgram(String program) {
-    return scRead(this, program);
+  ScExpr readExprString(String exprString) {
+    return scRead(this, exprString);
   }
 
   /// Prelude/core/definitions of the language beyond the absolute basics which
@@ -354,8 +403,9 @@ def mapcat value (fn [coll f] (apply (map coll f) concat))
 def states value (fn [entity] (ls (.workflow_id (fetch entity))))
 def . just %(cwd)
 ''';
+    interpretProgram("<built-in prelude source>", prelude.split('\n'));
     for (final line in prelude.split("\n")) {
-      evalProgram(line);
+      interpretExprString(line);
     }
   }
 
@@ -3417,53 +3467,8 @@ class ScFnLoad extends ScBaseInvocable {
         }
       }
 
-      ScExpr returnValue = ScNil();
-      StringBuffer multiLineProgram = StringBuffer();
-      final fileLines = sourceFile.readAsLinesSync();
-      for (var i = 0; i < fileLines.length; i++) {
-        final line = fileLines[i];
-        final trimmed = line.trim();
-        if (multiLineProgram.isNotEmpty) {
-          // Continue building up multi-line program.
-          multiLineProgram.write("$trimmed ");
-          final currentProgram = multiLineProgram.toString();
-          if (env.scParser.accept(currentProgram)) {
-            returnValue = env.evalProgram(currentProgram);
-            multiLineProgram.clear();
-          } else if (i == fileLines.length - 1) {
-            throw PrematureEndOfProgram(
-                "The code in $sourceFile fails to load because the file ended in the middle of parsing. Check matching delimiters and try again.");
-          } else {
-            continue;
-          }
-        } else if (trimmed.startsWith(';') || trimmed.startsWith('#')) {
-          // Given how the parser is written, a program cannot just
-          // be comments. However, given we're doing "one program
-          // per line" here, we need to do something a bit janky
-          // to satisfy both constraints.
-          //
-          // Editing the parser involved a lot of changes. This is
-          // good enough.
-          returnValue = env.evalProgram('$line\nnil');
-        } else if (!env.scParser.accept(trimmed)) {
-          // Allow multi-line programs
-          multiLineProgram.write("$trimmed ");
-          final currentProgram = multiLineProgram.toString();
-          // Single-line parenthetical program
-          if (env.scParser.accept(currentProgram)) {
-            returnValue = env.evalProgram(currentProgram);
-            multiLineProgram.clear();
-          } else if (i == fileLines.length - 1) {
-            throw PrematureEndOfProgram(
-                "The code in $sourceFile fails to load because the file ended in the middle of parsing. Check matching delimiters and try again.");
-          } else {
-            continue;
-          }
-        } else {
-          returnValue = env.evalProgram(line);
-        }
-      }
-      return returnValue;
+      final sourceLines = sourceFile.readAsLinesSync();
+      return env.interpretProgram(sourceFile.absolute.path, sourceLines);
     }
   }
 }
@@ -6692,15 +6697,20 @@ class ScStory extends ScEntity {
     }
 
     final estimate = data[ScString('estimate')];
-    if (estimate != ScNil()) {
+    if (estimate is ScNumber) {
       sb.write(wrapWith('Estimate '.padLeft(labelWidth), [entityColor]));
-      if (estimate is ScNumber) {
-        if (estimate == ScNumber(1)) {
-          sb.write("$estimate point");
-        } else {
-          sb.write("$estimate points");
-        }
+      if (estimate == ScNumber(1)) {
+        sb.write("$estimate point");
+      } else {
+        sb.write("$estimate points");
       }
+      sb.writeln();
+    }
+
+    final deadline = data[ScString('deadline')];
+    if (deadline is ScString) {
+      sb.write(wrapWith('Deadline '.padLeft(labelWidth), [entityColor]));
+      sb.write(deadline);
       sb.writeln();
     }
 

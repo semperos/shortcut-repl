@@ -88,54 +88,55 @@ void main() {
   group('Evaluating', () {
     final env = e();
     test('Multiple expressions', () {
-      expect(() => env.evalProgram('1 2 3'),
+      expect(() => env.interpretExprString('1 2 3'),
           throwsA(TypeMatcher<UninvocableException>()));
-      expect(env.evalProgram('(fn [] 1 2 3)'), ScNumber(3));
+      expect(env.interpretExprString('(fn [] 1 2 3)'), ScNumber(3));
     });
     test('Piped expressions', () {
       // expect(readProgram('identity 42 | + 3'), 42);
-      expect(env.evalProgram('()'), ScNil());
-      expect(env.evalProgram('42'), ScNumber(42));
-      expect(env.evalProgram('0.42'), ScNumber(0.42));
-      expect(env.evalProgram('+'), ScNumber(0));
-      expect(env.evalProgram('(+ 2 3)'), ScNumber(5));
-      expect(env.evalProgram('+ 2 3'), ScNumber(5));
-      expect(env.evalProgram('- 2 3'), ScNumber(-1));
-      expect(env.evalProgram('* 2 3'), ScNumber(6));
-      expect(env.evalProgram('/ 9 3'), ScNumber(3));
-      expect(env.evalProgram('+ 2 3 | + 4'), ScNumber(9));
-      expect(env.evalProgram('+ 2 3 | + 4 | * 10 5'), ScNumber(450));
-      expect(env.evalProgram('+ 2 3 | + 4 | * 4 | / 36'), ScNumber(1));
-      expect(env.evalProgram('+ 2 3 | - 4 '), ScNumber(1));
-      expect(env.evalProgram('+ 2 3 | - _ 4 '), ScNumber(1));
-      expect(env.evalProgram('+ 2 3 | - 4 _ '), ScNumber(-1));
-      expect(env.evalProgram('+ 2 3 | + 4 | * 4 _ | / _ 36'), ScNumber(1));
-      expect(() => env.evalProgram('+ _ 2'),
+      expect(env.interpretExprString('()'), ScNil());
+      expect(env.interpretExprString('42'), ScNumber(42));
+      expect(env.interpretExprString('0.42'), ScNumber(0.42));
+      expect(env.interpretExprString('+'), ScNumber(0));
+      expect(env.interpretExprString('(+ 2 3)'), ScNumber(5));
+      expect(env.interpretExprString('+ 2 3'), ScNumber(5));
+      expect(env.interpretExprString('- 2 3'), ScNumber(-1));
+      expect(env.interpretExprString('* 2 3'), ScNumber(6));
+      expect(env.interpretExprString('/ 9 3'), ScNumber(3));
+      expect(env.interpretExprString('+ 2 3 | + 4'), ScNumber(9));
+      expect(env.interpretExprString('+ 2 3 | + 4 | * 10 5'), ScNumber(450));
+      expect(env.interpretExprString('+ 2 3 | + 4 | * 4 | / 36'), ScNumber(1));
+      expect(env.interpretExprString('+ 2 3 | - 4 '), ScNumber(1));
+      expect(env.interpretExprString('+ 2 3 | - _ 4 '), ScNumber(1));
+      expect(env.interpretExprString('+ 2 3 | - 4 _ '), ScNumber(-1));
+      expect(
+          env.interpretExprString('+ 2 3 | + 4 | * 4 _ | / _ 36'), ScNumber(1));
+      expect(() => env.interpretExprString('+ _ 2'),
           throwsA(TypeMatcher<MisplacedPipedArg>()));
-      expect(() => env.evalProgram('+ 3 2 | * 4 _ _'),
+      expect(() => env.interpretExprString('+ 3 2 | * 4 _ _'),
           throwsA(TypeMatcher<ExtraneousPipedArg>()));
     });
     test('Piped Expressions, edge cases', () {
-      expect(env.evalProgram('284 | + 1'), ScNumber(285));
+      expect(env.interpretExprString('284 | + 1'), ScNumber(285));
     });
   });
 
   group('Defining', () {
     test('Evaluation', () {
       final env = e();
-      env.evalProgram('def a + 42 2');
+      env.interpretExprString('def a + 42 2');
       expect(env[ScSymbol('a')], ScNumber(44));
-      env.evalProgram(r'''def double
+      env.interpretExprString(r'''def double
       value %(* % 2)''');
-      expect(env.evalProgram('double 21'), ScNumber(42));
+      expect(env.interpretExprString('double 21'), ScNumber(42));
     });
     test('Def invocation', () {
       final env = e();
       final prog =
           r"""(def with-estimate value (fn [story estimate] (extend story { "estimate" estimate })))""";
       expect(scParser.accept(prog), true);
-      expect(env.evalProgram(prog), TypeMatcher<ScFunction>());
-      final fn = env.evalProgram(prog) as ScFunction;
+      expect(env.interpretExprString(prog), TypeMatcher<ScFunction>());
+      final fn = env.interpretExprString(prog) as ScFunction;
       expect(fn.params.length, 2);
       expect(env.bindings, contains(ScSymbol('with-estimate')));
     });
@@ -146,63 +147,71 @@ void main() {
       final env = e();
       expect(scParser.parse('(fn alpha [a b] b)').value[0][0],
           TypeMatcher<ScFunction>());
-      expect(env.evalProgram('(fn [])'), ScNil());
-      expect(() => env.evalProgram('(fn [a])'),
+      expect(env.interpretExprString('(fn [])'), ScNil());
+      expect(() => env.interpretExprString('(fn [a])'),
           throwsA(isA<BadArgumentsException>()));
-      expect(env.evalProgram('((fn answer [] 42))'), ScNumber(42));
-      expect(env.evalProgram('((fn answer [] 42 26))'), ScNumber(26));
-      expect(env.evalProgram('(fn a [a] a) 26'), ScNumber(26));
-      expect(env.evalProgram('(fn higher [f n] (f 1 n)) + 26'), ScNumber(27));
+      expect(env.interpretExprString('((fn answer [] 42))'), ScNumber(42));
+      expect(env.interpretExprString('((fn answer [] 42 26))'), ScNumber(26));
+      expect(env.interpretExprString('(fn a [a] a) 26'), ScNumber(26));
+      expect(env.interpretExprString('(fn higher [f n] (f 1 n)) + 26'),
+          ScNumber(27));
       expect(
-          env.evalProgram(
+          env.interpretExprString(
               '(fn nested [coll n] (map coll (fn mapper [item] (* item n)))) [1 2 3] 3'),
-          env.evalProgram('[3 6 9]'));
+          env.interpretExprString('[3 6 9]'));
       expect(
-          env.evalProgram(
+          env.interpretExprString(
               '(fn shadowing [x n] (map x (fn mapper [x] (* x n)))) [1 2 3] 3'),
-          env.evalProgram('[3 6 9]'));
+          env.interpretExprString('[3 6 9]'));
     });
   });
 
   group('Anonymous functions', () {
     final env = e();
     test('Zero arguments', () {
-      expect(env.evalProgram('invoke %()'), ScNil());
-      expect(env.evalProgram('invoke %(+)'), ScNumber(0));
-      expect(env.evalProgram('invoke %(*)'), ScNumber(1));
+      expect(env.interpretExprString('invoke %()'), ScNil());
+      expect(env.interpretExprString('invoke %(+)'), ScNumber(0));
+      expect(env.interpretExprString('invoke %(*)'), ScNumber(1));
     });
     test('Single argument', () {
-      expect(env.evalProgram('invoke %(+ % 1) 2'), ScNumber(3));
-      expect(env.evalProgram('invoke %(split %) "alpha\nbeta"'),
+      expect(env.interpretExprString('invoke %(+ % 1) 2'), ScNumber(3));
+      expect(env.interpretExprString('invoke %(split %) "alpha\nbeta"'),
           ScList([ScString('alpha'), ScString('beta')]));
-      expect(env.evalProgram('invoke %(get {.a 42} %1) .a'), ScNumber(42));
-      expect(env.evalProgram('invoke %(get {.a 42} %1) .b'), ScNil());
+      expect(
+          env.interpretExprString('invoke %(get {.a 42} %1) .a'), ScNumber(42));
+      expect(env.interpretExprString('invoke %(get {.a 42} %1) .b'), ScNil());
     });
     test('Multiple arguments', () {
-      expect(env.evalProgram('invoke %(- %2 %1) 8 10'), ScNumber(2));
-      expect(env.evalProgram('invoke %(get {.a "alpha"} %1-a-key) .a'),
+      expect(env.interpretExprString('invoke %(- %2 %1) 8 10'), ScNumber(2));
+      expect(env.interpretExprString('invoke %(get {.a "alpha"} %1-a-key) .a'),
           ScString('alpha'));
-      expect(env.evalProgram('invoke %(get %2-map %1-key) .a {.a "alpha"}'),
+      expect(
+          env.interpretExprString(
+              'invoke %(get %2-map %1-key) .a {.a "alpha"}'),
           ScString('alpha'));
     });
     test('Nested %', () {
-      expect(env.evalProgram('invoke %(= (count %) 3) "yes"'),
+      expect(env.interpretExprString('invoke %(= (count %) 3) "yes"'),
           ScBoolean.veritas());
-      expect(env.evalProgram('invoke %(= (+ (count %) 1) 4) "yes"'),
-          ScBoolean.veritas());
-      expect(env.evalProgram('invoke %(= (+ (+ (count %) 1) 1) 5) "yes"'),
-          ScBoolean.veritas());
-      expect(env.evalProgram('invoke %(= (+ (+ (+ (count %) 1) 1) 1) 6) "yes"'),
+      expect(env.interpretExprString('invoke %(= (+ (count %) 1) 4) "yes"'),
           ScBoolean.veritas());
       expect(
-          env.evalProgram(
+          env.interpretExprString('invoke %(= (+ (+ (count %) 1) 1) 5) "yes"'),
+          ScBoolean.veritas());
+      expect(
+          env.interpretExprString(
+              'invoke %(= (+ (+ (+ (count %) 1) 1) 1) 6) "yes"'),
+          ScBoolean.veritas());
+      expect(
+          env.interpretExprString(
               'invoke %(= (* (+ (+ (+ (count %) 1) 1) 1) 3) 18) "yes"'),
           ScBoolean.veritas());
     });
     test('As used with if', () {
-      expect(env.evalProgram('if true %(just 42) %(just 24)'), ScNumber(42));
+      expect(env.interpretExprString('if true %(just 42) %(just 24)'),
+          ScNumber(42));
       expect(
-          env.evalProgram(
+          env.interpretExprString(
               'get {.a "alpha"} .b | if %(just "found it") %(just "no dice")'),
           ScString('no dice'));
     });

@@ -84,7 +84,7 @@ void evalProgram(Options options) {
       isAnsiEnabled: options.isAnsiEnabled ?? false);
   env.loadPrelude();
   maybeLoadFiles(env, options);
-  final expr = env.evalProgram(program);
+  final expr = env.interpretExprString(program);
   stdout.writeln(expr.printToString(env));
 }
 
@@ -174,15 +174,15 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
         expr = ScString(trimmed);
       } else {
         // EVAL
-        expr = env.evalProgram(trimmed); // read + eval
+        expr = env.interpretExprString(trimmed); // read + eval
       }
       // AFTER EVAL
       // == Interactive Setup ==
       if (env.interactivityState == ScInteractivityState.startSetup) {
         env.interactivityState = ScInteractivityState.getDefaultWorkflowId;
         env.out.writeln("Fetching your workspace's workflows...");
-        scPrint(
-            env, env.evalProgram('workflows | map %(select % "id" "name")'));
+        scPrint(env,
+            env.interpretExprString('workflows | map %(select % "id" "name")'));
         repl.prompt = wrapWith('\nDefault Workflow ID: ', [green])!;
       } else if (env.interactivityState ==
           ScInteractivityState.getDefaultWorkflowId) {
@@ -192,7 +192,7 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
         env.out.writeln("Fetching that workflow's workflow states...");
         scPrint(
             env,
-            env.evalProgram(
+            env.interpretExprString(
                 '${env[ScSymbol("__sc_default-workflow-id")]} | workflow | .states | map %(select % "id" "name") '));
         repl.prompt = wrapWith('\nDefault Workflow State Id: ', [green])!;
       } else if (env.interactivityState ==
@@ -201,7 +201,7 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
         env[ScSymbol('__sc_default-workflow-state-id')] =
             ScNumber(int.tryParse((expr as ScString).value)!);
         env.out.writeln("Fetching your workspace's teams...");
-        scPrint(env, env.evalProgram('teams'));
+        scPrint(env, env.interpretExprString('teams'));
         repl.prompt = wrapWith('\nDefault Team ID: ', [green])!;
       } else if (env.interactivityState ==
           ScInteractivityState.getDefaultTeamId) {

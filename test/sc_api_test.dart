@@ -18,54 +18,56 @@ void main() {
     test('via load function', () {
       final env = e();
       expect(
-          () => env.evalProgram(
+          () => env.interpretExprString(
               r'''load "test/test_resources/test_unparsable.shortcut"'''),
           throwsA(isA<PrematureEndOfProgram>()));
-      expect(env.evalProgram(r'''load "test/test_resources/test.shortcut"'''),
+      expect(
+          env.interpretExprString(
+              r'''load "test/test_resources/test.shortcut"'''),
           TypeMatcher<ScExpr>());
       expect(env.bindings, contains(ScSymbol('with-estimate')));
-      expect(env.evalProgram("double 21"), ScNumber(42));
+      expect(env.interpretExprString("double 21"), ScNumber(42));
     });
   });
   group('ScNumber', () {
     final env = e();
     test('Greater than', () {
-      expect(env.evalProgram('>'), ScBoolean.veritas());
-      expect(env.evalProgram('> 2'), ScBoolean.veritas());
-      expect(env.evalProgram('> 2 1'), ScBoolean.veritas());
-      expect(env.evalProgram('> 2 1 0'), ScBoolean.veritas());
-      expect(env.evalProgram('> 2 1 0 -1'), ScBoolean.veritas());
-      expect(env.evalProgram('> -1 0 1'), ScBoolean.falsitas());
-      expect(env.evalProgram('> 1 1'), ScBoolean.falsitas());
+      expect(env.interpretExprString('>'), ScBoolean.veritas());
+      expect(env.interpretExprString('> 2'), ScBoolean.veritas());
+      expect(env.interpretExprString('> 2 1'), ScBoolean.veritas());
+      expect(env.interpretExprString('> 2 1 0'), ScBoolean.veritas());
+      expect(env.interpretExprString('> 2 1 0 -1'), ScBoolean.veritas());
+      expect(env.interpretExprString('> -1 0 1'), ScBoolean.falsitas());
+      expect(env.interpretExprString('> 1 1'), ScBoolean.falsitas());
     });
     test('Greater than or equal to', () {
-      expect(env.evalProgram('>='), ScBoolean.veritas());
-      expect(env.evalProgram('>= 2'), ScBoolean.veritas());
-      expect(env.evalProgram('>= 2 1'), ScBoolean.veritas());
-      expect(env.evalProgram('>= 2 1 0'), ScBoolean.veritas());
-      expect(env.evalProgram('>= 2 1 0 -1'), ScBoolean.veritas());
-      expect(env.evalProgram('>= 1 1'), ScBoolean.veritas());
-      expect(env.evalProgram('>= 1 1 0 0'), ScBoolean.veritas());
-      expect(env.evalProgram('>= -1 0 1'), ScBoolean.falsitas());
+      expect(env.interpretExprString('>='), ScBoolean.veritas());
+      expect(env.interpretExprString('>= 2'), ScBoolean.veritas());
+      expect(env.interpretExprString('>= 2 1'), ScBoolean.veritas());
+      expect(env.interpretExprString('>= 2 1 0'), ScBoolean.veritas());
+      expect(env.interpretExprString('>= 2 1 0 -1'), ScBoolean.veritas());
+      expect(env.interpretExprString('>= 1 1'), ScBoolean.veritas());
+      expect(env.interpretExprString('>= 1 1 0 0'), ScBoolean.veritas());
+      expect(env.interpretExprString('>= -1 0 1'), ScBoolean.falsitas());
     });
     test('Less than', () {
-      expect(env.evalProgram('<'), ScBoolean.veritas());
-      expect(env.evalProgram('< -1'), ScBoolean.veritas());
-      expect(env.evalProgram('< -1 0'), ScBoolean.veritas());
-      expect(env.evalProgram('< -1 0 1'), ScBoolean.veritas());
-      expect(env.evalProgram('< -1 0 1 2'), ScBoolean.veritas());
-      expect(env.evalProgram('< -1 -2 1'), ScBoolean.falsitas());
-      expect(env.evalProgram('< 2 2'), ScBoolean.falsitas());
+      expect(env.interpretExprString('<'), ScBoolean.veritas());
+      expect(env.interpretExprString('< -1'), ScBoolean.veritas());
+      expect(env.interpretExprString('< -1 0'), ScBoolean.veritas());
+      expect(env.interpretExprString('< -1 0 1'), ScBoolean.veritas());
+      expect(env.interpretExprString('< -1 0 1 2'), ScBoolean.veritas());
+      expect(env.interpretExprString('< -1 -2 1'), ScBoolean.falsitas());
+      expect(env.interpretExprString('< 2 2'), ScBoolean.falsitas());
     });
     test('Less than or equal to', () {
-      expect(env.evalProgram('<='), ScBoolean.veritas());
-      expect(env.evalProgram('<= -1'), ScBoolean.veritas());
-      expect(env.evalProgram('<= -1 0'), ScBoolean.veritas());
-      expect(env.evalProgram('<= -1 0 1'), ScBoolean.veritas());
-      expect(env.evalProgram('<= -1 0 1 2'), ScBoolean.veritas());
-      expect(env.evalProgram('<= 2 2'), ScBoolean.veritas());
-      expect(env.evalProgram('<= 2 2 3 3'), ScBoolean.veritas());
-      expect(env.evalProgram('<= -1 -2 1'), ScBoolean.falsitas());
+      expect(env.interpretExprString('<='), ScBoolean.veritas());
+      expect(env.interpretExprString('<= -1'), ScBoolean.veritas());
+      expect(env.interpretExprString('<= -1 0'), ScBoolean.veritas());
+      expect(env.interpretExprString('<= -1 0 1'), ScBoolean.veritas());
+      expect(env.interpretExprString('<= -1 0 1 2'), ScBoolean.veritas());
+      expect(env.interpretExprString('<= 2 2'), ScBoolean.veritas());
+      expect(env.interpretExprString('<= 2 2 3 3'), ScBoolean.veritas());
+      expect(env.interpretExprString('<= -1 -2 1'), ScBoolean.falsitas());
     });
   });
   group('ScString', () {
@@ -85,11 +87,11 @@ void main() {
     final env = e();
     test('Lists', () {
       expect(
-          env.evalProgram(
+          env.interpretExprString(
               '["yes", "no", "yep", "nope"] | where %(= (count %) 3)'),
           ScList([ScString('yes'), ScString('yep')]));
       expect(
-          env.evalProgram(
+          env.interpretExprString(
               '[{"user" "daniel" "lang" "en"} {"user" "leinad" "lang" "ne"}] | where {.user "daniel"}'),
           ScList([
             ScMap({
@@ -98,28 +100,30 @@ void main() {
             })
           ]));
       expect(
-          env.evalProgram(
+          env.interpretExprString(
               '[{.items [.a] .user .daniel} {.items [.a .b] .user .leinad}] | where {.items %(= (count %) 2)}'),
-          env.evalProgram('[{.items [.a .b] .user .leinad}]'));
+          env.interpretExprString('[{.items [.a .b] .user .leinad}]'));
     });
     test('Nested maps', () {
       // final m = env.evalProgram('{"foo" {"bar" 42}}');
-      expect(env.evalProgram('{"foo" {"bar" 42}} | get-in ["foo"]'),
-          env.evalProgram('{"bar" 42}'));
-      expect(env.evalProgram('{"foo" {"bar" 42}} | get-in ["foo" "bar"]'),
-          env.evalProgram('42'));
-      expect(env.evalProgram('{"foo" {"bar" 42}} | get-in [.foo]'),
-          env.evalProgram('{"bar" 42}'));
-      expect(env.evalProgram('{"foo" {"bar" 42}} | get-in [.foo .bar]'),
-          env.evalProgram('42'));
+      expect(env.interpretExprString('{"foo" {"bar" 42}} | get-in ["foo"]'),
+          env.interpretExprString('{"bar" 42}'));
+      expect(
+          env.interpretExprString('{"foo" {"bar" 42}} | get-in ["foo" "bar"]'),
+          env.interpretExprString('42'));
+      expect(env.interpretExprString('{"foo" {"bar" 42}} | get-in [.foo]'),
+          env.interpretExprString('{"bar" 42}'));
+      expect(env.interpretExprString('{"foo" {"bar" 42}} | get-in [.foo .bar]'),
+          env.interpretExprString('42'));
     });
     test('Where', () {
       expect(
-          (env.evalProgram(
+          (env.interpretExprString(
                       '[{"foo" {"bar" 42}} {"foo" {"bar" 36}}] | where {["foo" "bar"] 42}')
                   as ScList)
               .innerList,
-          (env.evalProgram('[{"foo" {"bar" 42}}]') as ScList).innerList);
+          (env.interpretExprString('[{"foo" {"bar" 42}}]') as ScList)
+              .innerList);
     });
   });
 }
