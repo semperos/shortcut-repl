@@ -46,7 +46,7 @@ class PipedLispGrammarDefinition extends GrammarDefinition {
       // ref0(fn) |
       ref0(pipedArg) |
       // ScSymbol after special syntax that conflicts
-      ref0(quotedSymbol) |
+      ref0(dottedSymbol) |
       ref0(symbol);
 
   Parser anonymousInvocable() =>
@@ -90,13 +90,13 @@ class PipedLispGrammarDefinition extends GrammarDefinition {
   // Parser fnToken() => string('fn'); // string('define') | string('def');
 
   Parser symbol() => ref0(symbolToken).flatten('Symbol expected');
-  Parser quotedSymbol() =>
-      ref0(quotedSymbolToken).flatten('Quoted symbol expected');
+  Parser dottedSymbol() =>
+      ref0(dottedSymbolToken).flatten('Dotted symbol expected');
   Parser symbolToken() =>
       // NB: Pipe is not supported as a first symbol character.
       pattern('a-zA-Z!\$%&*/:<=>?@\\^_~+-\\.') &
       pattern('a-zA-Z0-9!\$%&*/:<=>?@\\^_|~+-\\.').star();
-  Parser quotedSymbolToken() =>
+  Parser dottedSymbolToken() =>
       // NB: Pipe is not supported as a first symbol character.
       char('.') &
       pattern('a-zA-Z!\$%&*/:<=>?@\\^_~+-\\.') &
@@ -248,12 +248,12 @@ class PipedLispParserDefinition extends PipedLispGrammarDefinition {
       super.characterRaw().map((each) => each.codeUnitAt(0));
 
   @override
-  Parser quotedSymbol() => super.quotedSymbol().map((symbolString) {
+  Parser dottedSymbol() => super.dottedSymbol().map((symbolString) {
         // Strip off initial "quoting" character.
         String symStr = (symbolString as String).substring(1);
-        // NB: Not sure why trailing commas are being parsed as part of ScQuotedSymbol, but they are.
+        // NB: Not sure why trailing commas are being parsed as part of ScDottedSymbol, but they are.
         symStr = symStr.replaceAll(',', '');
-        return ScQuotedSymbol(symStr);
+        return ScDottedSymbol(symStr);
       });
 
   @override

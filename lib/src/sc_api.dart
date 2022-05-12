@@ -1230,7 +1230,7 @@ class ScSymbol extends ScExpr implements Comparable {
   int compareTo(other) {
     if (other is ScSymbol) {
       return _name.compareTo(other._name);
-    } else if (other is ScQuotedSymbol) {
+    } else if (other is ScDottedSymbol) {
       return _name.compareTo(other._name);
     } else if (other is ScString) {
       return _name.compareTo(other.value);
@@ -1246,18 +1246,18 @@ class ScSymbol extends ScExpr implements Comparable {
   }
 }
 
-class ScQuotedSymbol extends ScExpr implements ScBaseInvocable {
+class ScDottedSymbol extends ScExpr implements ScBaseInvocable {
   /// Factory for new symbol cells.
-  factory ScQuotedSymbol(String name) =>
-      _interned.putIfAbsent(name, () => ScQuotedSymbol._internal(name));
+  factory ScDottedSymbol(String name) =>
+      _interned.putIfAbsent(name, () => ScDottedSymbol._internal(name));
 
   /// Internal constructor for symbol.
-  ScQuotedSymbol._internal(this._name);
+  ScDottedSymbol._internal(this._name);
 
   String get name => toString();
 
   /// The interned symbols.
-  static final Map<String, ScQuotedSymbol> _interned = {};
+  static final Map<String, ScDottedSymbol> _interned = {};
 
   /// The name of the symbol.
   final String _name;
@@ -1277,12 +1277,12 @@ class ScQuotedSymbol extends ScExpr implements ScBaseInvocable {
 
   @override
   String informalTypeName() {
-    return 'quoted symbol';
+    return 'dotted symbol';
   }
 
   @override
   ScExpr eval(ScEnv env) {
-    // Parsing treats .. as a ScQuotedSymbol but I want to use it as a ScSymbol
+    // Parsing treats .. as a ScDottedSymbol but I want to use it as a ScSymbol
     if (_name == '.') {
       return env[ScSymbol('..')]!;
     } else {
@@ -1292,16 +1292,16 @@ class ScQuotedSymbol extends ScExpr implements ScBaseInvocable {
 
   @override
   String get help {
-    return 'Quoted symbol evaluates to itself, but can be invoked to `get` itself out of collections';
+    return 'Dotted symbol evaluates to itself, but can be invoked to `get` itself out of collections';
   }
 
   @override
   String get helpFull {
     return help +
         '\n\n' +
-        r"""If there is a parent entity defined (you've `cd`ed into an entity), then a quoted symbol will try to look itself up in the data of that entity.
+        r"""If there is a parent entity defined (you've `cd`ed into an entity), then a dotted symbol will try to look itself up in the data of that entity.
 
-When used within a structure that gets serialized to JSON and sent to Shortcut, quoted symbols become simple strings of their names (e.g., .name => "name").
+When used within a structure that gets serialized to JSON and sent to Shortcut, dotted symbols become simple strings of their names (e.g., .name => "name").
 """;
   }
 
@@ -1311,16 +1311,33 @@ When used within a structure that gets serialized to JSON and sent to Shortcut, 
       if (env.parentEntity == null) {
         return this;
       } else {
-        final getFn = env[ScSymbol('get')] as ScFnGet;
+        final getFn = ScFnGet();
         return getFn.invoke(env, ScList([env.parentEntity!, this]));
       }
     } else if (args.length == 1) {
+      final arg = args[0];
+      if (arg is ScMap || arg is ScEntity) {
+        args.insert(1, this);
+        final getFn = ScFnGet();
+        return getFn.invoke(env, args);
+      } else {
+        if (env.parentEntity != null) {
+          // NB: Arg is a "default if not found" value when pulling out of the parent entity
+          final getFn = ScFnGet();
+          return getFn.invoke(env, ScList([env.parentEntity!, this, arg]));
+        } else {
+          throw BadArgumentsException(
+              "If you pass only 1 argument to a dotted symbol, it must either be a map/entity you expect to contain your symbol, or you must be in a parent entity and the argument is considered the default-if-not-found value. Your parent entity is `nil` and you passed this dotted symbol an argument of type ${arg.informalTypeName()}");
+        }
+      }
+    } else if (args.length == 2) {
+      // NB: Assumes arg 2 is a "default if not found" which [ScFnGet] supports.
       args.insert(1, this);
-      final getFn = env[ScSymbol('get')] as ScFnGet;
+      final getFn = ScFnGet();
       return getFn.invoke(env, args);
     } else {
       throw BadArgumentsException(
-          "Quoted symbols expect either no arguments, or 1 map/entity argument.");
+          "Dotted symbols expect either no arguments, 1 map/entity argument, or 1 map/entity argument and a default-if-not-found value.");
     }
   }
 }
@@ -1492,7 +1509,7 @@ class ScAnonymousFunction extends ScBaseInvocable {
         final returnValue = invocable.invoke(env, theseExprs.skip(1));
         env.removeAnonymousFunctionBindings(args);
         return returnValue;
-      } else if (preEvalFirstItem == ScQuotedSymbol('.')) {
+      } else if (preEvalFirstItem == ScDottedSymbol('.')) {
         // Special case given how shell-like this whole app is.
         if (evaledItems.first == ScNil()) {
           throw NoParentEntity(
@@ -2085,11 +2102,11 @@ Identifiers are:
       String id;
       if (identifier is ScString) {
         id = identifier.value;
-      } else if (identifier is ScQuotedSymbol) {
+      } else if (identifier is ScDottedSymbol) {
         id = identifier._name;
       } else {
         throw BadArgumentsException(
-            "The `default` function's first argument must be a string or quoted symbol of one of ${identifiers.join(', ')}");
+            "The `default` function's first argument must be a string or dotted symbol of one of ${identifiers.join(', ')}");
       }
 
       if (identifiers.contains(id)) {
@@ -2130,18 +2147,18 @@ Identifiers are:
         }
       } else {
         throw BadArgumentsException(
-            "The `default` function's first argument must be a string or quoted symbol of one of ${identifiers.join(', ')}");
+            "The `default` function's first argument must be a string or dotted symbol of one of ${identifiers.join(', ')}");
       }
     } else if (args.length == 2) {
       final identifier = args[0];
       String id;
       if (identifier is ScString) {
         id = identifier.value;
-      } else if (identifier is ScQuotedSymbol) {
+      } else if (identifier is ScDottedSymbol) {
         id = identifier._name;
       } else {
         throw BadArgumentsException(
-            "The `default` function's first argument must be a string or quoted symbol of one of ${identifiers.join(', ')}");
+            "The `default` function's first argument must be a string or dotted symbol of one of ${identifiers.join(', ')}");
       }
 
       if (identifiers.contains(id)) {
@@ -2172,7 +2189,7 @@ Identifiers are:
         return v;
       } else {
         throw BadArgumentsException(
-            "The `default` function's first argument must be a string or quoted symbol of one of ${identifiers.join(', ')}");
+            "The `default` function's first argument must be a string or dotted symbol of one of ${identifiers.join(', ')}");
       }
     } else {
       throw UnimplementedError();
@@ -3034,7 +3051,7 @@ class ScFnGet extends ScBaseInvocable {
     final source = args[0];
     final key = args[1];
     ScString strKey;
-    if (key is ScQuotedSymbol) {
+    if (key is ScDottedSymbol) {
       strKey = ScString(args[1].toString().substring(1));
     } else {
       strKey = ScString(args[1].toString());
@@ -3129,7 +3146,7 @@ class ScFnContains extends ScBaseInvocable {
     ScString strKey;
     if (key is ScString) {
       strKey = key;
-    } else if (key is ScQuotedSymbol) {
+    } else if (key is ScDottedSymbol) {
       strKey = ScString(key.toString().substring(1));
     } else {
       strKey = ScString(key.toString());
@@ -3715,14 +3732,14 @@ class ScFnUpdate extends ScBaseInvocable {
       ScEntity entity = env.resolveArgEntity(args, 'update!',
           forceParent: (args[0] is ScMap ||
               args[0] is ScString ||
-              args[0] is ScQuotedSymbol));
+              args[0] is ScDottedSymbol));
 
       ScMap updateMap;
       final maybeUpdateMap = args[0];
       if (maybeUpdateMap is ScMap) {
         updateMap = maybeUpdateMap;
       } else if (maybeUpdateMap is ScString ||
-          maybeUpdateMap is ScQuotedSymbol) {
+          maybeUpdateMap is ScDottedSymbol) {
         if (args.length == 2) {
           final updateKey = maybeUpdateMap;
           final updateValue = args[1];
@@ -4007,7 +4024,7 @@ class ScFnCreate extends ScBaseInvocable {
       if (maybeDataMap is ScMap) {
         final ScMap dataMap = maybeDataMap;
         final maybeType =
-            dataMap[ScString('type')] ?? dataMap[ScQuotedSymbol('type')];
+            dataMap[ScString('type')] ?? dataMap[ScDottedSymbol('type')];
         if (maybeType == null) {
           throw BadArgumentsException(
               'The map passed to `create` must have a a "type" field with one of "story", "epic", "iteration", or "milestone".');
@@ -4015,14 +4032,14 @@ class ScFnCreate extends ScBaseInvocable {
           String typeStr;
           if (maybeType is ScString) {
             typeStr = maybeType.value;
-          } else if (maybeType is ScQuotedSymbol) {
+          } else if (maybeType is ScDottedSymbol) {
             typeStr = maybeType._name;
           } else {
             throw BadArgumentsException(
                 'The map passed to `create` must have a a "type" field with one of "story", "epic", "iteration", or "milestone", but received ${maybeType.toString()}');
           }
           dataMap.remove(ScString('type'));
-          dataMap.remove(ScQuotedSymbol('type'));
+          dataMap.remove(ScDottedSymbol('type'));
           switch (typeStr) {
             case 'story':
               if (!dataMap.containsKey(ScString('epic_id'))) {
@@ -4101,7 +4118,7 @@ class ScFnCreate extends ScBaseInvocable {
               break;
             case 'task':
               final rawStoryId = dataMap[ScString('story_id')] ??
-                  dataMap[ScQuotedSymbol('story_id')];
+                  dataMap[ScDottedSymbol('story_id')];
               if (rawStoryId == null) {
                 throw BadArgumentsException(
                     "To create a task, your map must include a \"story_id\" entry.");
@@ -4116,7 +4133,7 @@ class ScFnCreate extends ScBaseInvocable {
                       "The \"story_id\" field must be a string or number, but received a ${rawStoryId.informalTypeName()}");
                 }
                 dataMap.remove(ScString('story_id'));
-                dataMap.remove(ScQuotedSymbol('story_id'));
+                dataMap.remove(ScDottedSymbol('story_id'));
                 entity = waitOn(env.client.createTask(
                     env,
                     storyPublicId,
@@ -5391,7 +5408,7 @@ class ScInvocation extends ScExpr {
       if (evaledItems.first is ScBaseInvocable) {
         final invocable = evaledItems.first as ScBaseInvocable;
         return invocable.invoke(env, theseExprs.skip(1));
-      } else if (preEvalFirstItem == ScQuotedSymbol('.')) {
+      } else if (preEvalFirstItem == ScDottedSymbol('.')) {
         // Special case given how shell-like this whole app is.
         if (evaledItems.first == ScNil()) {
           throw NoParentEntity(
@@ -5501,7 +5518,7 @@ class ScList extends ScExpr {
       return ScList(l.map((item) {
         final evaledItem = item.eval(env);
         ScExpr finalItem;
-        if (evaledItem is ScQuotedSymbol) {
+        if (evaledItem is ScDottedSymbol) {
           finalItem = evaledItem;
         } else if (evaledItem is ScBaseInvocable) {
           finalItem = evaledItem.invoke(env, ScList([]));
@@ -5675,7 +5692,7 @@ class ScMap extends ScExpr {
         final evaledKey = key.eval(env);
         final evaledValue = value.eval(env);
         ScExpr finalKey;
-        if (evaledKey is ScQuotedSymbol) {
+        if (evaledKey is ScDottedSymbol) {
           finalKey = evaledKey;
         } else if (evaledKey is ScBaseInvocable) {
           finalKey = evaledKey.invoke(env, ScList([]));
@@ -8008,7 +8025,7 @@ ScExpr getIn(ScExpr m, ScList rawSelector, ScExpr missingDefault) {
   } else {
     final k = selector.first;
     ScString strK;
-    if (k is ScQuotedSymbol) {
+    if (k is ScDottedSymbol) {
       strK = ScString(k.toString().substring(1));
     } else {
       strK = ScString(k.toString());
@@ -8057,7 +8074,7 @@ void printTable(ScEnv env, List<ScExpr> ks, ScMap data) {
       kLength = k.value.length;
     } else if (k is ScSymbol) {
       kLength = k._name.length;
-    } else if (k is ScQuotedSymbol) {
+    } else if (k is ScDottedSymbol) {
       kLength = k._name.length;
     } else {
       kLength = k.toString().length;
@@ -8075,7 +8092,7 @@ void printTable(ScEnv env, List<ScExpr> ks, ScMap data) {
         keyStr = k.value;
       } else if (k is ScSymbol) {
         keyStr = k._name;
-      } else if (k is ScQuotedSymbol) {
+      } else if (k is ScDottedSymbol) {
         keyStr = k._name;
       } else {
         keyStr = k.toString();
@@ -8151,7 +8168,7 @@ dynamic scExprToValue(ScExpr expr,
     return expr.value;
   } else if (expr is ScSymbol) {
     return expr._name;
-  } else if (expr is ScQuotedSymbol) {
+  } else if (expr is ScDottedSymbol) {
     return expr._name;
   } else if (expr is ScNumber) {
     return expr.value;

@@ -69,8 +69,8 @@ void main() {
         expect(scParser.parse('-42').value[0], [ScNumber(-42)]);
       },
     );
-    test('Quoted symbols', () {
-      expect(scParser.parse(".foo").value[0], [ScQuotedSymbol("foo")]);
+    test('Dotted symbols', () {
+      expect(scParser.parse(".foo").value[0], [ScDottedSymbol("foo")]);
     });
     test('Strings', () {
       expect(scParser.parse('"alpha"').value[0], [ScString('alpha')]);
