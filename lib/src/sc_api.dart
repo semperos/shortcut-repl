@@ -150,6 +150,7 @@ class ScEnv {
 
     ScSymbol('file'): ScFnFile(),
     ScSymbol('read-file'): ScFnReadFile(),
+    ScSymbol('interpret'): ScFnInterpret(),
     ScSymbol('load'): ScFnLoad(),
     ScSymbol('open'): ScFnOpen(),
 
@@ -329,7 +330,19 @@ class ScEnv {
         multiLineExprString.write("$trimmed ");
         final currentProgram = multiLineExprString.toString();
         if (scParser.accept(currentProgram)) {
-          returnValue = interpretExprString(currentProgram);
+          try {
+            returnValue = interpretExprString(currentProgram);
+          } catch (e) {
+            if (e is LispParserException) {
+              final parseResult = e.parseResult;
+              final column = parseResult.position;
+              final row = i + 1;
+              throw InterpretationException(
+                  "Parsing failed at line $row column $column in source code $sourceName");
+            } else {
+              rethrow;
+            }
+          }
           multiLineExprString.clear();
         } else if (i == sourceLines.length - 1) {
           throw PrematureEndOfProgram(
@@ -352,7 +365,19 @@ class ScEnv {
         final currentExprString = multiLineExprString.toString();
         // Single-line parenthetical program
         if (scParser.accept(currentExprString)) {
-          returnValue = interpretExprString(currentExprString);
+          try {
+            returnValue = interpretExprString(currentExprString);
+          } catch (e) {
+            if (e is LispParserException) {
+              final parseResult = e.parseResult;
+              final column = parseResult.position;
+              final row = i + 1;
+              throw InterpretationException(
+                  "Parsing failed at line $row column $column in source code $sourceName");
+            } else {
+              rethrow;
+            }
+          }
           multiLineExprString.clear();
         } else if (i == sourceLines.length - 1) {
           throw PrematureEndOfProgram(
@@ -361,7 +386,19 @@ class ScEnv {
           continue;
         }
       } else {
-        returnValue = interpretExprString(line);
+        try {
+          returnValue = interpretExprString(line);
+        } catch (e) {
+          if (e is LispParserException) {
+            final parseResult = e.parseResult;
+            final column = parseResult.position;
+            final row = i + 1;
+            throw InterpretationException(
+                "Parsing failed at line $row column $column in source code $sourceName");
+          } else {
+            rethrow;
+          }
+        }
       }
     }
     return returnValue;
@@ -388,6 +425,7 @@ class ScEnv {
   /// error messages compared to those built-in ones.
   void loadPrelude() {
     final prelude = '''
+def not           value (fn [x] (if x %(value false) %(value true)))
 def first value   %(get % 0)
 def second value  %(get % 1)
 def third value   %(get % 2)
@@ -3449,6 +3487,33 @@ class ScFnReadFile extends ScBaseInvocable {
         throw BadArgumentsException(
             'The `read-file` function expects a file argument, but received a ${file.informalTypeName()}');
       }
+    }
+  }
+}
+
+class ScFnInterpret extends ScBaseInvocable {
+  @override
+  String get help =>
+      "Return the expression resulting from interpreting the given string of code.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final sourceString = args[0];
+      if (sourceString is ScString) {
+        return env.interpretProgram(
+            '<string from console>', sourceString.value.split('\n'));
+      } else {
+        throw BadArgumentsException(
+            "The `interpret` function only accepts a string argument, but received a ${sourceString.informalTypeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `interpret` function expects 1 argument: a string of source code to interpret.");
     }
   }
 }
@@ -8354,6 +8419,10 @@ enum ScInteractivityState {
 abstract class ExceptionWithMessage implements Exception {
   String? message;
   ExceptionWithMessage(this.message);
+}
+
+class InterpretationException extends ExceptionWithMessage {
+  InterpretationException(String message) : super(message);
 }
 
 class BadArgumentsException extends ExceptionWithMessage {

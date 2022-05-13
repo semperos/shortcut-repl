@@ -431,7 +431,7 @@ extension ScParsing on Parser {
       return invocation;
     } else {
       final pointer = (' ' * parseResult.position) + '^';
-      throw LispParserException(
+      throw LispParserException(parseResult,
           "${parseResult.message}\n${parseResult.buffer}\n$pointer");
     }
   }
@@ -564,5 +564,6 @@ class ExtraneousPipedArg extends ExceptionWithMessage {
 }
 
 class LispParserException extends ExceptionWithMessage {
-  LispParserException(String message) : super(message);
+  Result parseResult;
+  LispParserException(this.parseResult, String message) : super(message);
 }
