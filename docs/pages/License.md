@@ -1,0 +1,2 @@
+- See the LICENSE file in the main repository for the source code's license.
+- Documentation is licensed under [Attribution 4.0 International(CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/legalcode)

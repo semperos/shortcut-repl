@@ -1,0 +1,6 @@
+- Run `sc -h` for usage help.
+- Run `sc -r` for an interactive console (REPL).
+- Run `sc -e` to evaluate a single, ad hoc program.
+- Add the `-l` or `--load` option to have `sc` evaluate a file when booting up.
+- Add the `-c` or `--config-directory` option to specify a non-standard directory to store config and caches in.
+	- ⚠️ If you plan to use this tool with different Shortcut workspaces, you will need to use a separate `-c` directory for each workspace.

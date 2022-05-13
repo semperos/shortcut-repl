@@ -1,0 +1,23 @@
+- Given the focus of `sc` as an interactive CLI, the language and its built-in functionality have been designed to support that.
+- Parentheses are optional. The `|` pipe character can be used to pass the result of one expression as the first argument to another.
+- Numbers, strings, lists, and maps evaluate to themselves.
+	- Numbers support integer and floating point representations, relying on Dart's semantics for mathematical operations.
+	- Strings are a wrapper around Dart's strings. Syntactically, they must be surrounded with double quotes `"`.
+	- Lists are a wrapper around Dart's lists. They support any combination of `sc` data types as members. Syntactically, a list is surrounded by square brackets `[]`.
+	- Maps are a wrapper around Dart's maps. They support any `sc` value as keys and values, but any map that will be sent to Shortcut's API must be JSON compatible (e.g., keys that are trivially serialized to strings). Syntactically, a map is surrounded by curly braces `{}` and requires no further syntax to distinguish entries.
+- Commas are considered whitespace.
+- Expressions may be written on multiple lines as long as it's clear the parser should continue (e.g., unclosed parenthesis at line's end).
+- Functions are written using one of two syntaxes:
+	- `%(example %1 %2)`
+		- These can be suffixed like `%1-some-arg` for better readability as long as the number portion is correct.
+	- `(fn [a b] (example a b))`
+- New global bindings can be introduced with `def`
+	- `def a 42`
+	- `def my-fn value (fn [] 42)`
+		- Without `value` here, the function would be invoked immediately.
+- Evaluation
+	- Functions are invoked eagerly in many positions.
+	- Function invocation can be explicitly performed with parentheses, e.g., `me` vs. `(me)`
+- Help Documentation
+	- Evaluate `?` to see all bindings.
+	- Evalute `? <function-name>` to see detailed help for that function.
