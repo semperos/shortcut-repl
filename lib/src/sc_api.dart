@@ -1807,6 +1807,7 @@ The second argument is expected to be a function that takes two arguments: a key
           "The `where` function expects two arguments: a query and a map of where clauses.");
     }
     final ScExpr coll = args[0];
+    final ScExpr notFound = ScSymbol("__sc_not-found");
     if (coll is ScList) {
       final ScExpr secondArg = args[1];
       if (secondArg is ScBaseInvocable) {
@@ -1822,12 +1823,16 @@ The second argument is expected to be a function that takes two arguments: a key
               ScExpr exprValue;
               if (whereKey is ScList) {
                 final getInFn = ScFnGetIn();
-                exprValue = getInFn.invoke(env, ScList([expr, whereKey]));
+                exprValue =
+                    getInFn.invoke(env, ScList([expr, whereKey, notFound]));
               } else {
                 final getFn = ScFnGet();
-                exprValue = getFn.invoke(env, ScList([expr, whereKey]));
+                exprValue =
+                    getFn.invoke(env, ScList([expr, whereKey, notFound]));
               }
-              if (exprValue != ScNil()) {
+              if (exprValue == notFound) {
+                allMatch = false;
+              } else {
                 final whereValue = whereMap[whereKey];
                 if (whereValue is ScBaseInvocable) {
                   allMatch = ScBoolean.isTruthy(
@@ -1835,8 +1840,6 @@ The second argument is expected to be a function that takes two arguments: a key
                 } else {
                   allMatch = exprValue == whereValue;
                 }
-              } else {
-                allMatch = false;
               }
             }
             return ScBoolean.fromBool(allMatch);
@@ -1996,6 +1999,8 @@ class ScFnHelp extends ScBaseInvocable {
       ScEnv.defaultBindings.forEach((key, value) {
         if (value is ScBaseInvocable) {
           m[key] = ScString(value.help);
+        } else if (value is ScExpr) {
+          m[key] = ScString("a ${value.informalTypeName()} value");
         }
       });
       final ks = m.keys.toList();
@@ -3687,13 +3692,16 @@ class ScFnFindStories extends ScBaseInvocable {
 For example, specifying two owner ids will return all stories owned by _either_
 of the owners, not just stories they co-own.
 
-archived completed_at_end completed_at_start
-created_at_end created_at_start deadline_end deadline_start
-epic_id epic_ids estimate external_id group_id group_ids
-includes_description iteration_id iteration_ids
-label_ids label_name owner_id owner_ids
-project_id project_ids requested_by_id
-story_type updated_at_end updated_at_start workflow_state_id
+archived           estimate             owner_id
+completed_at_end   external_id          owner_ids
+completed_at_start group_id             project_id
+created_at_end     group_ids            project_ids
+created_at_start   includes_description requested_by_id
+deadline_end       iteration_id         story_type
+deadline_start     iteration_ids        updated_at_end
+epic_id            label_ids            updated_at_start
+epic_ids           label_name           workflow_state_id
+
 workflow_state_types (Enum: "done", "started", "unstarted")
 
 Visit API docs for more details: https://shortcut.com/api/rest/v3#Search-Stories-Old""";
