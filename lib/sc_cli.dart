@@ -51,7 +51,7 @@ Ctrl-w kills previous word.
     startRepl(options, isolateFn);
     // NB: Don't exit, let server+client run.
   } else if (options.program != null) {
-    evalProgram(options);
+    interpretProgram(options);
     exit(0);
   } else {
     printUsage();
@@ -70,7 +70,7 @@ ${parser.usage}
 """);
 }
 
-void evalProgram(Options options) {
+void interpretProgram(Options options) {
   final program = options.program!; // null checked by caller
   final client = ScLiveClient(getShortcutHost(), getShortcutApiToken());
   final baseConfigDirPath =
@@ -81,11 +81,13 @@ void evalProgram(Options options) {
       out: stdout,
       err: stderr,
       isReplMode: false,
+      isPrintJson: options.isPrintJson,
       isAnsiEnabled: options.isAnsiEnabled ?? false);
   env.loadPrelude();
   maybeLoadFiles(env, options);
   final expr = env.interpretExprString(program);
-  stdout.writeln(expr.printToString(env));
+  final str = expr.printToString(env);
+  stdout.writeln(str);
 }
 
 bool Function(String str) replValidator(ScEnv env) {
@@ -133,6 +135,7 @@ Function startProdReplServerIsolateFn(Options options) {
         out: stdout,
         err: stderr,
         isReplMode: true,
+        isPrintJson: options.isPrintJson,
         isAnsiEnabled: options.isAnsiEnabled ?? true);
     env.loadPrelude();
     maybeLoadFiles(env, options);

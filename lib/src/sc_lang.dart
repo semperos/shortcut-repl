@@ -480,6 +480,11 @@ class LispParserPipedArg implements ScExpr {
     // Tagged as ScExpr for consistency; type name not meaningful.
     throw UnimplementedError();
   }
+
+  @override
+  String toJson() {
+    throw UnimplementedError();
+  }
 }
 
 class LispParserPipe implements ScExpr {
@@ -512,6 +517,11 @@ class LispParserPipe implements ScExpr {
   @override
   String informalTypeName() {
     // Tagged as ScExpr for consistency; type name not meaningful.
+    throw UnimplementedError();
+  }
+
+  @override
+  String toJson() {
     throw UnimplementedError();
   }
 }

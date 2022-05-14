@@ -9,18 +9,20 @@ part of 'options.dart';
 Options _$parseOptionsResult(ArgResults result) => Options(
       result['help'] as bool,
       result['repl'] as bool,
+      result['json'] as bool,
     )
+      ..isAnsiEnabled = result['ansi-color'] as bool?
       ..baseConfigDir = result['config-directory'] as String?
       ..program = result['eval'] as String?
-      ..loadFiles = result['load'] as List<String>
-      ..isAnsiEnabled = result['ansi-color'] as bool?;
+      ..loadFiles = result['load'] as List<String>;
 
 ArgParser _$populateOptionsParser(ArgParser parser) => parser
   ..addFlag(
-    'help',
-    abbr: 'h',
-    help: 'Prints usage information.',
-    negatable: false,
+    'ansi-color',
+    abbr: 'a',
+    help:
+        'Whether or not to use ANSI codes for colored output. This flag is only partially honored at this time, with ANSI printing for the majority of functions.',
+    defaultsTo: null,
   )
   ..addOption(
     'config-directory',
@@ -33,6 +35,18 @@ ArgParser _$populateOptionsParser(ArgParser parser) => parser
     abbr: 'e',
     help: 'Evaluate a one-off Shortcut program and exit.',
   )
+  ..addFlag(
+    'help',
+    abbr: 'h',
+    help: 'Prints usage information.',
+    negatable: false,
+  )
+  ..addFlag(
+    'json',
+    abbr: 'j',
+    help: 'Print output in JSON format.',
+    negatable: false,
+  )
   ..addMultiOption(
     'load',
     abbr: 'l',
@@ -43,13 +57,6 @@ ArgParser _$populateOptionsParser(ArgParser parser) => parser
     abbr: 'r',
     help: 'Start a Shortcut REPL.',
     negatable: false,
-  )
-  ..addFlag(
-    'ansi-color',
-    abbr: 'a',
-    help:
-        'Whether or not to use ANSI codes for colored output. This flag is only partially honored at this time, with ANSI printing for the majority of functions.',
-    defaultsTo: null,
   );
 
 final _$parserForOptions = _$populateOptionsParser(ArgParser());

@@ -18,16 +18,15 @@ class ScEnv {
   ScMap workflowsById = ScMap({});
   ScMap workflowStatesById = ScMap({});
   ScEpicWorkflow? epicWorkflow;
-  bool isFetchingEager;
   late final String baseConfigDirPath;
 
   ScEnv(this.client)
       : isReplMode = false,
         isAnsiEnabled = true,
+        isPrintJson = false,
         interactivityState = ScInteractivityState.normal,
         out = stdout,
         err = stderr,
-        isFetchingEager = false,
         history = [];
 
   late Parser<dynamic> scParser;
@@ -53,6 +52,8 @@ class ScEnv {
 
   /// Should strings be printed using ANSI color codes?
   bool isAnsiEnabled;
+
+  bool isPrintJson;
 
   /// Client to Shortcut API
   final ScClient client;
@@ -234,6 +235,7 @@ class ScEnv {
     required ScClient client,
     isReplMode = false,
     isAnsiEnabled = false,
+    isPrintJson = false,
     required IOSink out,
     required IOSink err,
     required String baseConfigDirPath,
@@ -252,6 +254,7 @@ class ScEnv {
     env.history = history;
     env.historyFile = historyFile;
     env.isAnsiEnabled = isAnsiEnabled;
+    env.isPrintJson = isPrintJson;
     env = ScEnv.extendEnvfromMap(env, json);
     return env;
   }
@@ -268,11 +271,12 @@ class ScEnv {
     if (p == null) {
       parentEntity = null;
     } else {
-      parentEntity = entityFromJson(p);
+      parentEntity = entityFromEnvJson(p);
     }
 
     env.parentEntity = parentEntity;
-    env.isFetchingEager = data['isFetchingEager'] ?? false;
+    // TODO Work out options > config > default flow
+    // env.isPrintJson = data['printAsJson'] ?? false;
 
     final defaultWorkflowId = data['defaultWorkflowId'];
     if (defaultWorkflowId != null) {
@@ -302,7 +306,7 @@ class ScEnv {
       try {
         if (parentHistory is List) {
           for (final item in parentHistory) {
-            final entity = entityFromJson(item);
+            final entity = entityFromEnvJson(item);
             if (entity != null) {
               l.add(entity);
             }
@@ -926,6 +930,7 @@ abstract class AbstractScExpr {
   ScExpr eval(ScEnv env);
   void print(ScEnv env);
   String printToString(ScEnv env);
+  String toJson();
   String informalTypeName();
 }
 
@@ -944,6 +949,15 @@ class ScExpr extends AbstractScExpr {
 
   @override
   String printToString(ScEnv env) {
+    if (env.isPrintJson) {
+      return toJson();
+    } else {
+      return toString();
+    }
+  }
+
+  @override
+  String toJson() {
     return toString();
   }
 
@@ -1035,11 +1049,11 @@ class ScBoolean extends ScExpr {
 
   @override
   String printToString(ScEnv env) {
+    String str = super.printToString(env);
     if (env.isAnsiEnabled) {
-      return wrapWith(toString(), [red])!;
-    } else {
-      return super.printToString(env);
+      str = wrapWith(str, [red])!;
     }
+    return super.printToString(env);
   }
 
   @override
@@ -1065,11 +1079,11 @@ class ScNumber extends ScExpr
 
   @override
   String printToString(ScEnv env) {
+    String str = super.printToString(env);
     if (env.isAnsiEnabled) {
-      return wrapWith(toString(), [green])!;
-    } else {
-      return super.printToString(env);
+      str = wrapWith(str, [green])!;
     }
+    return str;
   }
 
   @override
@@ -1179,11 +1193,11 @@ class ScString extends ScExpr implements Comparable {
 
   @override
   String printToString(ScEnv env) {
+    String str = toString();
     if (env.isAnsiEnabled) {
-      return wrapWith(toString(), [yellow])!;
-    } else {
-      return toString();
+      str = wrapWith(str, [yellow])!;
     }
+    return str;
   }
 
   @override
@@ -1244,11 +1258,14 @@ class ScSymbol extends ScExpr implements Comparable {
 
   @override
   String printToString(ScEnv env) {
-    if (env.isAnsiEnabled) {
-      return wrapWith(toString(), [magenta])!;
-    } else {
-      return super.printToString(env);
+    String str = toString();
+    if (env.isPrintJson) {
+      str = '"$str"';
     }
+    if (env.isAnsiEnabled) {
+      str = wrapWith(str, [magenta])!;
+    }
+    return str;
   }
 
   @override
@@ -1309,11 +1326,14 @@ class ScDottedSymbol extends ScExpr implements ScBaseInvocable {
 
   @override
   String printToString(ScEnv env) {
-    if (env.isAnsiEnabled) {
-      return wrapWith(toString(), [magenta])!;
-    } else {
-      return super.printToString(env);
+    String str = super.printToString(env);
+    if (env.isPrintJson) {
+      str = '"$_name"';
     }
+    if (env.isAnsiEnabled) {
+      str = wrapWith(str, [magenta])!;
+    }
+    return str;
   }
 
   @override
@@ -3485,7 +3505,7 @@ class ScFnLoad extends ScBaseInvocable {
       if (!sourceFile.existsSync()) {
         sourceFile = File(env.baseConfigDirPath + '/' + sourceFilePath);
         if (!sourceFile.existsSync()) {
-          throw SourceFileNotFound(sourceFilePath);
+          throw SourceFileNotFound(sourceFilePath, env.baseConfigDirPath);
         }
       }
 
@@ -5581,9 +5601,20 @@ class ScMap extends ScExpr {
     final finalIdx = innerMap.length - 1;
     int i = 0;
     for (final key in innerMap.keys) {
+      if (env.isPrintJson &&
+          key is! ScString &&
+          key is! ScSymbol &&
+          key is! ScDottedSymbol) {
+        // NB: Omit entries that cannot be represented as legal JSON.
+        continue;
+      }
       final keyStr = key.printToString(env);
       final valueStr = innerMap[key]?.printToString(env);
-      sb.write(env.stringWithIndent("$keyStr $valueStr,"));
+      if (env.isPrintJson) {
+        sb.write(env.stringWithIndent("$keyStr: $valueStr,"));
+      } else {
+        sb.write(env.stringWithIndent("$keyStr $valueStr,"));
+      }
       if (i != finalIdx) {
         sb.write('\n');
       }
@@ -5640,6 +5671,7 @@ class ScMap extends ScExpr {
     return this;
   }
 
+  @override
   String toJson() {
     JsonEncoder jsonEncoder = JsonEncoder.withIndent('  ');
     return jsonEncoder.convert(scExprToValue(this, forJson: true));
@@ -5754,57 +5786,6 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
       title = ScString('<No name>');
     }
     for (final key in data.keys) {
-      // # Uncached Things #
-      if (env.isFetchingEager) {
-        // ## Epics
-        if (epicKeys.contains(key)) {
-          final id = data[key]!;
-          ScString? epicId;
-          if (id is ScString) {
-            epicId = id;
-          } else if (id is ScNumber) {
-            epicId = ScString(id.value.toString());
-          }
-          if (epicId != null) {
-            final epic = ScEpic(epicId);
-            waitOn(epic.fetch(env));
-            data[key] = epic;
-          }
-        }
-
-        // ## Milestones
-        if (milestoneKeys.contains(key)) {
-          final id = data[key]!;
-          ScString? milestoneId;
-          if (id is ScString) {
-            milestoneId = id;
-          } else if (id is ScNumber) {
-            milestoneId = ScString(id.value.toString());
-          }
-          if (milestoneId != null) {
-            final milestone = ScMilestone(milestoneId);
-            waitOn(milestone.fetch(env));
-            data[key] = milestone;
-          }
-        }
-
-        // ## Iterations
-        if (iterationKeys.contains(key)) {
-          final id = data[key]!;
-          ScString? iterationId;
-          if (id is ScString) {
-            iterationId = id;
-          } else if (id is ScNumber) {
-            iterationId = ScString(id.value.toString());
-          }
-          if (iterationId != null) {
-            final iteration = ScIteration(iterationId);
-            waitOn(iteration.fetch(env));
-            data[key] = iteration;
-          }
-        }
-      }
-
       // # Cached Things #
       // ## Members
       if (memberKeys.contains(key)) {
@@ -5916,13 +5897,37 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
 
   @override
   String printToString(ScEnv env) {
-    final sb = StringBuffer('');
-    sb.writeln("${informalTypeName().capitalize()} $id");
-    env.indentIndex += 1;
-    sb.write(env.indentString());
-    sb.write(data.printToString(env));
-    env.indentIndex -= 1;
-    return sb.toString();
+    if (env.isPrintJson) {
+      if (data.isEmpty) {
+        // NB: For now, just printing id's. Fetch would be costly and risks cyclic resolution, which is handled already elsewhere.
+        return id.printToString(env);
+      } else {
+        // TODO Consider whether the same is necessary for ScTeam
+        if (this is ScMember) {
+          final dm = Map<ScExpr, ScExpr>.from(data.innerMap);
+          final teams = dm[ScString('group_ids')] as ScList;
+          teams.mapMutable((e) {
+            if (e is ScTeam) {
+              return e.id;
+            } else {
+              return e;
+            }
+          });
+          dm[ScString('group_ids')] = teams;
+          return ScMap(dm).printToString(env);
+        } else {
+          return data.printToString(env);
+        }
+      }
+    } else {
+      final sb = StringBuffer('');
+      sb.writeln("${informalTypeName().capitalize()} $id");
+      env.indentIndex += 1;
+      sb.write(env.indentString());
+      sb.write(data.printToString(env));
+      env.indentIndex -= 1;
+      return sb.toString();
+    }
   }
 
   @override
@@ -5944,6 +5949,8 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
   @override
   int get hashCode => 31 + id.hashCode;
 
+  @override
+  // NB: This is used to create the JSON string sent to Shortcut's API. See [printToString] for how _printing_ a JSON-compatible representation is accomplished for end-user use.
   String toJson() {
     JsonEncoder jsonEncoder = JsonEncoder.withIndent('  ');
     return jsonEncoder.convert(data);
@@ -5988,28 +5995,32 @@ class ScMember extends ScEntity {
     if (data.isEmpty) {
       waitOn(fetch(env));
     }
-    final role = data[ScString('role')];
-    final profile = data[ScString('profile')];
-    String name;
-    String mentionName;
-    if (profile != null) {
-      final p = profile as ScMap;
-      name = (p[ScString('name')] as ScString).value;
-      mentionName = (p[ScString('mention_name')] as ScString).value;
+    if (env.isPrintJson) {
+      return super.printToString(env);
     } else {
-      name = (data[ScString('name')] as ScString).value;
-      mentionName = (data[ScString('mention_name')] as ScString).value;
+      final role = data[ScString('role')];
+      final profile = data[ScString('profile')];
+      String name;
+      String mentionName;
+      if (profile != null) {
+        final p = profile as ScMap;
+        name = (p[ScString('name')] as ScString).value;
+        mentionName = (p[ScString('mention_name')] as ScString).value;
+      } else {
+        name = (data[ScString('name')] as ScString).value;
+        mentionName = (data[ScString('mention_name')] as ScString).value;
+      }
+      final shortName = truncate(name, env.displayWidth);
+      var prefix = wrapWith('[User]', [green]);
+      if (role != null) {
+        final r = role as ScString;
+        prefix = wrapWith('[${r.value.capitalize()}]', [entityColor])!;
+      }
+      final memberMentionName = wrapWith("[@$mentionName]", [entityColor])!;
+      final memberName = wrapWith(shortName, [yellow])!;
+      final memberId = wrapWith("[$id]", [entityColor])!;
+      return "$prefix$memberMentionName $memberName $memberId";
     }
-    final shortName = truncate(name, env.displayWidth);
-    var prefix = wrapWith('[User]', [green]);
-    if (role != null) {
-      final r = role as ScString;
-      prefix = wrapWith('[${r.value.capitalize()}]', [entityColor])!;
-    }
-    final memberMentionName = wrapWith("[@$mentionName]", [entityColor])!;
-    final memberName = wrapWith(shortName, [yellow])!;
-    final memberId = wrapWith("[$id]", [entityColor])!;
-    return "$prefix$memberMentionName $memberName $memberId";
   }
 
   @override
@@ -6112,17 +6123,21 @@ class ScTeam extends ScEntity {
 
   @override
   String printToString(ScEnv env) {
-    final name = dataFieldOr<ScString?>(data, 'name', title) ??
-        ScString("<No name: run fetch>");
-    final mentionName = dataFieldOr<ScString>(
-            data, 'mention_name', ScString("<No mention name: run fetch>")) ??
-        ScString("<No mention name>");
-    final shortName = truncate(name.value, env.displayWidth);
-    final prefix = wrapWith('[Team]', [entityColor]);
-    final teamMentionName = wrapWith("[@${mentionName.value}]", [green])!;
-    final teamName = wrapWith(shortName, [yellow])!;
-    final teamId = wrapWith("[$id]", [entityColor])!;
-    return "$prefix$teamMentionName $teamName $teamId";
+    if (env.isPrintJson) {
+      return super.printToString(env);
+    } else {
+      final name = dataFieldOr<ScString?>(data, 'name', title) ??
+          ScString("<No name: run fetch>");
+      final mentionName = dataFieldOr<ScString>(
+              data, 'mention_name', ScString("<No mention name: run fetch>")) ??
+          ScString("<No mention name>");
+      final shortName = truncate(name.value, env.displayWidth);
+      final prefix = wrapWith('[Team]', [entityColor]);
+      final teamMentionName = wrapWith("[@${mentionName.value}]", [green])!;
+      final teamName = wrapWith(shortName, [yellow])!;
+      final teamId = wrapWith("[$id]", [entityColor])!;
+      return "$prefix$teamMentionName $teamName $teamId";
+    }
   }
 
   @override
@@ -6201,13 +6216,17 @@ class ScMilestone extends ScEntity {
 
   @override
   String printToString(ScEnv env) {
-    final name = dataFieldOr<ScString?>(data, 'name', title) ??
-        ScString("<No name: run fetch>");
-    final shortName = truncate(name.value, env.displayWidth);
-    final prefix = wrapWith('[Milestone]', [red]);
-    final milestoneName = wrapWith(shortName, [yellow])!;
-    final milestoneId = wrapWith("[${id.value}]", [red])!;
-    return "$prefix $milestoneName $milestoneId";
+    if (env.isPrintJson) {
+      return super.printToString(env);
+    } else {
+      final name = dataFieldOr<ScString?>(data, 'name', title) ??
+          ScString("<No name: run fetch>");
+      final shortName = truncate(name.value, env.displayWidth);
+      final prefix = wrapWith('[Milestone]', [red]);
+      final milestoneName = wrapWith(shortName, [yellow])!;
+      final milestoneId = wrapWith("[${id.value}]", [red])!;
+      return "$prefix $milestoneName $milestoneId";
+    }
   }
 
   @override
@@ -6291,13 +6310,17 @@ class ScEpic extends ScEntity {
 
   @override
   String printToString(ScEnv env) {
-    final name = dataFieldOr<ScString?>(data, 'name', title) ??
-        ScString("<No name: run fetch>");
-    final shortName = truncate(name.value, env.displayWidth);
-    final prefix = wrapWith('[Epic]', [entityColor]);
-    final epicName = wrapWith(shortName, [yellow])!;
-    final epicId = wrapWith("[${id.value}]", [entityColor])!;
-    return "$prefix $epicName $epicId";
+    if (env.isPrintJson) {
+      return super.printToString(env);
+    } else {
+      final name = dataFieldOr<ScString?>(data, 'name', title) ??
+          ScString("<No name: run fetch>");
+      final shortName = truncate(name.value, env.displayWidth);
+      final prefix = wrapWith('[Epic]', [entityColor]);
+      final epicName = wrapWith(shortName, [yellow])!;
+      final epicId = wrapWith("[${id.value}]", [entityColor])!;
+      return "$prefix $epicName $epicId";
+    }
   }
 
   @override
@@ -6424,55 +6447,59 @@ class ScStory extends ScEntity {
 
   @override
   String printToString(ScEnv env) {
-    final name = dataFieldOr<ScString?>(data, 'name', title) ??
-        ScString("<No name: run fetch>");
-    final shortName = truncate(name.value, env.displayWidth);
+    if (env.isPrintJson) {
+      return super.printToString(env);
+    } else {
+      final name = dataFieldOr<ScString?>(data, 'name', title) ??
+          ScString("<No name: run fetch>");
+      final shortName = truncate(name.value, env.displayWidth);
 
-    final state = data[ScString('workflow_state_id')];
-    String storyStateType = '';
-    if (state is ScWorkflowState) {
-      final stateType = (state.data[ScString('type')] as ScString).value;
-      var color = entityColor;
-      switch (stateType) {
-        case 'unstarted':
-          color = lightRed;
-          break;
-        case 'started':
-          color = lightMagenta;
-          break;
-        case 'done':
-          color = lightGreen;
-          break;
+      final state = data[ScString('workflow_state_id')];
+      String storyStateType = '';
+      if (state is ScWorkflowState) {
+        final stateType = (state.data[ScString('type')] as ScString).value;
+        var color = entityColor;
+        switch (stateType) {
+          case 'unstarted':
+            color = lightRed;
+            break;
+          case 'started':
+            color = lightMagenta;
+            break;
+          case 'done':
+            color = lightGreen;
+            break;
+        }
+        final stateTypeAbbrev = stateType[0].toUpperCase();
+        storyStateType = wrapWith('[$stateTypeAbbrev]', [color])!;
       }
-      final stateTypeAbbrev = stateType[0].toUpperCase();
-      storyStateType = wrapWith('[$stateTypeAbbrev]', [color])!;
-    }
 
-    final type = data[ScString('story_type')];
-    String storyType = '';
-    if (type is ScString) {
-      var color = entityColor;
-      var ts = type.value;
-      switch (ts) {
-        case 'bug':
-          color = lightRed;
-          break;
-        case 'chore':
-          color = lightGray;
-          break;
-        case 'feature':
-          color = lightYellow;
-          break;
+      final type = data[ScString('story_type')];
+      String storyType = '';
+      if (type is ScString) {
+        var color = entityColor;
+        var ts = type.value;
+        switch (ts) {
+          case 'bug':
+            color = lightRed;
+            break;
+          case 'chore':
+            color = lightGray;
+            break;
+          case 'feature':
+            color = lightYellow;
+            break;
+        }
+        final typeAbbrev = ts[0].toUpperCase();
+        storyType = wrapWith('[$typeAbbrev]', [color])!;
       }
-      final typeAbbrev = ts[0].toUpperCase();
-      storyType = wrapWith('[$typeAbbrev]', [color])!;
-    }
 
-    final prefix =
-        wrapWith('[Story]', [entityColor])! + storyType + storyStateType;
-    final storyName = wrapWith(shortName, [yellow])!;
-    final storyId = wrapWith("[${id.value}]", [entityColor])!;
-    return "$prefix $storyName $storyId";
+      final prefix =
+          wrapWith('[Story]', [entityColor])! + storyType + storyStateType;
+      final storyName = wrapWith(shortName, [yellow])!;
+      final storyId = wrapWith("[${id.value}]", [entityColor])!;
+      return "$prefix $storyName $storyId";
+    }
   }
 
   @override
@@ -6668,23 +6695,27 @@ class ScTask extends ScEntity {
 
   @override
   String printToString(ScEnv env) {
-    // TODO Consider config of which fields users want printed
-    // TODO Consider prefab minimal, medium, full printings
-    final description = dataFieldOr<ScString?>(data, 'description', title) ??
-        ScString("<No description: run fetch>");
-    final shortDescription = truncate(description.value, env.displayWidth);
-    final complete =
-        dataFieldOr<ScBoolean>(data, 'complete', ScBoolean.falsitas());
-    String status;
-    if (complete == ScBoolean.veritas()) {
-      status = wrapWith("[DONE]", [green])!;
+    if (env.isPrintJson) {
+      return super.printToString(env);
     } else {
-      status = wrapWith("[TODO]", [red, styleUnderlined])!;
+      // TODO Consider config of which fields users want printed
+      // TODO Consider prefab minimal, medium, full printings
+      final description = dataFieldOr<ScString?>(data, 'description', title) ??
+          ScString("<No description: run fetch>");
+      final shortDescription = truncate(description.value, env.displayWidth);
+      final complete =
+          dataFieldOr<ScBoolean>(data, 'complete', ScBoolean.falsitas());
+      String status;
+      if (complete == ScBoolean.veritas()) {
+        status = wrapWith("[DONE]", [green])!;
+      } else {
+        status = wrapWith("[TODO]", [red, styleUnderlined])!;
+      }
+      final prefix = wrapWith('[Task]', [lightMagenta]);
+      final taskDescription = wrapWith(shortDescription, [yellow])!;
+      final taskId = wrapWith("[${id.value}]", [lightMagenta])!;
+      return "$prefix$status $taskDescription $taskId";
     }
-    final prefix = wrapWith('[Task]', [lightMagenta]);
-    final taskDescription = wrapWith(shortDescription, [yellow])!;
-    final taskId = wrapWith("[${id.value}]", [lightMagenta])!;
-    return "$prefix$status $taskDescription $taskId";
   }
 }
 
@@ -6725,13 +6756,17 @@ class ScIteration extends ScEntity {
 
   @override
   String printToString(ScEnv env) {
-    final name = dataFieldOr<ScString?>(data, 'name', title) ??
-        ScString("<No name: run fetch>");
-    final shortName = truncate(name.value, env.displayWidth);
-    final prefix = wrapWith('[Iteration]', [entityColor]);
-    final iterationName = wrapWith(shortName, [yellow])!;
-    final iterationId = wrapWith("[${id.value}]", [entityColor])!;
-    return "$prefix $iterationName $iterationId";
+    if (env.isPrintJson) {
+      return super.printToString(env);
+    } else {
+      final name = dataFieldOr<ScString?>(data, 'name', title) ??
+          ScString("<No name: run fetch>");
+      final shortName = truncate(name.value, env.displayWidth);
+      final prefix = wrapWith('[Iteration]', [entityColor]);
+      final iterationName = wrapWith(shortName, [yellow])!;
+      final iterationId = wrapWith("[${id.value}]", [entityColor])!;
+      return "$prefix $iterationName $iterationId";
+    }
   }
 
   @override
@@ -6856,13 +6891,17 @@ class ScWorkflow extends ScEntity {
 
   @override
   String printToString(ScEnv env) {
-    final name = dataFieldOr<ScString?>(data, 'name', title) ??
-        ScString("<No name: run fetch>");
-    final shortName = truncate(name.value, env.displayWidth);
-    final prefix = wrapWith('[Workflow]', [lightCyan]);
-    final workflowName = wrapWith(shortName, [yellow])!;
-    final workflowId = wrapWith("[${id.value}]", [lightCyan])!;
-    return "$prefix $workflowName $workflowId";
+    if (env.isPrintJson) {
+      return super.printToString(env);
+    } else {
+      final name = dataFieldOr<ScString?>(data, 'name', title) ??
+          ScString("<No name: run fetch>");
+      final shortName = truncate(name.value, env.displayWidth);
+      final prefix = wrapWith('[Workflow]', [lightCyan]);
+      final workflowName = wrapWith(shortName, [yellow])!;
+      final workflowId = wrapWith("[${id.value}]", [lightCyan])!;
+      return "$prefix $workflowName $workflowId";
+    }
   }
 
   @override
@@ -6939,31 +6978,35 @@ class ScWorkflowState extends ScEntity {
 
   @override
   String printToString(ScEnv env) {
-    final name = dataFieldOr<ScString?>(data, 'name', title) ??
-        ScString("<No name: run fetch>");
-    final shortName = truncate(name.value, env.displayWidth);
-    final type = data[ScString('type')];
-    String typeStr = '';
-    if (type is ScString) {
-      final ts = type.value;
-      var color = entityColor;
-      switch (ts) {
-        case 'unstarted':
-          color = lightRed;
-          break;
-        case 'started':
-          color = lightMagenta;
-          break;
-        case 'done':
-          color = lightGreen;
-          break;
+    if (env.isPrintJson) {
+      return super.printToString(env);
+    } else {
+      final name = dataFieldOr<ScString?>(data, 'name', title) ??
+          ScString("<No name: run fetch>");
+      final shortName = truncate(name.value, env.displayWidth);
+      final type = data[ScString('type')];
+      String typeStr = '';
+      if (type is ScString) {
+        final ts = type.value;
+        var color = entityColor;
+        switch (ts) {
+          case 'unstarted':
+            color = lightRed;
+            break;
+          case 'started':
+            color = lightMagenta;
+            break;
+          case 'done':
+            color = lightGreen;
+            break;
+        }
+        typeStr = wrapWith('[$ts]', [color])!;
       }
-      typeStr = wrapWith('[$ts]', [color])!;
+      final prefix = wrapWith('[Workflow State]', [entityColor]);
+      final workflowStateName = wrapWith(shortName, [yellow])!;
+      final workflowStateId = wrapWith("[${id.value}]", [entityColor])!;
+      return "$prefix$typeStr $workflowStateName $workflowStateId";
     }
-    final prefix = wrapWith('[Workflow State]', [entityColor]);
-    final workflowStateName = wrapWith(shortName, [yellow])!;
-    final workflowStateId = wrapWith("[${id.value}]", [entityColor])!;
-    return "$prefix$typeStr $workflowStateName $workflowStateId";
   }
 }
 
@@ -7017,12 +7060,16 @@ class ScEpicWorkflow extends ScEntity {
 
   @override
   String printToString(ScEnv env) {
-    final name = 'Workspace-wide Epic Workflow';
-    final shortName = truncate(name, env.displayWidth);
-    final prefix = wrapWith('[Epic Workflow]', [entityColor]);
-    final epicWorkflowName = wrapWith(shortName, [yellow])!;
-    final epicWorkflowId = wrapWith("[${id.value}]", [entityColor])!;
-    return "$prefix $epicWorkflowName $epicWorkflowId";
+    if (env.isPrintJson) {
+      return super.printToString(env);
+    } else {
+      final name = 'Workspace-wide Epic Workflow';
+      final shortName = truncate(name, env.displayWidth);
+      final prefix = wrapWith('[Epic Workflow]', [entityColor]);
+      final epicWorkflowName = wrapWith(shortName, [yellow])!;
+      final epicWorkflowId = wrapWith("[${id.value}]", [entityColor])!;
+      return "$prefix $epicWorkflowName $epicWorkflowId";
+    }
   }
 
   @override
@@ -7113,31 +7160,35 @@ class ScEpicWorkflowState extends ScEntity {
 
   @override
   String printToString(ScEnv env) {
-    final name = dataFieldOr<ScString?>(data, 'name', title) ??
-        ScString("<No name: run fetch>");
-    final shortName = truncate(name.value, env.displayWidth);
-    final type = data[ScString('type')];
-    String typeStr = '';
-    if (type is ScString) {
-      final ts = type.value;
-      var color = entityColor;
-      switch (ts) {
-        case 'unstarted':
-          color = lightRed;
-          break;
-        case 'started':
-          color = lightMagenta;
-          break;
-        case 'done':
-          color = lightGreen;
-          break;
+    if (env.isPrintJson) {
+      return super.printToString(env);
+    } else {
+      final name = dataFieldOr<ScString?>(data, 'name', title) ??
+          ScString("<No name: run fetch>");
+      final shortName = truncate(name.value, env.displayWidth);
+      final type = data[ScString('type')];
+      String typeStr = '';
+      if (type is ScString) {
+        final ts = type.value;
+        var color = entityColor;
+        switch (ts) {
+          case 'unstarted':
+            color = lightRed;
+            break;
+          case 'started':
+            color = lightMagenta;
+            break;
+          case 'done':
+            color = lightGreen;
+            break;
+        }
+        typeStr = wrapWith('[$ts]', [color])!;
       }
-      typeStr = wrapWith('[$ts]', [color])!;
+      final prefix = wrapWith('[Epic Workflow State]', [entityColor]);
+      final workflowStateName = wrapWith(shortName, [yellow])!;
+      final workflowStateId = wrapWith("[${id.value}]", [entityColor])!;
+      return "$prefix$typeStr $workflowStateName $workflowStateId";
     }
-    final prefix = wrapWith('[Epic Workflow State]', [entityColor]);
-    final workflowStateName = wrapWith(shortName, [yellow])!;
-    final workflowStateId = wrapWith("[${id.value}]", [entityColor])!;
-    return "$prefix$typeStr $workflowStateName $workflowStateId";
   }
 }
 
@@ -7764,7 +7815,7 @@ void setParentEntity(ScEnv env, ScEntity entity, {bool isHistory = true}) {
   env.writeToDisk();
 }
 
-ScEntity? entityFromJson(Map<String, dynamic> json) {
+ScEntity? entityFromEnvJson(Map<String, dynamic> json) {
   ScEntity? entity;
   final entityTypeString = json['entityType'];
   if (entityTypeString == null) {
@@ -8267,9 +8318,9 @@ class UninvocableException extends ExceptionWithMessage {
 }
 
 class SourceFileNotFound extends ExceptionWithMessage {
-  SourceFileNotFound(String filePath)
+  SourceFileNotFound(String filePath, String configDirPath)
       : super(
-            "Source file '$filePath' not found relative to current working directory or in shortcut-cli config directory.");
+            "Source file '$filePath' not found relative to current working directory or in $configDirPath config directory.");
 }
 
 class PrematureEndOfProgram extends ExceptionWithMessage {

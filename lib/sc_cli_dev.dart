@@ -35,6 +35,7 @@ Function startDevReplServerIsolateFn(Options options) {
         out: stdout,
         err: stderr,
         isReplMode: true,
+        isPrintJson: options.isPrintJson,
         isAnsiEnabled: options.isAnsiEnabled ?? true);
     env.loadPrelude();
     maybeLoadFiles(env, options);

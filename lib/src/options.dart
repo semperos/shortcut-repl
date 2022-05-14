@@ -9,8 +9,12 @@ ArgParser get parser => _$populateOptionsParser(ArgParser(usageLineLength: 80));
 /// The command line options for sc
 @CliOptions()
 class Options {
-  @CliOption(abbr: 'h', negatable: false, help: 'Prints usage information.')
-  final bool help;
+  @CliOption(
+      abbr: 'a',
+      name: 'ansi-color',
+      help:
+          'Whether or not to use ANSI codes for colored output. This flag is only partially honored at this time, with ANSI printing for the majority of functions.')
+  bool? isAnsiEnabled;
 
   @CliOption(
       abbr: 'c',
@@ -24,6 +28,17 @@ class Options {
       name: 'eval',
       help: 'Evaluate a one-off Shortcut program and exit.')
   late String? program;
+
+  @CliOption(abbr: 'h', negatable: false, help: 'Prints usage information.')
+  final bool help;
+
+  @CliOption(
+      abbr: 'j',
+      name: 'json',
+      negatable: false,
+      help: 'Print output in JSON format.',
+      defaultsTo: false)
+  final bool isPrintJson;
 
   @CliOption(
       abbr: 'l',
@@ -39,12 +54,5 @@ class Options {
       defaultsTo: false)
   final bool isReplMode;
 
-  @CliOption(
-      abbr: 'a',
-      name: 'ansi-color',
-      help:
-          'Whether or not to use ANSI codes for colored output. This flag is only partially honored at this time, with ANSI printing for the majority of functions.')
-  bool? isAnsiEnabled;
-
-  Options(this.help, this.isReplMode);
+  Options(this.help, this.isReplMode, this.isPrintJson);
 }
