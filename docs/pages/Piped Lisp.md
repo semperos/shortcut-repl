@@ -10,7 +10,6 @@
 		- Example: `(* 3 (+ 1 2))` -> `+ 1 2 | * 3`
 		- You can use `_` in a top-level expression to have the value from the previous expression threaded there, rather than as the first argument, equivalent to using Clojure's `as->` like `(as-> value _ ,,,)`
 			- Example: `(/ (+ 1 2) 3)` -> `+ 1 2 | / _ 3`
-	-
 	- Numbers support integer and floating point representations, and are wrappers around Dart's numbers (Dart's built-in `num.parse()` produces the underlying numeric value).
 		- TODO Examples of PL numbers
 	- Strings are sequences of characters or escape codes delimited by double quotation marks `"`.
@@ -28,6 +27,7 @@
 		- TODO Examples of PL maps
 	- Commas are considered whitespace, so you may use them to separate values in lists or entries in maps if desired.
 	- Expressions may be written on multiple lines, as long as the parser can unambiguously decide that it must continue to the following line to have a syntactically valid program (e.g., unclosed parenthesis at line's end).
+		- TODO Example of single-line vs. multi-line program
 	- Functions are written using one of two syntaxes:
 		- `%(example %1 %2)`
 			- These can be suffixed like `%1-some-arg` for better readability as long as the number portion is correct.
@@ -47,6 +47,19 @@
 			- `me` invokes the function bound to the symbol `me`
 			- `def myself value me` binds the function value `me` to a new symbol `myself`
 			- `def me-cached me` or `def me-cached (me)` assigns the _return value_ of invoking the `me` function to `me-cached`.
+	- Symbols
+		- Symbols are looked up in the current environment's bindings.
+			- If found: the value of the binding is returned when the symbol is evaluated.
+			- If not found:
+				- When in REPL mode (at the interactive console), the REPL guides the language user through defining the unknown symbol (or not).
+				- When in non-REPL mode, an exception is thrown.
+	- Dotted Symbols
+		- Akin to Clojure's keywords, PL dotted symbols evaluate to themselves **unless used in an invocation position**.
+			- Unlike Clojure, (1) invocation does not have to be denoted with parentheses, and (2) there are many syntactic contexts that result in invocation as opposed to simple evaluation.
+				- If a dotted symbol is evaluated by itself and there is a [[Parent Entity]] active, it tries to look itself up in that entity's data.
+				- If a dotted symbol is evaluated with a single argument that can be looked up into, it tries to look itself up in that data structure.
+					- If that argument is _not_ a collection or entity, then it looks itself up in the [[Parent Entity]] if active and uses its argument as the default-if-not-found value for the lookup.
+				- If a dotted symbol is evaluated with two arguments, the first is the collection or entity the dotted symbol looks itself up in, and the second argument is the default-if-not-found value for the lookup.
 	- Numerics
 		- PL numbers are simple wrappers around Dart numbers.
 		- Numbers are parsed using Dart's `num.parse`, so that controls the underlying numeric value for mathematical operations.
