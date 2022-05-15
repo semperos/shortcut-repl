@@ -513,6 +513,14 @@ def states      value (fn [entity] (ls (.workflow_id (fetch entity))))
     return indentString() + s;
   }
 
+  String? styleWith(String s, Iterable<AnsiCode> codes) {
+    if (isAnsiEnabled) {
+      return wrapWith(s, codes);
+    } else {
+      return s;
+    }
+  }
+
   String toJson() {
     JsonEncoder jsonEncoder = JsonEncoder.withIndent('  ');
     Map<String, dynamic> m = {};
@@ -1049,11 +1057,7 @@ class ScBoolean extends ScExpr {
 
   @override
   String printToString(ScEnv env) {
-    String str = super.printToString(env);
-    if (env.isAnsiEnabled) {
-      str = wrapWith(str, [red])!;
-    }
-    return super.printToString(env);
+    return env.styleWith(super.printToString(env), [red])!;
   }
 
   @override
@@ -1079,11 +1083,7 @@ class ScNumber extends ScExpr
 
   @override
   String printToString(ScEnv env) {
-    String str = super.printToString(env);
-    if (env.isAnsiEnabled) {
-      str = wrapWith(str, [green])!;
-    }
-    return str;
+    return env.styleWith(super.printToString(env), [green])!;
   }
 
   @override
@@ -1193,11 +1193,7 @@ class ScString extends ScExpr implements Comparable {
 
   @override
   String printToString(ScEnv env) {
-    String str = toString();
-    if (env.isAnsiEnabled) {
-      str = wrapWith(str, [yellow])!;
-    }
-    return str;
+    return env.styleWith(toString(), [yellow])!;
   }
 
   @override
@@ -1262,10 +1258,7 @@ class ScSymbol extends ScExpr implements Comparable {
     if (env.isPrintJson) {
       str = '"$str"';
     }
-    if (env.isAnsiEnabled) {
-      str = wrapWith(str, [magenta])!;
-    }
-    return str;
+    return env.styleWith(str, [magenta])!;
   }
 
   @override
@@ -1330,10 +1323,7 @@ class ScDottedSymbol extends ScExpr implements ScBaseInvocable {
     if (env.isPrintJson) {
       str = '"$_name"';
     }
-    if (env.isAnsiEnabled) {
-      str = wrapWith(str, [magenta])!;
-    }
-    return str;
+    return env.styleWith(str, [magenta])!;
   }
 
   @override
@@ -2040,7 +2030,7 @@ class ScFnHelp extends ScBaseInvocable {
     } else {
       final query = args[0];
       if (query is ScBaseInvocable) {
-        env.out.writeln(wrapWith(query.helpFull, [yellow]));
+        env.out.writeln(env.styleWith(query.helpFull, [yellow]));
       } else if (query is ScString) {
         final searchFn = ScFnSearch();
         final bindingsWithHelp = ScMap({});
@@ -2529,7 +2519,7 @@ class ScFnCwd extends ScBaseInvocable {
         }
         return pe;
       } else {
-        env.out.writeln(wrapWith(cwdHelp, [green]));
+        env.out.writeln(env.styleWith(cwdHelp, [green]));
         return ScNil();
       }
     } else {
@@ -2559,7 +2549,7 @@ class ScFnPwd extends ScBaseInvocable {
         pe.printSummary(env);
         return ScNil();
       } else {
-        env.out.writeln(wrapWith(ScFnCwd.cwdHelp, [green]));
+        env.out.writeln(env.styleWith(ScFnCwd.cwdHelp, [green]));
         return ScNil();
       }
     } else {
@@ -6011,14 +6001,15 @@ class ScMember extends ScEntity {
         mentionName = (data[ScString('mention_name')] as ScString).value;
       }
       final shortName = truncate(name, env.displayWidth);
-      var prefix = wrapWith('[User]', [green]);
+      var prefix = env.styleWith('[User]', [green]);
       if (role != null) {
         final r = role as ScString;
-        prefix = wrapWith('[${r.value.capitalize()}]', [entityColor])!;
+        prefix = env.styleWith('[${r.value.capitalize()}]', [entityColor])!;
       }
-      final memberMentionName = wrapWith("[@$mentionName]", [entityColor])!;
-      final memberName = wrapWith(shortName, [yellow])!;
-      final memberId = wrapWith("[$id]", [entityColor])!;
+      final memberMentionName =
+          env.styleWith("[@$mentionName]", [entityColor])!;
+      final memberName = env.styleWith(shortName, [yellow])!;
+      final memberId = env.styleWith("[$id]", [entityColor])!;
       return "$prefix$memberMentionName $memberName $memberId";
     }
   }
@@ -6039,33 +6030,34 @@ class ScMember extends ScEntity {
 
     final isArchived = data[ScString('disabled')];
     if (isArchived == ScBoolean.veritas()) {
-      sb.writeln(wrapWith('   !! DISABLED !!', [red]));
+      sb.writeln(env.styleWith('   !! DISABLED !!', [red]));
     }
 
     final profile = data[ScString('profile')];
     if (profile is ScMap) {
       final name = profile[ScString('name')];
       if (name is ScString) {
-        sb.write(wrapWith(lblName.padLeft(labelWidth), [entityColor]));
+        sb.write(env.styleWith(lblName.padLeft(labelWidth), [entityColor]));
         sb.writeln(name.value);
       }
 
       final id = data[ScString('id')];
       if (id is ScString) {
-        sb.write(wrapWith(lblId.padLeft(labelWidth), [entityColor]));
+        sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
         sb.writeln(id.value);
       }
 
       final mentionName = profile[ScString('mention_name')];
       if (mentionName is ScString) {
-        sb.write(wrapWith(lblMentionName.padLeft(labelWidth), [entityColor]));
+        sb.write(
+            env.styleWith(lblMentionName.padLeft(labelWidth), [entityColor]));
         sb.writeln("@${mentionName.value}");
       }
     }
 
     final teams = data[ScString('group_ids')] as ScList;
     if (teams.isNotEmpty) {
-      sb.write(wrapWith(lblTeams.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblTeams.padLeft(labelWidth), [entityColor]));
       if (teams.length == 1) {
         final team = teams[0] as ScTeam;
         sb.writeln(team.printToString(env));
@@ -6132,10 +6124,11 @@ class ScTeam extends ScEntity {
               data, 'mention_name', ScString("<No mention name: run fetch>")) ??
           ScString("<No mention name>");
       final shortName = truncate(name.value, env.displayWidth);
-      final prefix = wrapWith('[Team]', [entityColor]);
-      final teamMentionName = wrapWith("[@${mentionName.value}]", [green])!;
-      final teamName = wrapWith(shortName, [yellow])!;
-      final teamId = wrapWith("[$id]", [entityColor])!;
+      final prefix = env.styleWith('[Team]', [entityColor]);
+      final teamMentionName =
+          env.styleWith("[@${mentionName.value}]", [green])!;
+      final teamName = env.styleWith(shortName, [yellow])!;
+      final teamId = env.styleWith("[$id]", [entityColor])!;
       return "$prefix$teamMentionName $teamName $teamId";
     }
   }
@@ -6153,23 +6146,24 @@ class ScTeam extends ScEntity {
 
     final isArchived = data[ScString('archived')];
     if (isArchived == ScBoolean.veritas()) {
-      sb.writeln(wrapWith('   !! ARCHIVED !!', [red]));
+      sb.writeln(env.styleWith('   !! ARCHIVED !!', [red]));
     }
 
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(wrapWith(lblTeam.padLeft(labelWidth), [entityColor]));
-    sb.writeln(wrapWith(name.value, [yellow, styleUnderlined]));
+    sb.write(env.styleWith(lblTeam.padLeft(labelWidth), [entityColor]));
+    sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
     final id = data[ScString('id')];
     if (id is ScString) {
-      sb.write(wrapWith(lblId.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
       sb.writeln(id);
     }
 
     final mentionName = data[ScString('mention_name')];
     if (mentionName is ScString) {
-      sb.write(wrapWith(lblMentionName.padLeft(labelWidth), [entityColor]));
+      sb.write(
+          env.styleWith(lblMentionName.padLeft(labelWidth), [entityColor]));
       sb.writeln("@${mentionName.value}");
     }
 
@@ -6222,9 +6216,9 @@ class ScMilestone extends ScEntity {
       final name = dataFieldOr<ScString?>(data, 'name', title) ??
           ScString("<No name: run fetch>");
       final shortName = truncate(name.value, env.displayWidth);
-      final prefix = wrapWith('[Milestone]', [red]);
-      final milestoneName = wrapWith(shortName, [yellow])!;
-      final milestoneId = wrapWith("[${id.value}]", [red])!;
+      final prefix = env.styleWith('[Milestone]', [red]);
+      final milestoneName = env.styleWith(shortName, [yellow])!;
+      final milestoneId = env.styleWith("[${id.value}]", [red])!;
       return "$prefix $milestoneName $milestoneId";
     }
   }
@@ -6239,34 +6233,34 @@ class ScMilestone extends ScEntity {
     final sb = StringBuffer('\n');
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(wrapWith('Milestone '.padLeft(labelWidth), [entityColor]));
-    sb.writeln(wrapWith(name.value, [yellow, styleUnderlined]));
+    sb.write(env.styleWith('Milestone '.padLeft(labelWidth), [entityColor]));
+    sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
     final milestoneId = id.value;
-    sb.write(wrapWith('Id '.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith('Id '.padLeft(labelWidth), [entityColor]));
     sb.writeln(milestoneId);
 
     final startedAt = data[ScString('started_at')];
     if (startedAt is ScString) {
-      sb.write(wrapWith('Started '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Started '.padLeft(labelWidth), [entityColor]));
       sb.writeln(startedAt.value);
     } else if (startedAt == ScNil()) {
-      sb.write(wrapWith('Started '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Started '.padLeft(labelWidth), [entityColor]));
       sb.writeln('N/A');
     }
 
     final completedAt = data[ScString('completed_at')];
     if (completedAt is ScString) {
-      sb.write(wrapWith('Completed '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Completed '.padLeft(labelWidth), [entityColor]));
       sb.writeln(completedAt.value);
     } else if (completedAt == ScNil()) {
-      sb.write(wrapWith('Completed '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Completed '.padLeft(labelWidth), [entityColor]));
       sb.writeln('N/A');
     }
 
     final state = data[ScString('state')];
     if (state is ScString) {
-      sb.write(wrapWith('State '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('State '.padLeft(labelWidth), [entityColor]));
       sb.writeln(state.value);
     }
 
@@ -6316,9 +6310,9 @@ class ScEpic extends ScEntity {
       final name = dataFieldOr<ScString?>(data, 'name', title) ??
           ScString("<No name: run fetch>");
       final shortName = truncate(name.value, env.displayWidth);
-      final prefix = wrapWith('[Epic]', [entityColor]);
-      final epicName = wrapWith(shortName, [yellow])!;
-      final epicId = wrapWith("[${id.value}]", [entityColor])!;
+      final prefix = env.styleWith('[Epic]', [entityColor]);
+      final epicName = env.styleWith(shortName, [yellow])!;
+      final epicId = env.styleWith("[${id.value}]", [entityColor])!;
       return "$prefix $epicName $epicId";
     }
   }
@@ -6334,26 +6328,26 @@ class ScEpic extends ScEntity {
 
     final isArchived = data[ScString('archived')];
     if (isArchived == ScBoolean.veritas()) {
-      sb.writeln(wrapWith('   !! ARCHIVED !!', [red]));
+      sb.writeln(env.styleWith('   !! ARCHIVED !!', [red]));
     }
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(wrapWith('Epic '.padLeft(labelWidth), [entityColor]));
-    sb.writeln(wrapWith(name.value, [yellow, styleUnderlined]));
+    sb.write(env.styleWith('Epic '.padLeft(labelWidth), [entityColor]));
+    sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
     final epicId = id.value;
-    sb.write(wrapWith('Id '.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith('Id '.padLeft(labelWidth), [entityColor]));
     sb.writeln(epicId);
 
     final state = data[ScString('epic_state_id')];
     if (state is ScEpicWorkflowState) {
-      sb.write(wrapWith('State '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('State '.padLeft(labelWidth), [entityColor]));
       sb.write(state.printToString(env));
     }
     sb.writeln();
 
     final owners = data[ScString('owner_ids')] as ScList;
-    sb.write(wrapWith('Owned by '.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith('Owned by '.padLeft(labelWidth), [entityColor]));
     if (owners.isEmpty) {
       sb.writeln('<No one>');
     } else {
@@ -6375,7 +6369,7 @@ class ScEpic extends ScEntity {
 
     final team = data[ScString('group_id')];
     if (team is ScTeam) {
-      sb.write(wrapWith('Team '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Team '.padLeft(labelWidth), [entityColor]));
       sb.write(team.printToString(env));
       sb.writeln();
     }
@@ -6386,7 +6380,7 @@ class ScEpic extends ScEntity {
       final numPointsDone = stats[ScString('num_points_done')];
       if (numPoints is ScNumber) {
         if (numPointsDone is ScNumber) {
-          sb.write(wrapWith('Points '.padLeft(labelWidth), [entityColor]));
+          sb.write(env.styleWith('Points '.padLeft(labelWidth), [entityColor]));
           sb.write("$numPointsDone/$numPoints points done");
         }
       }
@@ -6471,7 +6465,7 @@ class ScStory extends ScEntity {
             break;
         }
         final stateTypeAbbrev = stateType[0].toUpperCase();
-        storyStateType = wrapWith('[$stateTypeAbbrev]', [color])!;
+        storyStateType = env.styleWith('[$stateTypeAbbrev]', [color])!;
       }
 
       final type = data[ScString('story_type')];
@@ -6491,13 +6485,13 @@ class ScStory extends ScEntity {
             break;
         }
         final typeAbbrev = ts[0].toUpperCase();
-        storyType = wrapWith('[$typeAbbrev]', [color])!;
+        storyType = env.styleWith('[$typeAbbrev]', [color])!;
       }
 
       final prefix =
-          wrapWith('[Story]', [entityColor])! + storyType + storyStateType;
-      final storyName = wrapWith(shortName, [yellow])!;
-      final storyId = wrapWith("[${id.value}]", [entityColor])!;
+          env.styleWith('[Story]', [entityColor])! + storyType + storyStateType;
+      final storyName = env.styleWith(shortName, [yellow])!;
+      final storyId = env.styleWith("[${id.value}]", [entityColor])!;
       return "$prefix $storyName $storyId";
     }
   }
@@ -6515,30 +6509,30 @@ class ScStory extends ScEntity {
         ScString("<No name: run fetch>");
     final isArchived = data[ScString('archived')];
     if (isArchived == ScBoolean.veritas()) {
-      sb.writeln(wrapWith('   !! ARCHIVED !!', [red]));
+      sb.writeln(env.styleWith('   !! ARCHIVED !!', [red]));
     }
     final storyType = data[ScString('story_type')];
     var storyLabel = 'Story';
     if (storyType is ScString) {
       storyLabel = storyType.value.capitalize();
     }
-    sb.write(wrapWith('$storyLabel '.padLeft(labelWidth), [entityColor]));
-    sb.writeln(wrapWith(name.value, [yellow, styleUnderlined]));
+    sb.write(env.styleWith('$storyLabel '.padLeft(labelWidth), [entityColor]));
+    sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
     final storyId = id.value;
-    sb.write(wrapWith('Id '.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith('Id '.padLeft(labelWidth), [entityColor]));
     sb.writeln(storyId);
 
     final state = data[ScString('workflow_state_id')];
     if (state is ScWorkflowState) {
-      sb.write(wrapWith('State '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('State '.padLeft(labelWidth), [entityColor]));
       sb.write(state.printToString(env));
     }
     sb.writeln();
 
     final epic = data[ScString('epic_id')];
     if (epic != ScNil()) {
-      sb.write(wrapWith('Epic '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Epic '.padLeft(labelWidth), [entityColor]));
       if (epic is ScEpic) {
         sb.write(epic.printToString(env));
       } else if (epic is ScNumber) {
@@ -6551,7 +6545,7 @@ class ScStory extends ScEntity {
 
     final iteration = data[ScString('iteration_id')];
     if (iteration != ScNil()) {
-      sb.write(wrapWith('Iteration '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Iteration '.padLeft(labelWidth), [entityColor]));
       if (iteration is ScIteration) {
         sb.write(iteration.printToString(env));
       } else if (iteration is ScNumber) {
@@ -6565,7 +6559,7 @@ class ScStory extends ScEntity {
 
     final owners = data[ScString('owner_ids')] as ScList;
     if (owners.isNotEmpty) {
-      sb.write(wrapWith('Owned by '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Owned by '.padLeft(labelWidth), [entityColor]));
       if (owners.length == 1) {
         final owner = owners[0] as ScMember;
         sb.writeln(owner.printToString(env));
@@ -6584,7 +6578,7 @@ class ScStory extends ScEntity {
 
     final team = data[ScString('group_id')];
     if (team != ScNil()) {
-      sb.write(wrapWith('Team '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Team '.padLeft(labelWidth), [entityColor]));
       if (team is ScTeam) {
         sb.write(team.printToString(env));
       } else if (team is ScString) {
@@ -6597,7 +6591,7 @@ class ScStory extends ScEntity {
 
     final estimate = data[ScString('estimate')];
     if (estimate is ScNumber) {
-      sb.write(wrapWith('Estimate '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Estimate '.padLeft(labelWidth), [entityColor]));
       if (estimate == ScNumber(1)) {
         sb.write("$estimate point");
       } else {
@@ -6608,14 +6602,14 @@ class ScStory extends ScEntity {
 
     final deadline = data[ScString('deadline')];
     if (deadline is ScString) {
-      sb.write(wrapWith('Deadline '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Deadline '.padLeft(labelWidth), [entityColor]));
       sb.write(deadline);
       sb.writeln();
     }
 
     final labels = data[ScString('labels')];
     if (labels is ScList && labels.isNotEmpty) {
-      sb.write(wrapWith('Labels '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Labels '.padLeft(labelWidth), [entityColor]));
       for (var i = 0; i < labels.length; i++) {
         final label = labels[i];
         if (label is ScMap) {
@@ -6643,7 +6637,7 @@ class ScStory extends ScEntity {
         }
       }
       if (ts.length > 0) {
-        sb.write(wrapWith('Tasks '.padLeft(labelWidth), [entityColor]));
+        sb.write(env.styleWith('Tasks '.padLeft(labelWidth), [entityColor]));
         sb.writeln('$numComplete/${ts.length} complete:');
         for (final task in ts.innerList) {
           final t = task as ScTask;
@@ -6707,13 +6701,13 @@ class ScTask extends ScEntity {
           dataFieldOr<ScBoolean>(data, 'complete', ScBoolean.falsitas());
       String status;
       if (complete == ScBoolean.veritas()) {
-        status = wrapWith("[DONE]", [green])!;
+        status = env.styleWith("[DONE]", [green])!;
       } else {
-        status = wrapWith("[TODO]", [red, styleUnderlined])!;
+        status = env.styleWith("[TODO]", [red, styleUnderlined])!;
       }
-      final prefix = wrapWith('[Task]', [lightMagenta]);
-      final taskDescription = wrapWith(shortDescription, [yellow])!;
-      final taskId = wrapWith("[${id.value}]", [lightMagenta])!;
+      final prefix = env.styleWith('[Task]', [lightMagenta]);
+      final taskDescription = env.styleWith(shortDescription, [yellow])!;
+      final taskId = env.styleWith("[${id.value}]", [lightMagenta])!;
       return "$prefix$status $taskDescription $taskId";
     }
   }
@@ -6762,9 +6756,9 @@ class ScIteration extends ScEntity {
       final name = dataFieldOr<ScString?>(data, 'name', title) ??
           ScString("<No name: run fetch>");
       final shortName = truncate(name.value, env.displayWidth);
-      final prefix = wrapWith('[Iteration]', [entityColor]);
-      final iterationName = wrapWith(shortName, [yellow])!;
-      final iterationId = wrapWith("[${id.value}]", [entityColor])!;
+      final prefix = env.styleWith('[Iteration]', [entityColor]);
+      final iterationName = env.styleWith(shortName, [yellow])!;
+      final iterationId = env.styleWith("[${id.value}]", [entityColor])!;
       return "$prefix $iterationName $iterationId";
     }
   }
@@ -6779,16 +6773,16 @@ class ScIteration extends ScEntity {
     final sb = StringBuffer('\n');
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(wrapWith('Iteration '.padLeft(labelWidth), [entityColor]));
-    sb.writeln(wrapWith(name.value, [yellow, styleUnderlined]));
+    sb.write(env.styleWith('Iteration '.padLeft(labelWidth), [entityColor]));
+    sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
     final epicId = id.value;
-    sb.write(wrapWith('Id '.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith('Id '.padLeft(labelWidth), [entityColor]));
     sb.writeln(epicId);
 
     final teams = data[ScString('group_ids')] as ScList;
     if (teams.isNotEmpty) {
-      sb.write(wrapWith('Teams '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Teams '.padLeft(labelWidth), [entityColor]));
       if (teams.length == 1) {
         final team = teams[0] as ScTeam;
         sb.writeln(team.printToString(env));
@@ -6807,19 +6801,19 @@ class ScIteration extends ScEntity {
 
     final startDate = data[ScString('start_date')];
     if (startDate is ScString) {
-      sb.write(wrapWith('Start '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Start '.padLeft(labelWidth), [entityColor]));
       sb.writeln(startDate.value);
     }
 
     final endDate = data[ScString('end_date')];
     if (endDate is ScString) {
-      sb.write(wrapWith('End '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('End '.padLeft(labelWidth), [entityColor]));
       sb.writeln(endDate.value);
     }
 
     final status = data[ScString('status')];
     if (status is ScString) {
-      sb.write(wrapWith('Status '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith('Status '.padLeft(labelWidth), [entityColor]));
       sb.writeln(status.value);
     }
 
@@ -6829,7 +6823,7 @@ class ScIteration extends ScEntity {
       final numPointsDone = stats[ScString('num_points_done')];
       if (numPoints is ScNumber) {
         if (numPointsDone is ScNumber) {
-          sb.write(wrapWith('Points '.padLeft(labelWidth), [entityColor]));
+          sb.write(env.styleWith('Points '.padLeft(labelWidth), [entityColor]));
           sb.write("$numPointsDone/$numPoints points done");
         }
       }
@@ -6897,9 +6891,9 @@ class ScWorkflow extends ScEntity {
       final name = dataFieldOr<ScString?>(data, 'name', title) ??
           ScString("<No name: run fetch>");
       final shortName = truncate(name.value, env.displayWidth);
-      final prefix = wrapWith('[Workflow]', [lightCyan]);
-      final workflowName = wrapWith(shortName, [yellow])!;
-      final workflowId = wrapWith("[${id.value}]", [lightCyan])!;
+      final prefix = env.styleWith('[Workflow]', [lightCyan]);
+      final workflowName = env.styleWith(shortName, [yellow])!;
+      final workflowId = env.styleWith("[${id.value}]", [lightCyan])!;
       return "$prefix $workflowName $workflowId";
     }
   }
@@ -6918,15 +6912,15 @@ class ScWorkflow extends ScEntity {
 
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(wrapWith(lblWorkflow.padLeft(labelWidth), [entityColor]));
-    sb.writeln(wrapWith(name.value, [yellow, styleUnderlined]));
+    sb.write(env.styleWith(lblWorkflow.padLeft(labelWidth), [entityColor]));
+    sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
     final workflowId = id.value;
-    sb.write(wrapWith(lblId.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
     sb.writeln(workflowId);
 
     final states = data[ScString('states')] as ScList;
-    sb.write(wrapWith(lblStates.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith(lblStates.padLeft(labelWidth), [entityColor]));
     var isFirst = true;
     for (final state in states.innerList) {
       if (isFirst) {
@@ -7000,11 +6994,11 @@ class ScWorkflowState extends ScEntity {
             color = lightGreen;
             break;
         }
-        typeStr = wrapWith('[$ts]', [color])!;
+        typeStr = env.styleWith('[$ts]', [color])!;
       }
-      final prefix = wrapWith('[Workflow State]', [entityColor]);
-      final workflowStateName = wrapWith(shortName, [yellow])!;
-      final workflowStateId = wrapWith("[${id.value}]", [entityColor])!;
+      final prefix = env.styleWith('[Workflow State]', [entityColor]);
+      final workflowStateName = env.styleWith(shortName, [yellow])!;
+      final workflowStateId = env.styleWith("[${id.value}]", [entityColor])!;
       return "$prefix$typeStr $workflowStateName $workflowStateId";
     }
   }
@@ -7065,9 +7059,9 @@ class ScEpicWorkflow extends ScEntity {
     } else {
       final name = 'Workspace-wide Epic Workflow';
       final shortName = truncate(name, env.displayWidth);
-      final prefix = wrapWith('[Epic Workflow]', [entityColor]);
-      final epicWorkflowName = wrapWith(shortName, [yellow])!;
-      final epicWorkflowId = wrapWith("[${id.value}]", [entityColor])!;
+      final prefix = env.styleWith('[Epic Workflow]', [entityColor]);
+      final epicWorkflowName = env.styleWith(shortName, [yellow])!;
+      final epicWorkflowId = env.styleWith("[${id.value}]", [entityColor])!;
       return "$prefix $epicWorkflowName $epicWorkflowId";
     }
   }
@@ -7087,14 +7081,14 @@ class ScEpicWorkflow extends ScEntity {
     final sb = StringBuffer('\n');
 
     final name = 'Workspace-wide Epic Workflow';
-    sb.write(wrapWith(lblWorkflow.padLeft(labelWidth), [entityColor]));
-    sb.writeln(wrapWith(name, [yellow, styleUnderlined]));
+    sb.write(env.styleWith(lblWorkflow.padLeft(labelWidth), [entityColor]));
+    sb.writeln(env.styleWith(name, [yellow, styleUnderlined]));
 
     final workflowId = id.value;
-    sb.write(wrapWith(lblId.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
     sb.writeln(workflowId);
 
-    sb.write(wrapWith(lblDefaultState.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith(lblDefaultState.padLeft(labelWidth), [entityColor]));
     final defaultEpicWorkflowStateId =
         data[ScString('default_epic_state_id')] as ScNumber;
     final epicStates = data[ScString('epic_states')] as ScList;
@@ -7107,7 +7101,7 @@ class ScEpicWorkflow extends ScEntity {
     }
 
     final states = data[ScString('epic_states')] as ScList;
-    sb.write(wrapWith(lblStates.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith(lblStates.padLeft(labelWidth), [entityColor]));
     var isFirst = true;
     for (final state in states.innerList) {
       if (isFirst) {
@@ -7182,11 +7176,11 @@ class ScEpicWorkflowState extends ScEntity {
             color = lightGreen;
             break;
         }
-        typeStr = wrapWith('[$ts]', [color])!;
+        typeStr = env.styleWith('[$ts]', [color])!;
       }
-      final prefix = wrapWith('[Epic Workflow State]', [entityColor]);
-      final workflowStateName = wrapWith(shortName, [yellow])!;
-      final workflowStateId = wrapWith("[${id.value}]", [entityColor])!;
+      final prefix = env.styleWith('[Epic Workflow State]', [entityColor]);
+      final workflowStateName = env.styleWith(shortName, [yellow])!;
+      final workflowStateId = env.styleWith("[${id.value}]", [entityColor])!;
       return "$prefix$typeStr $workflowStateName $workflowStateId";
     }
   }
@@ -8033,7 +8027,7 @@ void printTable(ScEnv env, List<ScExpr> ks, ScMap data) {
       } else {
         valueStr = value.printToString(env);
       }
-      sb.write(wrapWith(keyStr, [magenta]));
+      sb.write(env.styleWith(keyStr, [magenta]));
       sb.writeln(" $valueStr");
     }
   }

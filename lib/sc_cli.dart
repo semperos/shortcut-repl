@@ -186,7 +186,7 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
         env.out.writeln("Fetching your workspace's workflows...");
         scPrint(env,
             env.interpretExprString('workflows | map %(select % "id" "name")'));
-        repl.prompt = wrapWith('\nDefault Workflow ID: ', [green])!;
+        repl.prompt = env.styleWith('\nDefault Workflow ID: ', [green])!;
       } else if (env.interactivityState ==
           ScInteractivityState.getDefaultWorkflowId) {
         env.interactivityState = ScInteractivityState.getDefaultWorkflowStateId;
@@ -197,7 +197,7 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
             env,
             env.interpretExprString(
                 '${env[ScSymbol("__sc_default-workflow-id")]} | workflow | .states | map %(select % "id" "name") '));
-        repl.prompt = wrapWith('\nDefault Workflow State Id: ', [green])!;
+        repl.prompt = env.styleWith('\nDefault Workflow State Id: ', [green])!;
       } else if (env.interactivityState ==
           ScInteractivityState.getDefaultWorkflowStateId) {
         env.interactivityState = ScInteractivityState.getDefaultTeamId;
@@ -205,20 +205,20 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
             ScNumber(int.tryParse((expr as ScString).value)!);
         env.out.writeln("Fetching your workspace's teams...");
         scPrint(env, env.interpretExprString('teams'));
-        repl.prompt = wrapWith('\nDefault Team ID: ', [green])!;
+        repl.prompt = env.styleWith('\nDefault Team ID: ', [green])!;
       } else if (env.interactivityState ==
           ScInteractivityState.getDefaultTeamId) {
         env.interactivityState = ScInteractivityState.finishSetup;
         env[ScSymbol('__sc_default-team-id')] = expr;
         env.writeToDisk();
-        env.out.writeln(wrapWith("Defaults set!", [green]));
+        env.out.writeln(env.styleWith("Defaults set!", [green]));
         repl.prompt = '\nsc> ';
         // == Interactive Entity Creation ==
       } else if (env.interactivityState ==
               ScInteractivityState.startCreateEntity &&
           env[ScSymbol('__sc_entity-type')] == null) {
         env.interactivityState = ScInteractivityState.getEntityType;
-        repl.prompt = wrapWith(
+        repl.prompt = env.styleWith(
             "Create a story, epic, milestone, iteration, or task? ", [green])!;
       } else if (env.interactivityState == ScInteractivityState.getEntityType ||
           (env.interactivityState == ScInteractivityState.startCreateEntity &&
@@ -256,25 +256,25 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
             // NB: Assumption is this `create` call is meant to be scoped to the cwd of the Story
             env.interactivityState = ScInteractivityState.getEntityDescription;
             env[ScSymbol('__sc_task-story-id')] = pe.id;
-            repl.prompt = wrapWith('Description: ', [green])!;
+            repl.prompt = env.styleWith('Description: ', [green])!;
           } else {
             env.interactivityState = ScInteractivityState.getTaskStoryId;
-            repl.prompt = wrapWith("Task's Story ID: ", [green])!;
+            repl.prompt = env.styleWith("Task's Story ID: ", [green])!;
           }
         } else {
           env.interactivityState = ScInteractivityState.getEntityName;
-          repl.prompt = wrapWith('Title: ', [green])!;
+          repl.prompt = env.styleWith('Title: ', [green])!;
         }
       } else if (env.interactivityState ==
           ScInteractivityState.getTaskStoryId) {
         env[ScSymbol('__sc_task-story-id')] = expr;
         env.interactivityState = ScInteractivityState.getEntityDescription;
-        repl.prompt = wrapWith('Description: ', [green])!;
+        repl.prompt = env.styleWith('Description: ', [green])!;
       } else if (env.interactivityState == ScInteractivityState.getEntityName &&
           env[ScSymbol('__sc_entity-type')] != ScString('task')) {
         env.interactivityState = ScInteractivityState.getEntityDescription;
         env[ScSymbol('__sc_entity-name')] = expr;
-        repl.prompt = wrapWith('Description: ', [green])!;
+        repl.prompt = env.styleWith('Description: ', [green])!;
       } else if (env.interactivityState ==
           ScInteractivityState.getEntityDescription) {
         env.interactivityState = ScInteractivityState.finishCreateEntity;
@@ -338,23 +338,25 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
         if (answer == 'y' || answer == 'yes') {
           env.bindNextValue = true;
           env.isExpectingBindingAnswer = false;
-          env.out.write(wrapWith(
+          env.out.write(env.styleWith(
               'Great! The next thing you evaluate will be bound to ', [green]));
-          env.out.write(wrapWith(env.symbolBeingDefined.toString(), [yellow]));
+          env.out.write(
+              env.styleWith(env.symbolBeingDefined.toString(), [yellow]));
           repl.prompt = '\ndef ${env.symbolBeingDefined.toString()} ';
         } else {
           env.bindNextValue = false;
           env.isExpectingBindingAnswer = false;
-          env.out.write(wrapWith('Ok, maybe next time!', [green]));
+          env.out.write(env.styleWith('Ok, maybe next time!', [green]));
           repl.prompt = '\nsc> ';
         }
       } else if (env.symbolBeingDefined != null && env.bindNextValue) {
         final sym = env.symbolBeingDefined!;
         env[sym] = expr;
         env.bindNextValue = false;
-        env.out.write(wrapWith('✅ The symbol ', [green]));
-        env.out.write(wrapWith(env.symbolBeingDefined.toString(), [yellow]));
-        env.out.write(wrapWith(
+        env.out.write(env.styleWith('✅ The symbol ', [green]));
+        env.out
+            .write(env.styleWith(env.symbolBeingDefined.toString(), [yellow]));
+        env.out.write(env.styleWith(
             ' is now bound to that ${expr.informalTypeName()} value.',
             [green]));
         env.symbolBeingDefined = null;
@@ -367,11 +369,11 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
       if (e is UndefinedSymbolException) {
         env.isExpectingBindingAnswer = true;
         env.interactiveStartBinding(e.symbol);
-        stderr.write(wrapWith(
+        stderr.write(env.styleWith(
             "${e.symbol}\n${'^' * e.symbol.toString().length} This symbol isn't defined.\n",
             [yellow]));
         repl.prompt =
-            wrapWith("\nDo you want to define it? (y/n) > ", [green])!;
+            env.styleWith("\nDo you want to define it? (y/n) > ", [green])!;
       } else {
         String? recoveryMessage;
         if (e is ExceptionWithMessage) {
@@ -383,7 +385,7 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
           }
         }
         if (recoveryMessage != null) {
-          stderr.write(wrapWith("Error! $recoveryMessage", [red]));
+          stderr.write(env.styleWith("Error! $recoveryMessage", [red]));
         } else {
           stderr.write("🔥 Something Broke 🔥\n$e\n$stacktrace");
         }

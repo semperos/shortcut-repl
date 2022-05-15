@@ -20,8 +20,7 @@ ArgParser _$populateOptionsParser(ArgParser parser) => parser
   ..addFlag(
     'ansi-color',
     abbr: 'a',
-    help:
-        'Whether or not to use ANSI codes for colored output. This flag is only partially honored at this time, with ANSI printing for the majority of functions.',
+    help: 'Whether or not to use ANSI codes for colored output.',
     defaultsTo: null,
   )
   ..addOption(
