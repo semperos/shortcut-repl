@@ -126,4 +126,52 @@ void main() {
               .innerList);
     });
   });
+  group('Prelude', () {
+    final env = e();
+    env.loadPrelude();
+    group('Boolean logic', () {
+      test('not', () {
+        expect(env.interpretExprString('not true'), ScBoolean.falsitas());
+        expect(env.interpretExprString('not 42'), ScBoolean.falsitas());
+        expect(env.interpretExprString('not false'), ScBoolean.veritas());
+        expect(env.interpretExprString('not nil'), ScBoolean.veritas());
+      });
+      test('or', () {
+        expect(
+            env.interpretExprString('or %(just nil) %(just 1)'), ScNumber(1));
+        expect(
+            env.interpretExprString('or %(just false) %(just 1)'), ScNumber(1));
+        expect(env.interpretExprString('or %(just 0) %(just 1)'), ScNumber(0));
+      });
+      test('when', () {
+        expect(env.interpretExprString('when true %(just 42)'), ScNumber(42));
+        expect(env.interpretExprString('when false %(just 42)'), ScNil());
+        expect(env.interpretExprString('when nil %(just 42)'), ScNil());
+      });
+    });
+    group('Collections', () {
+      test('Getters', () {
+        expect(env.interpretExprString('[1 2 3 4 5 6 7 8 9 10 11] | first'),
+            ScNumber(1));
+        expect(env.interpretExprString('[1 2 3 4 5 6 7 8 9 10 11] | second'),
+            ScNumber(2));
+        expect(env.interpretExprString('[1 2 3 4 5 6 7 8 9 10 11] | third'),
+            ScNumber(3));
+        expect(env.interpretExprString('[1 2 3 4 5 6 7 8 9 10 11] | fourth'),
+            ScNumber(4));
+        expect(env.interpretExprString('[1 2 3 4 5 6 7 8 9 10 11] | fifth'),
+            ScNumber(5));
+        expect(env.interpretExprString('[1 2 3 4 5 6 7 8 9 10 11] | sixth'),
+            ScNumber(6));
+        expect(env.interpretExprString('[1 2 3 4 5 6 7 8 9 10 11] | seventh'),
+            ScNumber(7));
+        expect(env.interpretExprString('[1 2 3 4 5 6 7 8 9 10 11] | eighth'),
+            ScNumber(8));
+        expect(env.interpretExprString('[1 2 3 4 5 6 7 8 9 10 11] | ninth'),
+            ScNumber(9));
+        expect(env.interpretExprString('[1 2 3 4 5 6 7 8 9 10 11] | tenth'),
+            ScNumber(10));
+      });
+    });
+  });
 }

@@ -442,16 +442,13 @@ def eighth      value %(get % 7)
 def ninth       value %(get % 8)
 def tenth       value %(get % 9)
 def not         value (fn [x] (if x %(value false) %(value true)))
-def or          value (fn [this that] (def --sc-this (this)) (if --sc-this %(value --sc-this) that))
-def when        value (fn [condition then-branch] (if condition then-branch %(identity ni)))
+def or          value (fn [this that] ((fn [this-res] (if this-res %(value this-res) that)) (this)))
+def when        value (fn [condition then-branch] (if condition then-branch %(identity nil)))
 def first-where value (fn [coll where-clause] (first (where coll where-clause)))
 def mapcat      value (fn [coll f] (apply (map coll f) concat))
 def states      value (fn [entity] (ls (.workflow_id (fetch entity))))
 ''';
     interpretProgram("<built-in prelude source>", prelude.split('\n'));
-    for (final line in prelude.split("\n")) {
-      interpretExprString(line);
-    }
   }
 
   void writeHistory() {
