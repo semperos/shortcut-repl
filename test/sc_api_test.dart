@@ -148,6 +148,11 @@ void main() {
         expect(env.interpretExprString('when false %(just 42)'), ScNil());
         expect(env.interpretExprString('when nil %(just 42)'), ScNil());
       });
+      test('first-where', () {
+        expect(
+            env.interpretExprString('first-where [1 2 3 4] (fn [n] (> n 2))'),
+            ScNumber(3));
+      });
     });
     group('Collections', () {
       test('Getters', () {
@@ -171,6 +176,14 @@ void main() {
             ScNumber(9));
         expect(env.interpretExprString('[1 2 3 4 5 6 7 8 9 10 11] | tenth'),
             ScNumber(10));
+      });
+      group('Concatenation', () {
+        test('mapcat', () {
+          expect(env.interpretExprString('mapcat [[1 2] [3 4]] identity'),
+              env.interpretExprString('[1 2 3 4]'));
+          expect(() => env.interpretExprString('mapcat [1 2 3 4] identity'),
+              throwsA(isA<BadArgumentsException>()));
+        });
       });
     });
   });

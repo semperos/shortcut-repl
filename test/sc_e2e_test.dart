@@ -3,7 +3,8 @@
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:sc_cli/src/sc_api.dart';
+import 'package:sc_cli/src/sc.dart';
+import 'package:sc_cli/src/sc_api.dart' show ScLiveClient;
 import 'package:sc_cli/src/sc_config.dart';
 import 'package:test/test.dart';
 

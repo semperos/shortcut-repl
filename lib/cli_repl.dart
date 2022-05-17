@@ -27,7 +27,7 @@ library cli_repl;
 
 import 'dart:async';
 
-import 'package:sc_cli/src/sc_api.dart';
+import 'package:sc_cli/src/sc.dart';
 
 import 'src/repl_adapter.dart';
 

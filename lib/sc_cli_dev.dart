@@ -8,7 +8,8 @@ import 'package:sc_cli/sc_cli.dart';
 
 import 'package:hotreloader/hotreloader.dart';
 import 'package:sc_cli/src/options.dart';
-import 'package:sc_cli/src/sc_api.dart';
+import 'package:sc_cli/src/sc.dart';
+import 'package:sc_cli/src/sc_api.dart' show ScLiveClient;
 import 'package:sc_cli/src/sc_config.dart';
 
 /// Closure to make [options] available to the isolate fn. Dev-facing because it activates hot code reloading.

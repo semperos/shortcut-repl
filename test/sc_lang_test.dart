@@ -1,6 +1,7 @@
 import 'package:petitparser/matcher.dart';
 
-import 'package:sc_cli/src/sc_api.dart';
+import 'package:sc_cli/src/sc.dart';
+import 'package:sc_cli/src/sc_api.dart' show ScLiveClient;
 import 'package:sc_cli/src/sc_config.dart';
 import 'package:sc_cli/src/sc_lang.dart';
 import 'package:test/test.dart';

@@ -1,6 +1,6 @@
 import 'package:petitparser/petitparser.dart';
 
-import 'package:sc_cli/src/sc_api.dart';
+import 'package:sc_cli/src/sc.dart';
 import 'package:sc_cli/src/sc_util.dart';
 
 ScExpr scRead(ScEnv env, String input) {
