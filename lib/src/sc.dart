@@ -74,6 +74,7 @@ class ScEnv {
     ScSymbol('true'): ScBoolean.veritas(),
     ScSymbol('false'): ScBoolean.falsitas(),
     ScSymbol('if'): ScFnIf(),
+    ScSymbol('assert'): ScFnAssert(),
 
     ScSymbol('nil'): ScNil(),
 
@@ -464,6 +465,7 @@ def when         value (fn [condition then-branch] (if condition then-branch %(i
 def first-where  value (fn [coll where-clause] (first (where coll where-clause)))
 def mapcat       value (fn [coll f] (apply (map coll f) concat))
 def story-states value (fn [entity] (ls (.workflow_id (fetch entity))))
+def workflow-state-types ["unstarted" "started" "done"]
 ''';
     interpretProgram("<built-in prelude source>", prelude.split('\n'));
   }
@@ -1685,6 +1687,42 @@ class ScFnIf extends ScBaseInvocable {
   }
 }
 
+class ScFnAssert extends ScBaseInvocable {
+  static final ScFnAssert _instance = ScFnAssert._internal();
+  ScFnAssert._internal();
+  factory ScFnAssert() => _instance;
+
+  @override
+  String get help => "Throw an error if the assertion doesn't hold.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 2) {
+      final condition = args[0];
+      final message = args[1];
+      final cond = ScBoolean.fromTruthy(condition);
+      if (cond.toBool()) {
+        return ScNil();
+      } else {
+        String msg;
+        if (message is ScString) {
+          msg = message.value;
+        } else {
+          msg = message.toString();
+        }
+        throw ScAssertionError(msg);
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `assert` function expects 2 arguments, but received ${args.length} arguments.");
+    }
+  }
+}
+
 class ScFnSelect extends ScBaseInvocable {
   static final ScFnSelect _instance = ScFnSelect._internal();
   ScFnSelect._internal();
@@ -1714,17 +1752,14 @@ class ScFnSelect extends ScBaseInvocable {
         sourceMap = pe;
       } else {
         throw BadArgumentsException(
-            "The `select` function expects either an explicit map or entity as its first argument, or that you have `cd`ed into an entity. Neither is the case.");
+            "The `select` function expects either an explicit map or entity as its first argument, or that you have `cd`ed into an entity. Received a selector but no source to select from.");
       }
+    } else {
+      throw BadArgumentsException(
+          "The `select` function takes at most 2 arguments (a map/entity and a selector list), but received ${args.length} arguments.");
     }
 
-    if (sourceMap == null) {
-      throw BadArgumentsException(
-          "The `select` function expects either an explicit map or entity as its first argument, or that you have `cd`ed into an entity. Neither is the case.");
-    } else if (selector == null) {
-      throw BadArgumentsException(
-          "The `select` function's second argument must be a list of keys to select.");
-    } else if (selector is! ScList) {
+    if (selector is! ScList) {
       throw BadArgumentsException(
           "The `select` function's second argument must be a list of keys to select.");
     } else {
@@ -3442,17 +3477,20 @@ class ScFnReadFile extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.isEmpty || args.length > 1) {
-      throw BadArgumentsException(
-          'The `read-file` function expects one argument: the file to read.');
-    } else {
-      final file = args.first;
+    if (args.length == 1) {
+      final file = args[0];
       if (file is ScFile) {
         return file.readAsStringSync();
+      } else if (file is ScString) {
+        final fileFile = resolveFile(env, file.value);
+        return ScFile(fileFile).readAsStringSync();
       } else {
         throw BadArgumentsException(
             'The `read-file` function expects a file argument, but received a ${file.informalTypeName()}');
       }
+    } else {
+      throw BadArgumentsException(
+          'The `read-file` function expects one argument: the file to read.');
     }
   }
 }
@@ -3498,21 +3536,22 @@ class ScFnLoad extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.length != 1) {
-      throw BadArgumentsException(
-          "The `load` function expects one argument: the path of the file to load.");
-    } else {
-      final sourceFilePath = (args.first as ScString).value;
-      var sourceFile = File(sourceFilePath);
-      if (!sourceFile.existsSync()) {
-        sourceFile = File(env.baseConfigDirPath + '/' + sourceFilePath);
-        if (!sourceFile.existsSync()) {
-          throw SourceFileNotFound(sourceFilePath, env.baseConfigDirPath);
-        }
+    if (args.length == 1) {
+      final sourceFilePath = args[0];
+      File sourceFile;
+      if (sourceFilePath is ScFile) {
+        sourceFile = sourceFilePath.file;
+      } else if (sourceFilePath is ScString) {
+        sourceFile = resolveFile(env, (args.first as ScString).value);
+      } else {
+        throw BadArgumentsException(
+            "The `load` function expects a string argument, but received a ${sourceFilePath.informalTypeName()}");
       }
-
       final sourceLines = sourceFile.readAsLinesSync();
       return env.interpretProgram(sourceFile.absolute.path, sourceLines);
+    } else {
+      throw BadArgumentsException(
+          "The `load` function expects one argument: the path of the file to load.");
     }
   }
 }
@@ -4411,9 +4450,22 @@ class ScFnMembers extends ScBaseInvocable {
       throw BadArgumentsException("The `members` function takes no arguments.");
     } else {
       if (env.parentEntity is ScTeam) {
-        return env.parentEntity!.data[ScString('member_ids')] as ScList;
+        final team = env.parentEntity! as ScTeam;
+        ScExpr? memberIds = team.data[ScString('member_ids')];
+        if (memberIds == null) {
+          waitOn(team.fetch(env));
+        }
+        memberIds = team.data[ScString('member_ids')];
+        if (memberIds is ScList) {
+          return memberIds;
+        } else {
+          env.err.writeln(
+              "[WARNING] Team didn't have expected \"member_ids\" entry, even after fetching.");
+          return ScNil();
+        }
+      } else {
+        return waitOn(env.client.getMembers(env));
       }
-      return waitOn(env.client.getMembers(env));
     }
   }
 }
@@ -6122,7 +6174,7 @@ class ScMember extends ScEntity {
       final memberMentionName =
           env.styleWith("[@$mentionName]", [entityColor])!;
       prefix = prefix + memberMentionName;
-      prefix = prefix.padRight(48); // some alignment better than none
+      prefix = prefix.padRight(39); // some alignment better than none; was 48
       final memberName = env.styleWith(shortName, [yellow])!;
       final readable =
           "$lp$memberFnName $memberId$rp"; // No padding, IDs are UUIDS...
@@ -6259,7 +6311,7 @@ class ScTeam extends ScEntity {
             .styleWith("[${memberIds.length.toString().padLeft(2)}M]", [cyan])!;
       }
       String prefix = numMembersStr + teamMentionName;
-      prefix = prefix.padRight(48); // some alignment better than none
+      prefix = prefix.padRight(39); // some alignment better than none; was 48
       final teamStr = "$readable $cmt $prefix $teamName";
       return teamStr;
     }
@@ -7992,6 +8044,29 @@ openInBrowser(String url) async {
   }
 }
 
+File resolveFile(ScEnv env, String filePath) {
+  String fp = filePath;
+  if (fp.contains('~')) {
+    String? home = Platform.environment['HOME'];
+    if (home == null) {
+      throw BadArgumentsException(
+          "Tried to read a file at path $filePath but your HOME folder is not defined in your environment.");
+    } else {
+      home = home.replaceFirst(RegExp(r'/+$'), '');
+      fp = fp.replaceFirst('~', home);
+    }
+  }
+
+  var sourceFile = File(fp);
+  if (!sourceFile.existsSync()) {
+    sourceFile = File(env.baseConfigDirPath + '/' + fp);
+    if (!sourceFile.existsSync()) {
+      throw FileNotFound(filePath, env.baseConfigDirPath);
+    }
+  }
+  return sourceFile;
+}
+
 /// Enumerations
 
 enum MyEntityTypes { stories, tasks, epics, milestones, iterations }
@@ -8027,6 +8102,10 @@ abstract class ExceptionWithMessage implements Exception {
   ExceptionWithMessage(this.message);
 }
 
+class ScAssertionError extends ExceptionWithMessage {
+  ScAssertionError(String message) : super(message);
+}
+
 class InterpretationException extends ExceptionWithMessage {
   InterpretationException(String message) : super(message);
 }
@@ -8059,8 +8138,8 @@ class UninvocableException extends ExceptionWithMessage {
             "Tried to invoke a ${args.first.informalTypeName()} that isn't invocable.");
 }
 
-class SourceFileNotFound extends ExceptionWithMessage {
-  SourceFileNotFound(String filePath, String configDirPath)
+class FileNotFound extends ExceptionWithMessage {
+  FileNotFound(String filePath, String configDirPath)
       : super(
             "Source file '$filePath' not found relative to current working directory or in $configDirPath config directory.");
 }

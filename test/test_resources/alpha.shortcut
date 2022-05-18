@@ -1,6 +1,13 @@
-def not-done          {.workflow_state_types ["started" "unstarted"]}
-def not-finished      {.workflow_state_types ["started" "unstarted"]}
-def owned-by          value (fn [member] {.owner_ids [member]})
+def is-unfinished {.workflow_state_types ["unstarted" "started"]}
+def is-undone is-unfinished
+def is-incomplete is-unfinished
+def is-not-done is-unfinished
+def is-not-finished is-unfinished
+
+def is-owned-by value (fn [member]
+ (assert (= "member" (type member))
+         (concat "is-owned-by expects a member, but received a " (type member)))
+ {.owner_ids [member]})
 
 def epics-unstarted   value (fn [epics] (where epics {.state "to do"}))
 def epics-todo        value (fn [epics] (where epics {.state "to do"}))
@@ -23,7 +30,7 @@ def chores   value (fn [stories] (where stories {.story_type "chore"}))
 def features value (fn [stories] (where stories {.story_type "feature"}))
 
 def my-stories               value (fn [] (find-stories {.owner_ids [me] .workflow_state_types ["unstarted" "started"]}))
-def my-iterations            value (fn [] (interpret "my-stories | map .iteration_id | where identity | map fetch ")) 
+def my-iterations            value (fn [] (interpret "my-stories | map .iteration_id | where identity | map fetch "))
 def my-current-iterations    value (fn [] (interpret "my-iterations | where {.status \"started\"} "))
 def my-unfinished-iterations value (fn [] (interpret "my-iterations | where {.status \"done\"} "))
 def my-epics                 value (fn [] (interpret "my-stories | map .epic_id | where identity | map epic | where {.state %(not (= % \"done\"))}"))
@@ -41,3 +48,4 @@ def -priv-defaults defaults
   %(println "[INFO] Don't forget to set a default workflow state with `default`")
   %(value nil))
 
+"[INFO] Alpha prelude loaded!"

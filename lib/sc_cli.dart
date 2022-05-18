@@ -386,7 +386,12 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
           }
         }
         if (recoveryMessage != null) {
-          stderr.write(env.styleWith("Error! $recoveryMessage", [red]));
+          if (e is ScAssertionError) {
+            stderr.write(
+                env.styleWith("Assertion Failed: $recoveryMessage", [red]));
+          } else {
+            stderr.write(env.styleWith("Error! $recoveryMessage", [red]));
+          }
         } else {
           stderr.write("🔥 Something Broke 🔥\n$e\n$stacktrace");
         }
@@ -404,7 +409,7 @@ void maybeLoadFiles(ScEnv env, Options options) {
         loadFn.invoke(env, ScList([ScString(filePath)]));
       }
     } catch (e) {
-      if (e is SourceFileNotFound) {
+      if (e is FileNotFound) {
         stderr.writeln("[ERROR] ${e.message}");
       } else {
         rethrow;
@@ -418,5 +423,11 @@ void maybeLoadFiles(ScEnv env, Options options) {
 /// the user starts issuing commands that need to resolve workflows, workflow
 /// states, members, or teams.
 Future loadCaches(ScEnv env) async {
-  await env.loadCachesFromDisk();
+  try {
+    await env.loadCachesFromDisk();
+  } catch (_) {
+    env.err.writeln(
+        "Failed to load caches. Delete the cache*.json files under your config direction (default is ~/.config/shortcut-cli/) and try again.");
+    exit(1);
+  }
 }
