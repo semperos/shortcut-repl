@@ -49,7 +49,7 @@ class ScEnv {
   bool bindNextValue = false;
 
   /// Is the environment a REPL or script being evaluated non-interactively?
-  final bool isReplMode;
+  bool isReplMode;
 
   /// Should strings be printed using ANSI color codes?
   bool isAnsiEnabled;
@@ -193,23 +193,33 @@ class ScEnv {
     ScSymbol('prev-state'): ScFnPreviousState(),
     ScSymbol('previous-state'): ScFnPreviousState(),
     ScSymbol('story'): ScFnStory(),
+    ScSymbol('st'): ScFnStory(),
     ScSymbol('stories'): ScFnStories(),
     ScSymbol('task'): ScFnTask(),
+    ScSymbol('tk'): ScFnTask(),
     ScSymbol('epic'): ScFnEpic(),
+    ScSymbol('ep'): ScFnEpic(),
     ScSymbol('epics'): ScFnEpics(),
     ScSymbol('milestone'): ScFnMilestone(),
+    ScSymbol('mi'): ScFnMilestone(),
     ScSymbol('milestones'): ScFnMilestones(),
     ScSymbol('iteration'): ScFnIteration(),
+    ScSymbol('it'): ScFnIteration(),
     ScSymbol('iterations'): ScFnIterations(),
     ScSymbol('member'): ScFnMember(),
+    ScSymbol('mb'): ScFnMember(),
     ScSymbol('members'): ScFnMembers(),
     ScSymbol('team'): ScFnTeam(),
+    ScSymbol('tm'): ScFnTeam(),
     ScSymbol('teams'): ScFnTeams(),
     ScSymbol('label'): ScFnLabel(),
+    ScSymbol('lb'): ScFnLabel(),
     ScSymbol('labels'): ScFnLabels(),
     ScSymbol('workflow'): ScFnWorkflow(),
+    ScSymbol('wf'): ScFnWorkflow(),
     ScSymbol('workflows'): ScFnWorkflows(),
     ScSymbol('epic-workflow'): ScFnEpicWorkflow(),
+    ScSymbol('ew'): ScFnEpicWorkflow(),
   };
 
   Map<ScSymbol, dynamic> bindings =
@@ -252,12 +262,14 @@ class ScEnv {
     final history = historyFile.readAsLinesSync();
     final json = jsonDecode(contents);
     ScEnv env = ScEnv(client);
+    // TODO I did this in an effort to simply the ctor, but I think that was misguided. Refactor to make better ctor guarantees.
     env.baseConfigDirPath = baseConfigDirPath;
     env.envFile = envFile;
     env.history = history;
     env.historyFile = historyFile;
     env.isAnsiEnabled = isAnsiEnabled;
     env.isPrintJson = isPrintJson;
+    env.isReplMode = isReplMode;
     env = ScEnv.extendEnvfromMap(env, json);
     return env;
   }
@@ -418,8 +430,8 @@ class ScEnv {
     if (isReplMode) {
       final star2 = this[ScSymbol('*2')];
       final star1 = this[ScSymbol('*1')];
-      if (star2 != ScNil() && star2 != null) this[ScSymbol('*3')] = star2;
-      if (star1 != ScNil() && star1 != null) this[ScSymbol('*2')] = star1;
+      if (star2 != null) this[ScSymbol('*3')] = star2;
+      if (star1 != null) this[ScSymbol('*2')] = star1;
       this[ScSymbol('*1')] = expr;
     }
     return expr;
@@ -1066,13 +1078,7 @@ class ScBoolean extends ScExpr {
   }
 }
 
-class ScNumber extends ScExpr
-    implements
-        Comparable,
-        ScAddable,
-        ScSubtractable,
-        ScMultipliable,
-        ScDivisible {
+class ScNumber extends ScExpr implements Comparable {
   ScNumber(this.value);
   final num value;
 
@@ -1128,58 +1134,21 @@ class ScNumber extends ScExpr
     }
   }
 
-  @override
-  ScExpr add(ScAddable other) {
-    if (other is! ScNumber) {
-      // TODO User-facing type mismatch messaging
-      throw UnsupportedError('ScNumber can only be added to ScNumber');
-    } else {
-      return ScNumber(value + other.value);
-    }
+  ScNumber add(ScNumber other) {
+    return ScNumber(value + other.value);
   }
 
-  @override
-  ScExpr subtract(ScSubtractable other) {
-    if (other is! ScNumber) {
-      throw UnsupportedError('ScNumber can only be subtracted from ScNumber');
-    } else {
-      return ScNumber(value - other.value);
-    }
+  ScNumber subtract(ScNumber other) {
+    return ScNumber(value - other.value);
   }
 
-  @override
-  ScExpr multiply(ScMultipliable other) {
-    if (other is! ScNumber) {
-      throw UnsupportedError('ScNumber can only be multipled with ScNumber');
-    } else {
-      return ScNumber(value * other.value);
-    }
+  ScNumber multiply(ScNumber other) {
+    return ScNumber(value * other.value);
   }
 
-  @override
-  ScExpr divide(ScDivisible other) {
-    if (other is! ScNumber) {
-      throw UnsupportedError('ScNumber can only be divided by ScNumber');
-    } else {
-      return ScNumber(value / other.value);
-    }
+  ScNumber divide(ScNumber other) {
+    return ScNumber(value / other.value);
   }
-}
-
-abstract class ScAddable {
-  ScExpr add(ScAddable other);
-}
-
-abstract class ScSubtractable {
-  ScExpr subtract(ScSubtractable other);
-}
-
-abstract class ScMultipliable {
-  ScExpr multiply(ScMultipliable other);
-}
-
-abstract class ScDivisible {
-  ScExpr divide(ScDivisible other);
 }
 
 class ScString extends ScExpr implements Comparable {
@@ -2990,7 +2959,6 @@ concat {.a [1 2]} {.a [3 4]} => {.a [3 4]}
   }
 }
 
-// TODO Accept zero-arg, parent entity arity
 class ScFnKeys extends ScBaseInvocable {
   static final ScFnKeys _instance = ScFnKeys._internal();
   ScFnKeys._internal();
@@ -3005,9 +2973,14 @@ class ScFnKeys extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.length != 1) {
-      throw BadArgumentsException(
-          "The `keys` function expects 1 argument: a map or entity.");
+    if (args.isEmpty) {
+      if (env.parentEntity != null) {
+        final pe = env.parentEntity!;
+        return ScList(pe.data.innerMap.keys.toList());
+      } else {
+        throw BadArgumentsException(
+            "If no arguments passed to `keys`, it expects the parent entity to be set by `cd`ing into an entity.");
+      }
     } else {
       final arg = args[0];
       if (arg is ScMap) {
@@ -5175,9 +5148,14 @@ class ScFnAdd extends ScBaseInvocable {
       return ScNumber(0);
     } else {
       return args.reduce((acc, item) {
-        final addableAcc = acc as ScAddable;
-        final addableItem = item as ScAddable;
-        return addableAcc.add(addableItem);
+        if (item is ScNumber) {
+          final addableAcc = acc as ScNumber;
+          final addableItem = item;
+          return addableAcc.add(addableItem);
+        } else {
+          throw BadArgumentsException(
+              "Addition is only supported for numbers, but received a ${item.informalTypeName()}");
+        }
       });
     }
   }
@@ -5201,9 +5179,14 @@ class ScFnSubtract extends ScBaseInvocable {
       return ScNumber(0);
     } else {
       return args.reduce((acc, item) {
-        final subtractableAcc = acc as ScSubtractable;
-        final subtractableItem = item as ScSubtractable;
-        return subtractableAcc.subtract(subtractableItem);
+        if (item is ScNumber) {
+          final subtractableAcc = acc as ScNumber;
+          final subtractableItem = item;
+          return subtractableAcc.subtract(subtractableItem);
+        } else {
+          throw BadArgumentsException(
+              "Subtraction is only supported for numbers, but received a ${item.informalTypeName()}");
+        }
       });
     }
   }
@@ -5227,9 +5210,14 @@ class ScFnMultiply extends ScBaseInvocable {
       return ScNumber(1);
     } else {
       return args.reduce((acc, item) {
-        final multipliableAcc = acc as ScMultipliable;
-        final multipliableItem = item as ScMultipliable;
-        return multipliableAcc.multiply(multipliableItem);
+        if (item is ScNumber) {
+          final multipliableAcc = acc as ScNumber;
+          final multipliableItem = item;
+          return multipliableAcc.multiply(multipliableItem);
+        } else {
+          throw BadArgumentsException(
+              "Multiplication is only supported for numbers, but received a ${item.informalTypeName()}");
+        }
       });
     }
   }
@@ -5253,13 +5241,23 @@ class ScFnDivide extends ScBaseInvocable {
       throw BadArgumentsException(
           "The `/` division function requires at least a divisor.");
     } else if (args.length == 1) {
-      final divisor = args[0] as ScDivisible;
-      return ScNumber(1).divide(divisor);
+      final divisor = args[0];
+      if (divisor is ScNumber) {
+        return ScNumber(1).divide(divisor);
+      } else {
+        throw BadArgumentsException(
+            "Division is only supported for numbers, but received a ${divisor.informalTypeName()}");
+      }
     } else {
       return args.reduce((acc, item) {
-        final divisibleAcc = acc as ScDivisible;
-        final divisibleItem = item as ScDivisible;
-        return divisibleAcc.divide(divisibleItem);
+        if (item is ScNumber) {
+          final divisibleAcc = acc as ScNumber;
+          final divisibleItem = item;
+          return divisibleAcc.divide(divisibleItem);
+        } else {
+          throw BadArgumentsException(
+              "Division is only supported for numbers, but received a ${item.informalTypeName()}");
+        }
       });
     }
   }
@@ -6272,10 +6270,34 @@ class ScMilestone extends ScEntity {
       final name = dataFieldOr<ScString?>(data, 'name', title) ??
           ScString("<No name: run fetch>");
       final shortName = truncate(name.value, env.displayWidth);
-      final prefix = env.styleWith('[Milestone]', [red]);
-      final milestoneName = env.styleWith(shortName, [yellow])!;
-      final milestoneId = env.styleWith("[${id.value}]", [red])!;
-      return "$prefix $milestoneName $milestoneId";
+      final cmt = comment(env);
+      final milestoneName = env.styleWith(shortName, [yellow]);
+      final milestoneFnName = env.styleWith('mi', [entityColor]);
+      final milestoneId = id.value;
+      final milestoneState = data[ScString('state')];
+      String milestoneStateStr = '';
+      if (milestoneState is ScString) {
+        final state = milestoneState.value;
+        switch (state) {
+          case 'to do':
+            milestoneStateStr = env.styleWith('[U]', [lightRed])!;
+            break;
+          case 'in progress':
+            milestoneStateStr = env.styleWith('[S]', [lightMagenta])!;
+            break;
+          case 'done':
+            milestoneStateStr = env.styleWith('[D]', [lightGreen])!;
+            break;
+        }
+      }
+
+      final prefix = milestoneStateStr;
+      final lp = lParen(env);
+      final rp = rParen(env);
+      final readable = "$lp$milestoneFnName $milestoneId$rp"
+          .padRight(39); // adjusted for ANSI codes
+      final milestoneStr = "$readable$cmt $prefix $milestoneName";
+      return milestoneStr;
     }
   }
 
@@ -6370,10 +6392,10 @@ class ScEpic extends ScEntity {
       final shortName = truncate(name.value, env.displayWidth);
       final cmt = comment(env);
       final epicName = env.styleWith(shortName, [yellow]);
-      final epicFnName = env.styleWith('epic', [entityColor]);
+      final epicFnName = env.styleWith('ep', [entityColor]);
       final epicId = id.value;
       final epicState = data[ScString('state')];
-      String epicStateStr = '[_]';
+      String epicStateStr = '';
       if (epicState is ScString) {
         final state = epicState.value;
         switch (state) {
@@ -6390,8 +6412,8 @@ class ScEpic extends ScEntity {
       }
 
       final stats = data[ScString('stats')];
-      String pointsStr = '[_P]';
-      String storiesStr = '[_S]';
+      String pointsStr = '';
+      String storiesStr = '';
       if (stats is ScMap) {
         final numStories = stats[ScString('num_stories_total')];
         final numStoriesDone = stats[ScString('num_stories_done')];
@@ -6420,7 +6442,7 @@ class ScEpic extends ScEntity {
       final lp = lParen(env);
       final rp = rParen(env);
       final readable =
-          "$lp$epicFnName $epicId$rp\t".padRight(41); // adjusted for ANSI codes
+          "$lp$epicFnName $epicId$rp".padRight(39); // adjusted for ANSI codes
       final epicStr = "$readable$cmt $prefix $epicName";
       // TODO Use chalkdart instead
       if (isArchived.toBool()) {
@@ -6602,20 +6624,20 @@ class ScStory extends ScEntity {
       }
 
       final estimate = data[ScString('estimate')];
-      String estimateStr = env.styleWith('[_]', [green])!;
+      String estimateStr = '';
       if (estimate is ScNumber) {
         estimateStr = env.styleWith("[${estimate.value}]", [lightGreen])!;
       }
 
       final prefix = "$storyStateType$estimateStr$storyType";
       final storyName = env.styleWith(shortName, [yellow])!;
-      final storyFnName = env.styleWith('story', [entityColor])!;
+      final storyFnName = env.styleWith('st', [entityColor])!;
       final storyId = id.value;
       final lp = lParen(env);
       final rp = rParen(env);
       final cmt = comment(env);
       final readable =
-          "$lp$storyFnName $storyId$rp".padRight(42); // adjusted for ANSI codes
+          "$lp$storyFnName $storyId$rp".padRight(39); // adjusted for ANSI codes
       final storyStr = "$readable$cmt $prefix $storyName";
       if (isArchived.toBool()) {
         return env.styleWith(storyStr, [darkGray])!;
@@ -6885,10 +6907,65 @@ class ScIteration extends ScEntity {
       final name = dataFieldOr<ScString?>(data, 'name', title) ??
           ScString("<No name: run fetch>");
       final shortName = truncate(name.value, env.displayWidth);
-      final prefix = env.styleWith('[Iteration]', [entityColor]);
       final iterationName = env.styleWith(shortName, [yellow])!;
-      final iterationId = env.styleWith("[${id.value}]", [entityColor])!;
-      return "$prefix $iterationName $iterationId";
+      final iterationId = id.value;
+      final iterationFnName = env.styleWith('it', [entityColor]);
+
+      final iterationStatus = data[ScString('status')];
+      String iterationStatusStr = '';
+      if (iterationStatus is ScString) {
+        final state = iterationStatus.value;
+        switch (state) {
+          case 'unstarted':
+            iterationStatusStr = env.styleWith('[U]', [lightRed])!;
+            break;
+          case 'started':
+            iterationStatusStr = env.styleWith('[S]', [lightMagenta])!;
+            break;
+          case 'done':
+            iterationStatusStr = env.styleWith('[D]', [lightGreen])!;
+            break;
+        }
+      }
+
+      final stats = data[ScString('stats')];
+      String pointsStr = '';
+      String storiesStr = '';
+      if (stats is ScMap) {
+        final numStoriesUnstarted = stats[ScString('num_stories_unstarted')];
+        final numStoriesStarted = stats[ScString('num_stories_started')];
+        final numStoriesDone = stats[ScString('num_stories_done')];
+        if (numStoriesUnstarted is ScNumber &&
+            numStoriesStarted is ScNumber &&
+            numStoriesDone is ScNumber) {
+          final numStoriesDoneStr = numStoriesDone.toString().padLeft(2);
+          final numStories =
+              numStoriesUnstarted.add(numStoriesStarted).add(numStoriesDone);
+          final numStoriesStr = numStories.toString().padRight(2);
+          storiesStr =
+              env.styleWith("[$numStoriesDoneStr/${numStoriesStr}S]", [cyan])!;
+        }
+
+        final numPoints = stats[ScString('num_points')];
+        final numPointsDone = stats[ScString('num_points_done')];
+        if (numPoints is ScNumber) {
+          if (numPointsDone is ScNumber) {
+            final numPointsDoneStr = numPointsDone.toString().padLeft(2);
+            final numPointsStr = numPoints.toString().padRight(2);
+            pointsStr =
+                env.styleWith("[$numPointsDoneStr/${numPointsStr}P]", [green])!;
+          }
+        }
+      }
+
+      final prefix = '$iterationStatusStr$storiesStr$pointsStr';
+      final lp = lParen(env);
+      final rp = rParen(env);
+      final cmt = comment(env);
+      final readable = "$lp$iterationFnName $iterationId$rp"
+          .padRight(39); // adjusted for ANSI codes
+      final iterationStr = "$readable$cmt $prefix $iterationName";
+      return iterationStr;
     }
   }
 
