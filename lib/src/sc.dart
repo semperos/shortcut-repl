@@ -86,13 +86,6 @@ class ScEnv {
     ScSymbol('type'): ScFnType(),
     ScSymbol('undef'): ScFnUndef(),
 
-    ScSymbol('for-each'): ScFnForEach(),
-    ScSymbol('map'): ScFnForEach(),
-    ScSymbol('reduce'): ScFnReduce(),
-    ScSymbol('concat'): ScFnConcat(),
-    ScSymbol('extend'): ScFnExtend(),
-    ScSymbol('keys'): ScFnKeys(),
-
     // REPL Helpers
 
     ScSymbol('help'): ScFnHelp(),
@@ -115,6 +108,12 @@ class ScEnv {
     ScSymbol('next'): ScFnForward(),
     ScSymbol('..'): ScNil(),
 
+    ScSymbol('for-each'): ScFnForEach(),
+    ScSymbol('map'): ScFnForEach(),
+    ScSymbol('reduce'): ScFnReduce(),
+    ScSymbol('concat'): ScFnConcat(),
+    ScSymbol('extend'): ScFnExtend(),
+    ScSymbol('keys'): ScFnKeys(),
     ScSymbol('select'): ScFnSelect(),
     ScSymbol('where'): ScFnWhere(),
     ScSymbol('filter'): ScFnWhere(),
@@ -122,6 +121,9 @@ class ScEnv {
     ScSymbol('take'): ScFnLimit(),
     ScSymbol('skip'): ScFnSkip(),
     ScSymbol('drop'): ScFnSkip(),
+    ScSymbol('distinct'): ScFnDistinct(),
+    ScSymbol('uniq'): ScFnDistinct(),
+
     ScSymbol('search'): ScFnSearch(),
     ScSymbol('me'): ScFnMe(),
     ScSymbol('whoami'): ScFnMe(),
@@ -1971,6 +1973,42 @@ If provided a function, this behaves as a "skip while", skipping as many items a
     } else {
       throw BadArgumentsException(
           "The `skip` or `drop` function's first argument must be either a list, but received ${coll.informalTypeName()}");
+    }
+  }
+}
+
+class ScFnDistinct extends ScBaseInvocable {
+  static final ScFnDistinct _instance = ScFnDistinct._internal();
+  ScFnDistinct._internal();
+  factory ScFnDistinct() => _instance;
+
+  @override
+  String get help =>
+      "Return new collection with only distinct items from the original.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final coll = args[0];
+      if (coll is ScList) {
+        final l = ScList([]);
+        for (final item in coll.innerList) {
+          if (!l.contains(item)) {
+            l.add(item);
+          }
+        }
+        return l;
+      } else {
+        throw BadArgumentsException(
+            "The `distinct` or `uniq` function expects a list argument, but received a ${coll.informalTypeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `distinct` or `uniq` function expects 1 argument, but received ${args.length} arguments.");
     }
   }
 }
