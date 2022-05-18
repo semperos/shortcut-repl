@@ -6203,12 +6203,27 @@ class ScTeam extends ScEntity {
               data, 'mention_name', ScString("<No mention name: run fetch>")) ??
           ScString("<No mention name>");
       final shortName = truncate(name.value, env.displayWidth);
-      final prefix = env.styleWith('[Team]', [entityColor]);
       final teamMentionName =
           env.styleWith("[@${mentionName.value}]", [green])!;
       final teamName = env.styleWith(shortName, [yellow])!;
-      final teamId = env.styleWith("[$id]", [entityColor])!;
-      return "$prefix$teamMentionName $teamName $teamId";
+      final teamId = id;
+
+      final lp = lParen(env);
+      final rp = rParen(env);
+      final cmt = comment(env);
+      final teamFnName = env.styleWith('tm', [entityColor]);
+      final readable = "$lp$teamFnName $teamId$rp";
+
+      String numMembersStr = '';
+      final memberIds = data[ScString('member_ids')];
+      if (memberIds is ScList) {
+        numMembersStr = env
+            .styleWith("[${memberIds.length.toString().padLeft(2)}M]", [cyan])!;
+      }
+      String prefix = numMembersStr + teamMentionName;
+      prefix = prefix.padRight(48); // some alignment better than none
+      final teamStr = "$readable $cmt $prefix $teamName";
+      return teamStr;
     }
   }
 
