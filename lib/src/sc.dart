@@ -1120,10 +1120,10 @@ class ScNumber extends ScExpr
     if (other is ScNumber) {
       return value.compareTo(other.value);
     } else if (other is ScExpr) {
-      throw UnsupportedError(
+      throw BadArgumentsException(
           "You cannot sort a number with a ${other.informalTypeName()}");
     } else {
-      throw UnsupportedError(
+      throw BadArgumentsException(
           "You cannot sort a number with a ${other.runtimeType}");
     }
   }
@@ -2990,6 +2990,7 @@ concat {.a [1 2]} {.a [3 4]} => {.a [3 4]}
   }
 }
 
+// TODO Accept zero-arg, parent entity arity
 class ScFnKeys extends ScBaseInvocable {
   static final ScFnKeys _instance = ScFnKeys._internal();
   ScFnKeys._internal();
@@ -6049,8 +6050,11 @@ class ScMember extends ScEntity {
         name = (p[ScString('name')] as ScString).value;
         mentionName = (p[ScString('mention_name')] as ScString).value;
       } else {
-        name = (data[ScString('name')] as ScString).value;
-        mentionName = (data[ScString('mention_name')] as ScString).value;
+        final n = data[ScString('name')] ?? ScString('<No name: run fetch>');
+        name = (n as ScString).value;
+        final m = data[ScString('mention_name')] ??
+            ScString('<No mention name: run fetch>');
+        mentionName = (m as ScString).value;
       }
       final shortName = truncate(name, env.displayWidth);
       var prefix = env.styleWith('[User]', [green]);
@@ -6364,57 +6368,65 @@ class ScEpic extends ScEntity {
       final name = dataFieldOr<ScString?>(data, 'name', title) ??
           ScString("<No name: run fetch>");
       final shortName = truncate(name.value, env.displayWidth);
-      final comment = env.styleWith(';', [darkGray]);
-      final sep = env.styleWith('|', [darkGray]);
+      final cmt = comment(env);
       final epicName = env.styleWith(shortName, [yellow]);
       final epicFnName = env.styleWith('epic', [entityColor]);
-      final epicId = env.styleWith("[${id.value}]", [entityColor])!;
+      final epicId = id.value;
       final epicState = data[ScString('state')];
-      String epicStateStr = '_';
+      String epicStateStr = '[_]';
       if (epicState is ScString) {
-        env.err.writeln("STATE $epicState");
         final state = epicState.value;
         switch (state) {
           case 'to do':
-            epicStateStr = env.styleWith('U', [lightRed])!;
+            epicStateStr = env.styleWith('[U]', [lightRed])!;
             break;
           case 'in progress':
-            epicStateStr = env.styleWith('S', [lightMagenta])!;
+            epicStateStr = env.styleWith('[S]', [lightMagenta])!;
             break;
           case 'done':
-            epicStateStr = env.styleWith('D', [lightGreen])!;
+            epicStateStr = env.styleWith('[D]', [lightGreen])!;
             break;
         }
       }
 
       final stats = data[ScString('stats')];
-      String pointsStr = '_';
-      String storiesStr = '_';
+      String pointsStr = '[_P]';
+      String storiesStr = '[_S]';
       if (stats is ScMap) {
-        final numPoints = stats[ScString('num_points')];
-        final numPointsDone = stats[ScString('num_points_done')];
-        if (numPoints is ScNumber) {
-          if (numPointsDone is ScNumber) {
-            pointsStr = "$numPointsDone/${numPoints}P";
-          }
-        }
-
         final numStories = stats[ScString('num_stories_total')];
         final numStoriesDone = stats[ScString('num_stories_done')];
         if (numStories is ScNumber) {
           if (numStoriesDone is ScNumber) {
-            storiesStr = "$numStoriesDone/${numStories}S";
+            final numStoriesDoneStr = numStoriesDone.toString().padLeft(2);
+            final numStoriesStr = numStories.toString().padRight(2);
+            storiesStr = env
+                .styleWith("[$numStoriesDoneStr/${numStoriesStr}S]", [cyan])!;
+          }
+        }
+
+        final numPoints = stats[ScString('num_points')];
+        final numPointsDone = stats[ScString('num_points_done')];
+        if (numPoints is ScNumber) {
+          if (numPointsDone is ScNumber) {
+            final numPointsDoneStr = numPointsDone.toString().padLeft(2);
+            final numPointsStr = numPoints.toString().padRight(2);
+            pointsStr =
+                env.styleWith("[$numPointsDoneStr/${numPointsStr}P]", [green])!;
           }
         }
       }
 
-      final prefix = "$epicStateStr $storiesStr $pointsStr";
+      final prefix = "$epicStateStr$storiesStr$pointsStr";
+      final lp = lParen(env);
+      final rp = rParen(env);
+      final readable =
+          "$lp$epicFnName $epicId$rp\t".padRight(41); // adjusted for ANSI codes
+      final epicStr = "$readable$cmt $prefix $epicName";
+      // TODO Use chalkdart instead
       if (isArchived.toBool()) {
-        return env.styleWith(
-            "($epicFnName $epicId) $comment\t$sep $prefix $sep $epicName",
-            [darkGray])!;
+        return env.styleWith(epicStr, [darkGray])!;
       } else {
-        return "($epicFnName $epicId) $comment\t$sep $prefix $sep $epicName";
+        return epicStr;
       }
     }
   }
@@ -6546,6 +6558,8 @@ class ScStory extends ScEntity {
     if (env.isPrintJson) {
       return super.printToString(env);
     } else {
+      final isArchived =
+          ScBoolean.fromTruthy(data[ScString('archived')] ?? ScNil());
       final name = dataFieldOr<ScString?>(data, 'name', title) ??
           ScString("<No name: run fetch>");
       final shortName = truncate(name.value, env.displayWidth);
@@ -6556,13 +6570,13 @@ class ScStory extends ScEntity {
         final stateType = (state.data[ScString('type')] as ScString).value;
         switch (stateType) {
           case 'unstarted':
-            storyStateType = env.styleWith('U', [lightRed])!;
+            storyStateType = env.styleWith('[U]', [lightRed])!;
             break;
           case 'started':
-            storyStateType = env.styleWith('S', [lightMagenta])!;
+            storyStateType = env.styleWith('[S]', [lightMagenta])!;
             break;
           case 'done':
-            storyStateType = env.styleWith('D', [lightGreen])!;
+            storyStateType = env.styleWith('[D]', [lightGreen])!;
             break;
         }
       }
@@ -6584,26 +6598,30 @@ class ScStory extends ScEntity {
             break;
         }
         final typeAbbrev = ts[0].toUpperCase();
-        storyType = env.styleWith(typeAbbrev, [color])!;
+        storyType = env.styleWith("[$typeAbbrev]", [color])!;
       }
 
       final estimate = data[ScString('estimate')];
-      String estimateStr = env.styleWith('_', [lightGreen])!;
+      String estimateStr = env.styleWith('[_]', [green])!;
       if (estimate is ScNumber) {
-        estimateStr = env.styleWith(estimate.value.toString(), [lightGreen])!;
+        estimateStr = env.styleWith("[${estimate.value}]", [lightGreen])!;
       }
 
-      // final prefix = "$storyStateType|$estimateStr|$storyType";
-      final prefix = "$storyStateType $estimateStr $storyType";
+      final prefix = "$storyStateType$estimateStr$storyType";
       final storyName = env.styleWith(shortName, [yellow])!;
       final storyFnName = env.styleWith('story', [entityColor])!;
       final storyId = id.value;
       final lp = lParen(env);
       final rp = rParen(env);
-      final ls = lSquare(env);
-      final rs = rSquare(env);
-      return "$lp$storyFnName $storyId$rp ${comment(env)} $ls$prefix$rs $storyName";
-      // return "$prefix $storyName $storyId";
+      final cmt = comment(env);
+      final readable =
+          "$lp$storyFnName $storyId$rp".padRight(42); // adjusted for ANSI codes
+      final storyStr = "$readable$cmt $prefix $storyName";
+      if (isArchived.toBool()) {
+        return env.styleWith(storyStr, [darkGray])!;
+      } else {
+        return storyStr;
+      }
     }
   }
 
