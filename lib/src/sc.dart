@@ -4869,6 +4869,28 @@ class ScFnMilestones extends ScBaseInvocable {
       if (env.parentEntity is ScIteration) {
         final iteration = env.parentEntity as ScIteration;
         return milestonesInIteration(env, iteration);
+      } else if (env.parentEntity is ScTeam) {
+        final team = env.parentEntity as ScTeam;
+        final epics = epicsInTeam(env, team);
+        final milestones = ScList([]);
+        for (final epic in epics.innerList) {
+          final ep = epic as ScEpic;
+          final milestoneId = ep.data[ScString('milestone_id')];
+          if (milestoneId != null &&
+              milestoneId != ScNil() &&
+              !milestones.contains(epic)) {
+            ScMilestone? milestone;
+            if (milestoneId is ScNumber) {
+              milestone = ScMilestone(ScString(milestoneId.value.toString()));
+            } else if (milestoneId is ScMilestone) {
+              milestone = milestoneId;
+            }
+            if (milestone != null) {
+              milestones.add(waitOn(milestone.fetch(env)));
+            }
+          }
+        }
+        return milestones;
       } else {
         final milestones = waitOn(env.client.getMilestones(env));
         return milestones;
