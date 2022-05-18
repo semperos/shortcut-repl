@@ -6055,16 +6055,41 @@ class ScMember extends ScEntity {
         mentionName = (m as ScString).value;
       }
       final shortName = truncate(name, env.displayWidth);
-      var prefix = env.styleWith('[User]', [green]);
-      if (role != null) {
-        final r = role as ScString;
-        prefix = env.styleWith('[${r.value.capitalize()}]', [entityColor])!;
+
+      final cmt = comment(env);
+      final memberFnName = env.styleWith('mb', [entityColor]);
+      final memberId = id;
+
+      final lp = lParen(env);
+      final rp = rParen(env);
+      var prefix = '';
+      if (role is ScString) {
+        String roleStr = role.value.capitalize();
+        switch (roleStr) {
+          case 'Admin':
+            roleStr = env.styleWith("[${roleStr.padRight(6)}]", [magenta])!;
+            break;
+          case 'Member':
+            roleStr = env.styleWith("[${roleStr.padRight(6)}]", [cyan])!;
+            break;
+          case 'Observer':
+            roleStr = env.styleWith("[${roleStr.padRight(6)}]", [darkGray])!;
+            break;
+          case 'Owner':
+            roleStr = env.styleWith("[${roleStr.padRight(6)}]", [red])!;
+            break;
+        }
+        prefix = roleStr;
       }
       final memberMentionName =
           env.styleWith("[@$mentionName]", [entityColor])!;
+      prefix = prefix + memberMentionName;
+      prefix = prefix.padRight(48); // some alignment better than none
       final memberName = env.styleWith(shortName, [yellow])!;
-      final memberId = env.styleWith("[$id]", [entityColor])!;
-      return "$prefix$memberMentionName $memberName $memberId";
+      final readable =
+          "$lp$memberFnName $memberId$rp"; // No padding, IDs are UUIDS...
+      final memberStr = "$readable $cmt $prefix $memberName";
+      return memberStr;
     }
   }
 
