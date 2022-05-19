@@ -609,26 +609,7 @@ def workflow-state-types ["unstarted" "started" "done"]
 
     final List<Map<String, dynamic>> pH = [];
     for (final entity in parentEntityHistory) {
-      String title;
-      if (entity is ScTask) {
-        final desc = entity.data[ScString('description')];
-        if (desc is ScString) {
-          title = desc.value;
-        } else if (entity.title != null) {
-          title = entity.title!.value;
-        } else {
-          title = '<No description found>';
-        }
-      } else {
-        final name = entity.data[ScString('name')];
-        if (name is ScString) {
-          title = name.value;
-        } else if (entity.title != null) {
-          title = entity.title!.value;
-        } else {
-          title = '<No name: fetch the entity>';
-        }
-      }
+      final title = entity.calculateTitle();
       pH.add({
         'entityType': entity.informalTypeName(),
         'entityId': entity.id.value,
@@ -6086,6 +6067,10 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
     }
   }
 
+  String inlineSummary(ScEnv env) {
+    return calculateTitle();
+  }
+
   @override
   String informalTypeName() {
     return 'entity';
@@ -6110,6 +6095,42 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
   String toJson() {
     JsonEncoder jsonEncoder = JsonEncoder.withIndent('  ');
     return jsonEncoder.convert(data);
+  }
+
+  String calculateTitle() {
+    ScString calculatedTitle;
+    if (this is ScTask) {
+      final desc = data[ScString('description')];
+      if (desc is ScString) {
+        calculatedTitle = desc;
+      } else if (title != null) {
+        calculatedTitle = title!;
+      } else {
+        calculatedTitle = ScString('<No description found>');
+      }
+    } else if (this is ScMember) {
+      final profile = data[ScString('profile')];
+      if (profile is ScMap) {
+        final name = profile[ScString('name')];
+        if (name is ScString) {
+          calculatedTitle = name;
+        } else {
+          calculatedTitle = ScString('<No member data: run fetch>');
+        }
+      } else {
+        calculatedTitle = ScString('<No member data: run fetch>');
+      }
+    } else {
+      final name = data[ScString('name')];
+      if (name is ScString) {
+        calculatedTitle = name;
+      } else if (title != null) {
+        calculatedTitle = title!;
+      } else {
+        calculatedTitle = ScString('<No name: run fetch>');
+      }
+    }
+    return calculatedTitle.value;
   }
 }
 
@@ -6179,16 +6200,20 @@ class ScMember extends ScEntity {
         String roleStr = role.value.capitalize();
         switch (roleStr) {
           case 'Admin':
-            roleStr = env.styleWith("[${roleStr.padRight(6)}]", [magenta])!;
+            // roleStr = env.styleWith("[${roleStr.padRight(6)}]", [magenta])!;
+            roleStr = env.styleWith("[$roleStr]", [magenta])!;
             break;
           case 'Member':
-            roleStr = env.styleWith("[${roleStr.padRight(6)}]", [cyan])!;
+            // roleStr = env.styleWith("[${roleStr.padRight(6)}]", [cyan])!;
+            roleStr = env.styleWith("[$roleStr]", [cyan])!;
             break;
           case 'Observer':
-            roleStr = env.styleWith("[${roleStr.padRight(6)}]", [darkGray])!;
+            // roleStr = env.styleWith("[${roleStr.padRight(6)}]", [darkGray])!;
+            roleStr = env.styleWith("[$roleStr]", [darkGray])!;
             break;
           case 'Owner':
-            roleStr = env.styleWith("[${roleStr.padRight(6)}]", [red])!;
+            // roleStr = env.styleWith("[${roleStr.padRight(6)}]", [red])!;
+            roleStr = env.styleWith("[$roleStr]", [red])!;
             break;
         }
         prefix = roleStr;
@@ -6196,7 +6221,7 @@ class ScMember extends ScEntity {
       final memberMentionName =
           env.styleWith("[@$mentionName]", [entityColor])!;
       prefix = prefix + memberMentionName;
-      prefix = prefix.padRight(39); // some alignment better than none; was 48
+      // prefix = prefix.padRight(39); // some alignment better than none; was 48
       final memberName = env.styleWith(shortName, [yellow])!;
       final readable =
           "$lp$memberFnName $memberId$rp"; // No padding, IDs are UUIDS...
@@ -6250,16 +6275,20 @@ class ScMember extends ScEntity {
     if (teams.isNotEmpty) {
       sb.write(env.styleWith(lblTeams.padLeft(labelWidth), [entityColor]));
       if (teams.length == 1) {
-        final team = teams[0] as ScTeam;
-        sb.writeln(team.printToString(env));
+        final team = teams[0];
+        if (team is ScTeam) {
+          sb.writeln(team.inlineSummary(env));
+        }
       } else {
         var isFirst = true;
-        for (final owner in teams.innerList) {
-          if (isFirst) {
-            isFirst = false;
-            sb.writeln(owner.printToString(env));
-          } else {
-            sb.writeln('${"".padLeft(labelWidth)}${owner.printToString(env)}');
+        for (final team in teams.innerList) {
+          if (team is ScTeam) {
+            if (isFirst) {
+              isFirst = false;
+              sb.writeln(team.inlineSummary(env));
+            } else {
+              sb.writeln('${"".padLeft(labelWidth)}${team.inlineSummary(env)}');
+            }
           }
         }
       }
@@ -6267,6 +6296,23 @@ class ScMember extends ScEntity {
 
     env.out.writeln(sb.toString());
     return ScNil();
+  }
+
+  @override
+  String inlineSummary(ScEnv env) {
+    final sb = StringBuffer();
+
+    sb.write(calculateTitle());
+
+    final profile = data[ScString('profile')];
+    if (profile is ScMap) {
+      final mentionName = profile[ScString('mention_name')];
+      if (mentionName is ScString) {
+        sb.write(env.styleWith(" @${mentionName.value}", [green]));
+      }
+    }
+
+    return sb.toString();
   }
 }
 
@@ -6329,11 +6375,10 @@ class ScTeam extends ScEntity {
       String numMembersStr = '';
       final memberIds = data[ScString('member_ids')];
       if (memberIds is ScList) {
-        numMembersStr = env
-            .styleWith("[${memberIds.length.toString().padLeft(2)}M]", [cyan])!;
+        numMembersStr = env.styleWith("[${memberIds.length}M]", [cyan])!;
       }
       String prefix = numMembersStr + teamMentionName;
-      prefix = prefix.padRight(39); // some alignment better than none; was 48
+      // prefix = prefix.padRight(39); // some alignment better than none; was 48
       final teamStr = "$readable $cmt $prefix $teamName";
       return teamStr;
     }
@@ -6375,6 +6420,19 @@ class ScTeam extends ScEntity {
 
     env.out.writeln(sb.toString());
     return ScNil();
+  }
+
+  @override
+  String inlineSummary(ScEnv env) {
+    final sb = StringBuffer();
+    sb.write(calculateTitle());
+
+    final mentionName = data[ScString('mention_name')];
+    if (mentionName is ScString) {
+      sb.write(env.styleWith(" @${mentionName.value}", [green]));
+    }
+
+    return sb.toString();
   }
 }
 
@@ -6446,8 +6504,8 @@ class ScMilestone extends ScEntity {
       final prefix = milestoneStateStr;
       final lp = lParen(env);
       final rp = rParen(env);
-      final readable = "$lp$milestoneFnName $milestoneId$rp"
-          .padRight(39); // adjusted for ANSI codes
+      final readable = "$lp$milestoneFnName $milestoneId$rp";
+      // .padRight(39); // adjusted for ANSI codes
       final milestoneStr = "$readable$cmt $prefix $milestoneName";
       return milestoneStr;
     }
@@ -6571,8 +6629,10 @@ class ScEpic extends ScEntity {
         final numStoriesDone = stats[ScString('num_stories_done')];
         if (numStories is ScNumber) {
           if (numStoriesDone is ScNumber) {
-            final numStoriesDoneStr = numStoriesDone.toString().padLeft(2);
-            final numStoriesStr = numStories.toString().padRight(2);
+            // final numStoriesDoneStr = numStoriesDone.toString().padLeft(2);
+            final numStoriesDoneStr = numStoriesDone.toString();
+            // final numStoriesStr = numStories.toString().padRight(2);
+            final numStoriesStr = numStories.toString();
             storiesStr = env
                 .styleWith("[$numStoriesDoneStr/${numStoriesStr}S]", [cyan])!;
           }
@@ -6582,8 +6642,10 @@ class ScEpic extends ScEntity {
         final numPointsDone = stats[ScString('num_points_done')];
         if (numPoints is ScNumber) {
           if (numPointsDone is ScNumber) {
-            final numPointsDoneStr = numPointsDone.toString().padLeft(2);
-            final numPointsStr = numPoints.toString().padRight(2);
+            // final numPointsDoneStr = numPointsDone.toString().padLeft(2);
+            final numPointsDoneStr = numPointsDone.toString();
+            // final numPointsStr = numPoints.toString().padRight(2);
+            final numPointsStr = numPoints.toString();
             pointsStr =
                 env.styleWith("[$numPointsDoneStr/${numPointsStr}P]", [green])!;
           }
@@ -6593,8 +6655,8 @@ class ScEpic extends ScEntity {
       final prefix = "$epicStateStr$storiesStr$pointsStr";
       final lp = lParen(env);
       final rp = rParen(env);
-      final readable =
-          "$lp$epicFnName $epicId$rp".padRight(39); // adjusted for ANSI codes
+      final readable = "$lp$epicFnName $epicId$rp";
+      // .padRight(39); // adjusted for ANSI codes
       final epicStr = "$readable$cmt $prefix $epicName";
       // TODO Use chalkdart instead
       if (isArchived.toBool()) {
@@ -6640,16 +6702,21 @@ class ScEpic extends ScEntity {
       sb.writeln('<No one>');
     } else {
       if (owners.length == 1) {
-        final owner = owners[0] as ScMember;
-        sb.writeln(owner.printToString(env));
+        final owner = owners[0];
+        if (owner is ScMember) {
+          sb.writeln(owner.inlineSummary(env));
+        }
       } else {
         var isFirst = true;
         for (final owner in owners.innerList) {
-          if (isFirst) {
-            isFirst = false;
-            sb.writeln(owner.printToString(env));
-          } else {
-            sb.writeln('${"".padLeft(labelWidth)}${owner.printToString(env)}');
+          if (owner is ScMember) {
+            if (isFirst) {
+              isFirst = false;
+              sb.writeln(owner.inlineSummary(env));
+            } else {
+              sb.writeln(
+                  '${"".padLeft(labelWidth)}${owner.inlineSummary(env)}');
+            }
           }
         }
       }
@@ -6658,7 +6725,7 @@ class ScEpic extends ScEntity {
     final team = data[ScString('group_id')];
     if (team is ScTeam) {
       sb.write(env.styleWith('Team '.padLeft(labelWidth), [entityColor]));
-      sb.write(team.printToString(env));
+      sb.write(team.inlineSummary(env));
       sb.writeln();
     }
 
@@ -6788,8 +6855,8 @@ class ScStory extends ScEntity {
       final lp = lParen(env);
       final rp = rParen(env);
       final cmt = comment(env);
-      final readable =
-          "$lp$storyFnName $storyId$rp".padRight(39); // adjusted for ANSI codes
+      final readable = "$lp$storyFnName $storyId$rp";
+      //.padRight(39); // adjusted for ANSI codes
       final storyStr = "$readable$cmt $prefix $storyName";
       if (isArchived.toBool()) {
         return env.styleWith(storyStr, [darkGray])!;
@@ -6829,7 +6896,7 @@ class ScStory extends ScEntity {
     final state = data[ScString('workflow_state_id')];
     if (state is ScWorkflowState) {
       sb.write(env.styleWith('State '.padLeft(labelWidth), [entityColor]));
-      sb.write(state.printToString(env));
+      sb.write(state.inlineSummary(env));
     }
     sb.writeln();
 
@@ -6837,11 +6904,11 @@ class ScStory extends ScEntity {
     if (epic != ScNil()) {
       sb.write(env.styleWith('Epic '.padLeft(labelWidth), [entityColor]));
       if (epic is ScEpic) {
-        sb.write(epic.printToString(env));
+        sb.write(epic.inlineSummary(env));
       } else if (epic is ScNumber) {
         final epicEntity = ScEpic(ScString(epic.value.toString()));
         waitOn(epicEntity.fetch(env));
-        sb.write(epicEntity.printToString(env));
+        sb.write(epicEntity.inlineSummary(env));
       }
       sb.writeln();
     }
@@ -6850,12 +6917,12 @@ class ScStory extends ScEntity {
     if (iteration != ScNil()) {
       sb.write(env.styleWith('Iteration '.padLeft(labelWidth), [entityColor]));
       if (iteration is ScIteration) {
-        sb.write(iteration.printToString(env));
+        sb.write(iteration.inlineSummary(env));
       } else if (iteration is ScNumber) {
         final iterationEntity =
             ScIteration(ScString(iteration.value.toString()));
         waitOn(iterationEntity.fetch(env));
-        sb.write(iterationEntity.printToString(env));
+        sb.write(iterationEntity.inlineSummary(env));
       }
       sb.writeln();
     }
@@ -6864,16 +6931,21 @@ class ScStory extends ScEntity {
     if (owners.isNotEmpty) {
       sb.write(env.styleWith('Owned by '.padLeft(labelWidth), [entityColor]));
       if (owners.length == 1) {
-        final owner = owners[0] as ScMember;
-        sb.writeln(owner.printToString(env));
+        final owner = owners[0];
+        if (owner is ScMember) {
+          sb.writeln(owner.inlineSummary(env));
+        }
       } else {
         var isFirst = true;
         for (final owner in owners.innerList) {
-          if (isFirst) {
-            isFirst = false;
-            sb.writeln(owner.printToString(env));
-          } else {
-            sb.writeln('${"".padLeft(labelWidth)}${owner.printToString(env)}');
+          if (owner is ScMember) {
+            if (isFirst) {
+              isFirst = false;
+              sb.writeln(owner.inlineSummary(env));
+            } else {
+              sb.writeln(
+                  '${"".padLeft(labelWidth)}${owner.inlineSummary(env)}');
+            }
           }
         }
       }
@@ -6883,11 +6955,11 @@ class ScStory extends ScEntity {
     if (team != ScNil()) {
       sb.write(env.styleWith('Team '.padLeft(labelWidth), [entityColor]));
       if (team is ScTeam) {
-        sb.write(team.printToString(env));
+        sb.write(team.inlineSummary(env));
       } else if (team is ScString) {
         final teamEntity = ScTeam(ScString(team.value));
         waitOn(teamEntity.fetch(env));
-        sb.write(teamEntity.printToString(env));
+        sb.write(teamEntity.inlineSummary(env));
       }
       sb.writeln();
     }
@@ -6944,7 +7016,7 @@ class ScStory extends ScEntity {
         sb.writeln('$numComplete/${ts.length} complete:');
         for (final task in ts.innerList) {
           final t = task as ScTask;
-          sb.writeln("            ${t.printToString(env)}");
+          sb.writeln("            ${t.inlineSummary(env)}");
         }
       }
     }
@@ -7090,10 +7162,12 @@ class ScIteration extends ScEntity {
         if (numStoriesUnstarted is ScNumber &&
             numStoriesStarted is ScNumber &&
             numStoriesDone is ScNumber) {
-          final numStoriesDoneStr = numStoriesDone.toString().padLeft(2);
+          // final numStoriesDoneStr = numStoriesDone.toString().padLeft(2);
+          final numStoriesDoneStr = numStoriesDone.toString();
           final numStories =
               numStoriesUnstarted.add(numStoriesStarted).add(numStoriesDone);
-          final numStoriesStr = numStories.toString().padRight(2);
+          // final numStoriesStr = numStories.toString().padRight(2);
+          final numStoriesStr = numStories.toString();
           storiesStr =
               env.styleWith("[$numStoriesDoneStr/${numStoriesStr}S]", [cyan])!;
         }
@@ -7102,8 +7176,10 @@ class ScIteration extends ScEntity {
         final numPointsDone = stats[ScString('num_points_done')];
         if (numPoints is ScNumber) {
           if (numPointsDone is ScNumber) {
-            final numPointsDoneStr = numPointsDone.toString().padLeft(2);
-            final numPointsStr = numPoints.toString().padRight(2);
+            // final numPointsDoneStr = numPointsDone.toString().padLeft(2);
+            final numPointsDoneStr = numPointsDone.toString();
+            // final numPointsStr = numPoints.toString().padRight(2);
+            final numPointsStr = numPoints.toString();
             pointsStr =
                 env.styleWith("[$numPointsDoneStr/${numPointsStr}P]", [green])!;
           }
@@ -7114,8 +7190,8 @@ class ScIteration extends ScEntity {
       final lp = lParen(env);
       final rp = rParen(env);
       final cmt = comment(env);
-      final readable = "$lp$iterationFnName $iterationId$rp"
-          .padRight(39); // adjusted for ANSI codes
+      final readable = "$lp$iterationFnName $iterationId$rp";
+      // .padRight(39); // adjusted for ANSI codes
       final iterationStr = "$readable$cmt $prefix $iterationName";
       return iterationStr;
     }
@@ -7142,16 +7218,20 @@ class ScIteration extends ScEntity {
     if (teams.isNotEmpty) {
       sb.write(env.styleWith('Teams '.padLeft(labelWidth), [entityColor]));
       if (teams.length == 1) {
-        final team = teams[0] as ScTeam;
-        sb.writeln(team.printToString(env));
+        final team = teams[0];
+        if (team is ScTeam) {
+          sb.writeln(team.inlineSummary(env));
+        }
       } else {
         var isFirst = true;
-        for (final owner in teams.innerList) {
-          if (isFirst) {
-            isFirst = false;
-            sb.writeln(owner.printToString(env));
-          } else {
-            sb.writeln('${"".padLeft(labelWidth)}${owner.printToString(env)}');
+        for (final team in teams.innerList) {
+          if (team is ScTeam) {
+            if (isFirst) {
+              isFirst = false;
+              sb.writeln(team.inlineSummary(env));
+            } else {
+              sb.writeln('${"".padLeft(labelWidth)}${team.inlineSummary(env)}');
+            }
           }
         }
       }
@@ -7309,11 +7389,13 @@ class ScWorkflow extends ScEntity {
     sb.write(env.styleWith(lblStates.padLeft(labelWidth), [entityColor]));
     var isFirst = true;
     for (final state in states.innerList) {
-      if (isFirst) {
-        isFirst = false;
-        sb.writeln(state.printToString(env));
-      } else {
-        sb.writeln('${"".padLeft(labelWidth)}${state.printToString(env)}');
+      if (state is ScWorkflowState) {
+        if (isFirst) {
+          isFirst = false;
+          sb.writeln(state.inlineSummary(env));
+        } else {
+          sb.writeln('${"".padLeft(labelWidth)}${state.inlineSummary(env)}');
+        }
       }
     }
 
@@ -7481,7 +7563,7 @@ class ScEpicWorkflow extends ScEntity {
     for (final epicState in epicStates.innerList) {
       final es = epicState as ScEpicWorkflowState;
       if (int.tryParse(es.id.value) == defaultEpicWorkflowStateId.value) {
-        sb.writeln(es.printToString(env));
+        sb.writeln(es.inlineSummary(env));
         break;
       }
     }
@@ -7490,11 +7572,13 @@ class ScEpicWorkflow extends ScEntity {
     sb.write(env.styleWith(lblStates.padLeft(labelWidth), [entityColor]));
     var isFirst = true;
     for (final state in states.innerList) {
-      if (isFirst) {
-        isFirst = false;
-        sb.writeln(state.printToString(env));
-      } else {
-        sb.writeln('${"".padLeft(labelWidth)}${state.printToString(env)}');
+      if (state is ScEpicWorkflowState) {
+        if (isFirst) {
+          isFirst = false;
+          sb.writeln(state.inlineSummary(env));
+        } else {
+          sb.writeln('${"".padLeft(labelWidth)}${state.inlineSummary(env)}');
+        }
       }
     }
 
