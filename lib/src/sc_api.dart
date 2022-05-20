@@ -228,7 +228,7 @@ class ScLiveClient extends ScClient {
   Future<ScMember> getCurrentMember(ScEnv env) async {
     final tabaShallow = await authedCall(env, '/member');
     final shallowMember = tabaShallow.currentMember(env);
-    return await getMember(env, shallowMember.id.value);
+    return await getMember(env, shallowMember.idString);
   }
 
   @override

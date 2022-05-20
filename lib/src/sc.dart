@@ -41,7 +41,7 @@ class ScEnv {
   int indentIndex = 0;
   int indentSize = 2;
 
-  int resolutionDepth = 0;
+  Map<ScString, int> resolutionDepth = {};
 
   ReplAnswer lastAnswer = ReplAnswer.no;
   bool isExpectingBindingAnswer = false;
@@ -80,6 +80,7 @@ class ScEnv {
 
     ScSymbol('invoke'): ScFnInvoke(),
     ScSymbol('apply'): ScFnApply(),
+    ScSymbol('id'): ScFnIdentity(),
     ScSymbol('identity'): ScFnIdentity(),
     ScSymbol('just'): ScFnIdentity(),
     ScSymbol('return'): ScFnIdentity(),
@@ -575,7 +576,7 @@ def workflow-state-types ["unstarted" "started" "done"]
       }
       m['parent'] = {
         'entityType': pe.informalTypeName(),
-        'entityId': pe.id.value,
+        'entityId': pe.idString,
         'entityTitle': title,
       };
     }
@@ -612,7 +613,7 @@ def workflow-state-types ["unstarted" "started" "done"]
       final title = entity.calculateTitle();
       pH.add({
         'entityType': entity.informalTypeName(),
-        'entityId': entity.id.value,
+        'entityId': entity.idString,
         'entityTitle': title,
       });
     }
@@ -755,12 +756,17 @@ def workflow-state-types ["unstarted" "started" "done"]
       return maybeCachedMember as ScMember;
     } else {
       final member = ScMember(memberId);
-      if (env.resolutionDepth > 2) {
-        env.resolutionDepth = 0;
+      if (env.resolutionDepth[memberId] == null) {
+        env.resolutionDepth[memberId] = 0;
+      }
+      final resolutionDepth = env.resolutionDepth[memberId]!;
+      if (resolutionDepth > 2) {
+        env.err.writeln("RESOLVE MEMBER Depth met");
+        env.resolutionDepth[memberId] = 0;
         return member;
       } else {
-        env.resolutionDepth++;
-        member.fetch(this);
+        env.resolutionDepth[memberId] = resolutionDepth + 1;
+        waitOn(member.fetch(this));
         membersById[memberId] = member;
         return member;
       }
@@ -782,12 +788,17 @@ def workflow-state-types ["unstarted" "started" "done"]
       return maybeCachedTeam as ScTeam;
     } else {
       final team = ScTeam(teamId);
-      if (env.resolutionDepth > 2) {
-        env.resolutionDepth = 0;
+      if (env.resolutionDepth[teamId] == null) {
+        env.resolutionDepth[teamId] = 0;
+      }
+      final resolutionDepth = env.resolutionDepth[teamId]!;
+      if (resolutionDepth > 2) {
+        env.err.writeln("RESOLVE TEAM Depth met");
+        env.resolutionDepth[teamId] = 0;
         return team;
       } else {
-        env.resolutionDepth++;
-        team.fetch(this);
+        env.resolutionDepth[teamId] = resolutionDepth + 1;
+        waitOn(team.fetch(this));
         teamsById[teamId] = team;
         return team;
       }
@@ -816,7 +827,7 @@ def workflow-state-types ["unstarted" "started" "done"]
       return maybeCachedWorkflow as ScWorkflow;
     } else {
       final workflow = ScWorkflow(workflowId);
-      workflow.fetch(this);
+      waitOn(workflow.fetch(this));
       workflowsById[workflowId] = workflow;
       return workflow;
     }
@@ -2386,7 +2397,7 @@ You can `cd` into an entity to make that entity your current "parent entity." Ma
         if (oldParentEntity is ScStory) {
           try {
             final task = waitOn(
-                env.client.getTask(env, oldParentEntity.id.value, id.value));
+                env.client.getTask(env, oldParentEntity.idString, id.value));
             env.parentEntity = task;
             env[ScSymbol('.')] = task;
             env[ScSymbol('__sc_previous-parent-entity')] = oldParentEntity;
@@ -2605,24 +2616,24 @@ class ScFnMv extends ScBaseInvocable {
       if (childEntity is ScStory) {
         if (parentEntity is ScEpic) {
           return waitOn(env.client.updateStory(
-              env, childEntity.id.value, {'epic_id': parentEntity.id.value}));
+              env, childEntity.idString, {'epic_id': parentEntity.idString}));
         } else if (parentEntity is ScIteration) {
-          return waitOn(env.client.updateStory(env, childEntity.id.value,
-              {'iteration_id': parentEntity.id.value}));
+          return waitOn(env.client.updateStory(env, childEntity.idString,
+              {'iteration_id': parentEntity.idString}));
         } else if (parentEntity is ScTeam) {
           return waitOn(env.client.updateStory(
-              env, childEntity.id.value, {'group_id': parentEntity.id.value}));
+              env, childEntity.idString, {'group_id': parentEntity.idString}));
         } else {
           throw BadArgumentsException(
               "A story can only be moved to an epic, iteration, or team, but you tried to move it to a ${parentEntity.informalTypeName()}");
         }
       } else if (childEntity is ScEpic) {
         if (parentEntity is ScMilestone) {
-          return waitOn(env.client.updateEpic(env, childEntity.id.value,
-              {'milestone_id': parentEntity.id.value}));
+          return waitOn(env.client.updateEpic(env, childEntity.idString,
+              {'milestone_id': parentEntity.idString}));
         } else if (parentEntity is ScTeam) {
           return waitOn(env.client.updateEpic(
-              env, childEntity.id.value, {'group_id': parentEntity.id.value}));
+              env, childEntity.idString, {'group_id': parentEntity.idString}));
         } else {
           throw BadArgumentsException(
               "An epic can only be moved to a milestone or team, but you tried to move it to a ${parentEntity.informalTypeName()}");
@@ -3844,8 +3855,8 @@ NB: Iterations are not included in this list, because their "state" is based sol
         final nextWorkflowState = workflowStates[idx + 1] as ScWorkflowState;
         final updatedEntity = waitOn(env.client.updateStory(
             env,
-            entity.id.value,
-            {"workflow_state_id": int.tryParse(nextWorkflowState.id.value)}));
+            entity.idString,
+            {"workflow_state_id": int.tryParse(nextWorkflowState.idString)}));
         entity.data = updatedEntity.data;
         env.out.writeln(
             "[INFO] Moved from ${currentWorkflowState.printToString(env)} to ${nextWorkflowState.printToString(env)}");
@@ -3870,8 +3881,8 @@ NB: Iterations are not included in this list, because their "state" is based sol
       } else {
         final nextEpicWorkflowState =
             epicWorkflowStates[idx + 1] as ScEpicWorkflowState;
-        final updatedEntity = waitOn(env.client.updateEpic(env, entity.id.value,
-            {"epic_state_id": int.tryParse(nextEpicWorkflowState.id.value)}));
+        final updatedEntity = waitOn(env.client.updateEpic(env, entity.idString,
+            {"epic_state_id": int.tryParse(nextEpicWorkflowState.idString)}));
         entity.data = updatedEntity.data;
         env.out.writeln(
             "[INFO] Moved from ${currentEpicWorkflowState.printToString(env)} to ${nextEpicWorkflowState.printToString(env)}");
@@ -3889,7 +3900,7 @@ NB: Iterations are not included in this list, because their "state" is based sol
       } else {
         final nextState = ScMilestone.states[idx + 1];
         final updatedEntity = waitOn(env.client
-            .updateMilestone(env, entity.id.value, {'state': nextState}));
+            .updateMilestone(env, entity.idString, {'state': nextState}));
         env.out.writeln('[INFO] Moved from "$currentState" to "$nextState"');
         entity.data = updatedEntity.data;
         return entity;
@@ -3898,10 +3909,9 @@ NB: Iterations are not included in this list, because their "state" is based sol
       final isComplete = entity.data[ScString('complete')];
       if (isComplete == ScBoolean.falsitas()) {
         final storyId = entity.data[ScString('story_id')] as ScNumber;
-        final taskId = entity.id;
         final updateMap = {'complete': true};
         final updatedEntity = waitOn(env.client.updateTask(
-            env, storyId.value.toString(), taskId.value, updateMap));
+            env, storyId.value.toString(), entity.idString, updateMap));
         entity.data = updatedEntity.data;
         return entity;
       } else {
@@ -3959,8 +3969,8 @@ NB: Iterations are not included in this list, because their "state" is based sol
         final nextWorkflowState = workflowStates[idx - 1] as ScWorkflowState;
         final updatedEntity = waitOn(env.client.updateStory(
             env,
-            entity.id.value,
-            {"workflow_state_id": int.tryParse(nextWorkflowState.id.value)}));
+            entity.idString,
+            {"workflow_state_id": int.tryParse(nextWorkflowState.idString)}));
         entity.data = updatedEntity.data;
         env.out.writeln(
             "[INFO] Moved from ${currentWorkflowState.printToString(env)} to ${nextWorkflowState.printToString(env)}");
@@ -3985,8 +3995,8 @@ NB: Iterations are not included in this list, because their "state" is based sol
       } else {
         final nextEpicWorkflowState =
             epicWorkflowStates[idx - 1] as ScEpicWorkflowState;
-        final updatedEntity = waitOn(env.client.updateEpic(env, entity.id.value,
-            {"epic_state_id": int.tryParse(nextEpicWorkflowState.id.value)}));
+        final updatedEntity = waitOn(env.client.updateEpic(env, entity.idString,
+            {"epic_state_id": int.tryParse(nextEpicWorkflowState.idString)}));
         entity.data = updatedEntity.data;
         env.out.writeln(
             "[INFO] Moved from ${currentEpicWorkflowState.printToString(env)} to ${nextEpicWorkflowState.printToString(env)}");
@@ -4005,7 +4015,7 @@ NB: Iterations are not included in this list, because their "state" is based sol
       } else {
         final nextState = ScMilestone.states[idx - 1];
         final updatedEntity = waitOn(env.client
-            .updateMilestone(env, entity.id.value, {'state': nextState}));
+            .updateMilestone(env, entity.idString, {'state': nextState}));
         env.out.writeln('[INFO] Moved from "$currentState" to "$nextState"');
         entity.data = updatedEntity.data;
         return entity;
@@ -4014,10 +4024,9 @@ NB: Iterations are not included in this list, because their "state" is based sol
       final isComplete = entity.data[ScString('complete')];
       if (isComplete == ScBoolean.veritas()) {
         final storyId = entity.data[ScString('story_id')] as ScNumber;
-        final taskId = entity.id;
         final updateMap = {'complete': false};
         final updatedEntity = waitOn(env.client.updateTask(
-            env, storyId.value.toString(), taskId.value, updateMap));
+            env, storyId.value.toString(), entity.idString, updateMap));
         entity.data = updatedEntity.data;
         return entity;
       } else {
@@ -4584,8 +4593,23 @@ class ScFnTeams extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.isNotEmpty) {
-      throw BadArgumentsException("The `teams` function takes no arguments.");
+    if (args.isEmpty) {
+      if (env.parentEntity != null) {
+        final pe = env.parentEntity;
+        if (pe is ScMember) {
+          return teamsOfMember(env, pe);
+        }
+      }
+      throw BadArgumentsException(
+          "The `teams` function takes no arguments, or you must be within a member parent entity.");
+    } else if (args.length == 1) {
+      final member = env.resolveArgEntity(args, 'teams');
+      if (member is ScMember) {
+        return teamsOfMember(env, member);
+      } else {
+        throw BadArgumentsException(
+            "The `teams` function expects either 0 arguments or 1 member argument, but received a ${member.informalTypeName()}");
+      }
     } else {
       return waitOn(env.client.getTeams(env));
     }
@@ -4647,7 +4671,8 @@ class ScFnTask extends ScBaseInvocable {
           throw BadArgumentsException(
               "The `task` function expects a task ID that is a number or string, but received a ${taskId.informalTypeName()}");
         }
-        final task = ScTask(story.id, taskId as ScString);
+        // TODO Clean up places like this ^ and this v that can now be simplified by ScExpr id type.
+        final task = ScTask(ScString(story.idString), taskId as ScString);
         return waitOn(task.fetch(env));
       } else {
         throw BadArgumentsException(
@@ -4737,17 +4762,17 @@ Use the `find-stories` function to use more fine-grained criteria for retrieving
     } else {
       ScEntity entity = env.resolveArgEntity(args, 'epics');
       if (entity is ScEpic) {
-        return waitOn(env.client.getStoriesInEpic(env, entity.id.value));
+        return waitOn(env.client.getStoriesInEpic(env, entity.idString));
       } else if (entity is ScIteration) {
-        return waitOn(env.client.getStoriesInIteration(env, entity.id.value));
+        return waitOn(env.client.getStoriesInIteration(env, entity.idString));
       } else if (entity is ScTeam) {
-        return waitOn(env.client.getStoriesInTeam(env, entity.id.value));
+        return waitOn(env.client.getStoriesInTeam(env, entity.idString));
       } else if (entity is ScMilestone) {
         final epics = epicsInMilestone(env, entity);
         final stories = ScList([]);
         for (final epic in epics.innerList) {
           final e = epic as ScEpic;
-          final ss = waitOn(env.client.getStoriesInEpic(env, e.id.value));
+          final ss = waitOn(env.client.getStoriesInEpic(env, e.idString));
           stories.innerList.addAll(ss.innerList);
         }
         return stories;
@@ -5829,9 +5854,25 @@ final typeMap = {
 /// A Shortcut entity is part of the product's domain model.
 abstract class ScEntity extends ScExpr implements RemoteCommand {
   ScEntity(this.id);
-  final ScString id;
+  final ScExpr id;
+  String get idString {
+    // NB: Appease Dart.
+    final idValue = id;
+    if (idValue is ScNumber) {
+      return idValue.value.toString();
+    } else if (idValue is ScString) {
+      return idValue.value;
+    } else {
+      return idValue.toString();
+    }
+  }
+
   ScMap data = ScMap({});
   ScString? title;
+  AnsiCode entityColor = white;
+
+  /// Designed to be overridden. The value "fetch" is the default because all entities are constructable via that function.
+  String get shortFnName => 'fetch';
 
   static final Set<ScString> importantKeys = {
     ScString('app_url'),
@@ -5845,6 +5886,7 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
     ScString('epic_id'),
     ScString('estimate'),
     ScString('group_id'),
+    ScString('group_ids'),
     ScString('id'),
     ScString('iteration_id'),
     ScString('mention_name'),
@@ -5948,16 +5990,29 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
       if (teamKeys.contains(key)) {
         final id = data[key]!;
         if (id is ScString) {
-          data[key] = env.resolveTeam(env, id);
+          // NB: Prevent cyclic resolution
+          if (this is ScMember) {
+            data[key] = id;
+          } else {
+            data[key] = env.resolveTeam(env, id);
+          }
         }
       }
       if (teamsKeys.contains(key)) {
         final ids = data[key];
         if (ids is ScList) {
           List<ScExpr> l = [];
-          for (final id in ids.innerList) {
-            if (id is ScString) {
-              l.add(env.resolveTeam(env, id));
+          if (this is ScMember) {
+            for (final id in ids.innerList) {
+              if (id is ScString) {
+                l.add(id);
+              }
+            }
+          } else {
+            for (final id in ids.innerList) {
+              if (id is ScString) {
+                l.add(env.resolveTeam(env, id));
+              }
             }
           }
           data[key] = ScList(l);
@@ -6068,7 +6123,9 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
   }
 
   String inlineSummary(ScEnv env) {
-    return calculateTitle();
+    final t = calculateTitle();
+    final readable = readableString(env);
+    return calculateTitle() + ' ' + readable;
   }
 
   @override
@@ -6097,6 +6154,19 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
     return jsonEncoder.convert(data);
   }
 
+  /// Return a string representation of this [ScEntity] that is readable and evaluate-able by PL
+  String readableString(ScEnv env) {
+    final lp = lParen(env);
+    final rp = rParen(env);
+
+    if (shortFnName.isEmpty) {
+      return "${lp}id $idString$rp";
+    } else {
+      final fnName = env.styleWith(shortFnName, [entityColor])!;
+      return "$lp$fnName $idString$rp";
+    }
+  }
+
   String calculateTitle() {
     ScString calculatedTitle;
     if (this is ScTask) {
@@ -6114,6 +6184,8 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
         final name = profile[ScString('name')];
         if (name is ScString) {
           calculatedTitle = name;
+        } else if (title != null) {
+          calculatedTitle = title!;
         } else {
           calculatedTitle = ScString('<No member data: run fetch>');
         }
@@ -6137,7 +6209,11 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
 class ScMember extends ScEntity {
   ScMember(ScString id) : super(id);
 
-  static final entityColor = green;
+  @override
+  String get shortFnName => 'mb';
+
+  @override
+  AnsiCode get entityColor => green;
 
   @override
   String informalTypeName() {
@@ -6151,7 +6227,7 @@ class ScMember extends ScEntity {
 
   @override
   Future<ScMember> fetch(ScEnv env) async {
-    final member = await env.client.getMember(env, id.value);
+    final member = await env.client.getMember(env, idString);
     data = member.data;
     return this;
   }
@@ -6181,7 +6257,8 @@ class ScMember extends ScEntity {
         name = (p[ScString('name')] as ScString).value;
         mentionName = (p[ScString('mention_name')] as ScString).value;
       } else {
-        final n = data[ScString('name')] ?? ScString('<No name: run fetch>');
+        final n =
+            data[ScString('name')] ?? title ?? ScString('<No name: run fetch>');
         name = (n as ScString).value;
         final m = data[ScString('mention_name')] ??
             ScString('<No mention name: run fetch>');
@@ -6278,16 +6355,26 @@ class ScMember extends ScEntity {
         final team = teams[0];
         if (team is ScTeam) {
           sb.writeln(team.inlineSummary(env));
+        } else if (team is ScString) {
+          sb.writeln(env.resolveTeam(env, team).inlineSummary(env));
         }
       } else {
         var isFirst = true;
         for (final team in teams.innerList) {
+          ScTeam? teamEntity;
           if (team is ScTeam) {
+            teamEntity = team;
+          } else if (team is ScString) {
+            teamEntity = env.resolveTeam(env, team);
+          }
+
+          if (teamEntity != null) {
             if (isFirst) {
               isFirst = false;
-              sb.writeln(team.inlineSummary(env));
+              sb.writeln(teamEntity.inlineSummary(env));
             } else {
-              sb.writeln('${"".padLeft(labelWidth)}${team.inlineSummary(env)}');
+              sb.writeln(
+                  '${"".padLeft(labelWidth)}${teamEntity.inlineSummary(env)}');
             }
           }
         }
@@ -6312,6 +6399,12 @@ class ScMember extends ScEntity {
       }
     }
 
+    final lp = lParen(env);
+    final rp = rParen(env);
+    final cmt = comment(env);
+    final memberFnName = env.styleWith('mb', [entityColor]);
+    sb.write(" $lp$memberFnName $id$rp");
+
     return sb.toString();
   }
 }
@@ -6319,7 +6412,11 @@ class ScMember extends ScEntity {
 class ScTeam extends ScEntity {
   ScTeam(ScString id) : super(id);
 
-  static final entityColor = lightRed;
+  @override
+  String get shortFnName => 'tm';
+
+  @override
+  AnsiCode get entityColor => lightRed;
 
   factory ScTeam.fromMap(ScEnv env, Map<String, dynamic> data) {
     return ScTeam(ScString(data['id'].toString())).addAll(env, data) as ScTeam;
@@ -6332,7 +6429,7 @@ class ScTeam extends ScEntity {
 
   @override
   Future<ScEntity> fetch(ScEnv env) async {
-    final team = await env.client.getTeam(env, id.value);
+    final team = await env.client.getTeam(env, idString);
     data = team.data;
     return this;
   }
@@ -6432,6 +6529,12 @@ class ScTeam extends ScEntity {
       sb.write(env.styleWith(" @${mentionName.value}", [green]));
     }
 
+    final lp = lParen(env);
+    final rp = rParen(env);
+    final cmt = comment(env);
+    final teamFnName = env.styleWith('tm', [entityColor]);
+    sb.write(" $lp$teamFnName $id$rp");
+
     return sb.toString();
   }
 }
@@ -6439,7 +6542,12 @@ class ScTeam extends ScEntity {
 class ScMilestone extends ScEntity {
   ScMilestone(ScString id) : super(id);
 
-  static final entityColor = red;
+  @override
+  String get shortFnName => 'mi';
+
+  @override
+  AnsiCode get entityColor => red;
+
   static final states = ["to do", "in progress", "done"];
 
   @override
@@ -6454,20 +6562,20 @@ class ScMilestone extends ScEntity {
 
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) async {
-    return env.client.getEpicsInMilestone(env, id.value);
+    return env.client.getEpicsInMilestone(env, idString);
   }
 
   @override
   Future<ScEntity> update(ScEnv env, Map<String, dynamic> updateMap) async {
     final milestone =
-        await env.client.updateMilestone(env, id.value, updateMap);
+        await env.client.updateMilestone(env, idString, updateMap);
     data = milestone.data;
     return this;
   }
 
   @override
   Future<ScEntity> fetch(ScEnv env) async {
-    final milestone = await env.client.getMilestone(env, id.value);
+    final milestone = await env.client.getMilestone(env, idString);
     data = milestone.data;
     return this;
   }
@@ -6483,7 +6591,7 @@ class ScMilestone extends ScEntity {
       final cmt = comment(env);
       final milestoneName = env.styleWith(shortName, [yellow]);
       final milestoneFnName = env.styleWith('mi', [entityColor]);
-      final milestoneId = id.value;
+      final milestoneId = idString;
       final milestoneState = data[ScString('state')];
       String milestoneStateStr = '';
       if (milestoneState is ScString) {
@@ -6506,7 +6614,7 @@ class ScMilestone extends ScEntity {
       final rp = rParen(env);
       final readable = "$lp$milestoneFnName $milestoneId$rp";
       // .padRight(39); // adjusted for ANSI codes
-      final milestoneStr = "$readable$cmt $prefix $milestoneName";
+      final milestoneStr = "$readable $cmt $prefix $milestoneName";
       return milestoneStr;
     }
   }
@@ -6524,7 +6632,7 @@ class ScMilestone extends ScEntity {
     sb.write(env.styleWith('Milestone '.padLeft(labelWidth), [entityColor]));
     sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
-    final milestoneId = id.value;
+    final milestoneId = idString;
     sb.write(env.styleWith('Id '.padLeft(labelWidth), [entityColor]));
     sb.writeln(milestoneId);
 
@@ -6560,7 +6668,11 @@ class ScMilestone extends ScEntity {
 class ScEpic extends ScEntity {
   ScEpic(ScString id) : super(id);
 
-  static final entityColor = green;
+  @override
+  String get shortFnName => 'ep';
+
+  @override
+  AnsiCode get entityColor => green;
 
   @override
   String informalTypeName() {
@@ -6573,19 +6685,19 @@ class ScEpic extends ScEntity {
 
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) {
-    return env.client.getStoriesInEpic(env, id.value);
+    return env.client.getStoriesInEpic(env, idString);
   }
 
   @override
   Future<ScEpic> update(ScEnv env, Map<String, dynamic> updateMap) async {
-    final epic = await env.client.updateEpic(env, id.value, updateMap);
+    final epic = await env.client.updateEpic(env, idString, updateMap);
     data = epic.data;
     return this;
   }
 
   @override
   Future<ScEntity> fetch(ScEnv env) async {
-    final epic = await env.client.getEpic(env, id.value);
+    final epic = await env.client.getEpic(env, idString);
     data = epic.data;
     return this;
   }
@@ -6603,7 +6715,7 @@ class ScEpic extends ScEntity {
       final cmt = comment(env);
       final epicName = env.styleWith(shortName, [yellow]);
       final epicFnName = env.styleWith('ep', [entityColor]);
-      final epicId = id.value;
+      final epicId = idString;
       final epicState = data[ScString('state')];
       String epicStateStr = '';
       if (epicState is ScString) {
@@ -6657,7 +6769,7 @@ class ScEpic extends ScEntity {
       final rp = rParen(env);
       final readable = "$lp$epicFnName $epicId$rp";
       // .padRight(39); // adjusted for ANSI codes
-      final epicStr = "$readable$cmt $prefix $epicName";
+      final epicStr = "$readable $cmt $prefix $epicName";
       // TODO Use chalkdart instead
       if (isArchived.toBool()) {
         return env.styleWith(epicStr, [darkGray])!;
@@ -6685,14 +6797,14 @@ class ScEpic extends ScEntity {
     sb.write(env.styleWith('Epic '.padLeft(labelWidth), [entityColor]));
     sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
-    final epicId = id.value;
+    final epicId = idString;
     sb.write(env.styleWith('Id '.padLeft(labelWidth), [entityColor]));
     sb.writeln(epicId);
 
     final state = data[ScString('epic_state_id')];
     if (state is ScEpicWorkflowState) {
       sb.write(env.styleWith('State '.padLeft(labelWidth), [entityColor]));
-      sb.write(state.printToString(env));
+      sb.write(state.inlineSummary(env));
     }
     sb.writeln();
 
@@ -6750,7 +6862,11 @@ class ScEpic extends ScEntity {
 class ScStory extends ScEntity {
   ScStory(ScString id) : super(id);
 
-  static final entityColor = magenta;
+  @override
+  String get shortFnName => 'st';
+
+  @override
+  AnsiCode get entityColor => magenta;
 
   @override
   String informalTypeName() {
@@ -6773,12 +6889,12 @@ class ScStory extends ScEntity {
 
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) {
-    return env.client.getTasksInStory(env, id.value);
+    return env.client.getTasksInStory(env, idString);
   }
 
   @override
   Future<ScEntity> update(ScEnv env, Map<String, dynamic> updateMap) async {
-    final story = await env.client.updateStory(env, id.value, updateMap);
+    final story = await env.client.updateStory(env, idString, updateMap);
     data = story.data;
     return this;
   }
@@ -6789,7 +6905,7 @@ class ScStory extends ScEntity {
       final fetchAllFn = ScFnFetchAll();
       fetchAllFn.invoke(env, ScList([]));
     }
-    final story = await env.client.getStory(env, id.value);
+    final story = await env.client.getStory(env, idString);
     data = story.data;
     return this;
   }
@@ -6851,13 +6967,13 @@ class ScStory extends ScEntity {
       final prefix = "$storyStateType$estimateStr$storyType";
       final storyName = env.styleWith(shortName, [yellow])!;
       final storyFnName = env.styleWith('st', [entityColor])!;
-      final storyId = id.value;
+      final storyId = idString;
       final lp = lParen(env);
       final rp = rParen(env);
       final cmt = comment(env);
       final readable = "$lp$storyFnName $storyId$rp";
       //.padRight(39); // adjusted for ANSI codes
-      final storyStr = "$readable$cmt $prefix $storyName";
+      final storyStr = "$readable $cmt $prefix $storyName";
       if (isArchived.toBool()) {
         return env.styleWith(storyStr, [darkGray])!;
       } else {
@@ -6889,7 +7005,7 @@ class ScStory extends ScEntity {
     sb.write(env.styleWith('$storyLabel '.padLeft(labelWidth), [entityColor]));
     sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
-    final storyId = id.value;
+    final storyId = idString;
     sb.write(env.styleWith('Id '.padLeft(labelWidth), [entityColor]));
     sb.writeln(storyId);
 
@@ -7031,6 +7147,9 @@ class ScTask extends ScEntity {
   final ScString storyId;
 
   @override
+  String get shortFnName => 'tk';
+
+  @override
   String informalTypeName() {
     return 'task';
   }
@@ -7050,14 +7169,14 @@ class ScTask extends ScEntity {
   @override
   Future<ScEntity> update(ScEnv env, Map<String, dynamic> updateMap) async {
     final task =
-        await env.client.updateTask(env, storyId.value, id.value, updateMap);
+        await env.client.updateTask(env, storyId.value, idString, updateMap);
     data = task.data;
     return this;
   }
 
   @override
   Future<ScEntity> fetch(ScEnv env) async {
-    final task = await env.client.getTask(env, storyId.value, id.value);
+    final task = await env.client.getTask(env, storyId.value, idString);
     data = task.data;
     return this;
   }
@@ -7082,7 +7201,7 @@ class ScTask extends ScEntity {
       }
       final prefix = env.styleWith('[Task]', [lightMagenta]);
       final taskDescription = env.styleWith(shortDescription, [yellow])!;
-      final taskId = env.styleWith("[${id.value}]", [lightMagenta])!;
+      final taskId = env.styleWith("[$idString]", [lightMagenta])!;
       return "$prefix$status $taskDescription $taskId";
     }
   }
@@ -7091,7 +7210,11 @@ class ScTask extends ScEntity {
 class ScIteration extends ScEntity {
   ScIteration(ScString id) : super(id);
 
-  static final entityColor = cyan;
+  @override
+  String get shortFnName => 'it';
+
+  @override
+  AnsiCode get entityColor => cyan;
 
   @override
   String informalTypeName() {
@@ -7105,20 +7228,20 @@ class ScIteration extends ScEntity {
 
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) {
-    return env.client.getStoriesInIteration(env, id.value);
+    return env.client.getStoriesInIteration(env, idString);
   }
 
   @override
   Future<ScEntity> update(ScEnv env, Map<String, dynamic> updateMap) async {
     final iteration =
-        await env.client.updateIteration(env, id.value, updateMap);
+        await env.client.updateIteration(env, idString, updateMap);
     data = iteration.data;
     return this;
   }
 
   @override
   Future<ScEntity> fetch(ScEnv env) async {
-    final iteration = await env.client.getIteration(env, id.value);
+    final iteration = await env.client.getIteration(env, idString);
     data = iteration.data;
     return this;
   }
@@ -7132,7 +7255,7 @@ class ScIteration extends ScEntity {
           ScString("<No name: run fetch>");
       final shortName = truncate(name.value, env.displayWidth);
       final iterationName = env.styleWith(shortName, [yellow])!;
-      final iterationId = id.value;
+      final iterationId = idString;
       final iterationFnName = env.styleWith('it', [entityColor]);
 
       final iterationStatus = data[ScString('status')];
@@ -7192,7 +7315,7 @@ class ScIteration extends ScEntity {
       final cmt = comment(env);
       final readable = "$lp$iterationFnName $iterationId$rp";
       // .padRight(39); // adjusted for ANSI codes
-      final iterationStr = "$readable$cmt $prefix $iterationName";
+      final iterationStr = "$readable $cmt $prefix $iterationName";
       return iterationStr;
     }
   }
@@ -7210,7 +7333,7 @@ class ScIteration extends ScEntity {
     sb.write(env.styleWith('Iteration '.padLeft(labelWidth), [entityColor]));
     sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
-    final epicId = id.value;
+    final epicId = idString;
     sb.write(env.styleWith('Id '.padLeft(labelWidth), [entityColor]));
     sb.writeln(epicId);
 
@@ -7276,6 +7399,9 @@ class ScIteration extends ScEntity {
 class ScLabel extends ScEntity {
   ScLabel(ScString id) : super(id);
 
+  @override
+  String get shortFnName => 'lb';
+
   factory ScLabel.fromMap(ScEnv env, Map<String, dynamic> data) {
     return ScLabel(ScString(data['id'].toString())).addAll(env, data)
         as ScLabel;
@@ -7283,19 +7409,19 @@ class ScLabel extends ScEntity {
 
   @override
   Future<ScEntity> fetch(ScEnv env) async {
-    final label = await env.client.getLabel(env, id.value);
+    final label = await env.client.getLabel(env, idString);
     data = label.data;
     return this;
   }
 
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) {
-    return env.client.getStoriesWithLabel(env, id.value);
+    return env.client.getStoriesWithLabel(env, idString);
   }
 
   @override
   Future<ScEntity> update(ScEnv env, Map<String, dynamic> updateMap) async {
-    final label = await env.client.updateLabel(env, id.value, updateMap);
+    final label = await env.client.updateLabel(env, idString, updateMap);
     data = label.data;
     return this;
   }
@@ -7303,6 +7429,12 @@ class ScLabel extends ScEntity {
 
 class ScWorkflow extends ScEntity {
   ScWorkflow(ScString id) : super(id);
+
+  @override
+  String get shortFnName => 'wf';
+
+  @override
+  AnsiCode get entityColor => lightCyan;
 
   factory ScWorkflow.fromMap(ScEnv env, Map<String, dynamic> data) {
     final statesData = data['states'] as List;
@@ -7319,8 +7451,6 @@ class ScWorkflow extends ScEntity {
     return workflow;
   }
 
-  static final entityColor = lightCyan;
-
   @override
   String informalTypeName() {
     return 'workflow';
@@ -7328,7 +7458,7 @@ class ScWorkflow extends ScEntity {
 
   @override
   Future<ScEntity> fetch(ScEnv env) async {
-    final workflow = await env.client.getWorkflow(env, id.value);
+    final workflow = await env.client.getWorkflow(env, idString);
     data = workflow.data;
     return this;
   }
@@ -7359,7 +7489,7 @@ class ScWorkflow extends ScEntity {
       final shortName = truncate(name.value, env.displayWidth);
       final prefix = env.styleWith('[Workflow]', [lightCyan]);
       final workflowName = env.styleWith(shortName, [yellow])!;
-      final workflowId = env.styleWith("[${id.value}]", [lightCyan])!;
+      final workflowId = env.styleWith("[$idString]", [lightCyan])!;
       return "$prefix $workflowName $workflowId";
     }
   }
@@ -7381,7 +7511,7 @@ class ScWorkflow extends ScEntity {
     sb.write(env.styleWith(lblWorkflow.padLeft(labelWidth), [entityColor]));
     sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
-    final workflowId = id.value;
+    final workflowId = idString;
     sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
     sb.writeln(workflowId);
 
@@ -7407,7 +7537,11 @@ class ScWorkflow extends ScEntity {
 class ScWorkflowState extends ScEntity {
   ScWorkflowState(ScString id) : super(id);
 
-  static final entityColor = lightCyan;
+  @override
+  String get shortFnName => '';
+
+  @override
+  AnsiCode get entityColor => lightCyan;
 
   factory ScWorkflowState.fromMap(ScEnv env, Map<String, dynamic> data) {
     return ScWorkflowState(ScString(data['id'].toString())).addAll(env, data)
@@ -7466,7 +7600,7 @@ class ScWorkflowState extends ScEntity {
       }
       final prefix = env.styleWith('[Workflow State]', [entityColor]);
       final workflowStateName = env.styleWith(shortName, [yellow])!;
-      final workflowStateId = env.styleWith("[${id.value}]", [entityColor])!;
+      final workflowStateId = env.styleWith("[$idString]", [entityColor])!;
       return "$prefix$typeStr $workflowStateName $workflowStateId";
     }
   }
@@ -7474,6 +7608,12 @@ class ScWorkflowState extends ScEntity {
 
 class ScEpicWorkflow extends ScEntity {
   ScEpicWorkflow(ScString id) : super(id);
+
+  @override
+  String get shortFnName => '';
+
+  @override
+  AnsiCode get entityColor => lightCyan;
 
   factory ScEpicWorkflow.fromMap(ScEnv env, Map<String, dynamic> data) {
     final statesData = data['epic_states'] as List;
@@ -7489,8 +7629,6 @@ class ScEpicWorkflow extends ScEntity {
     epicWorkflow.data[ScString('epic_states')] = states;
     return epicWorkflow;
   }
-
-  static final entityColor = lightCyan;
 
   @override
   String informalTypeName() {
@@ -7529,7 +7667,7 @@ class ScEpicWorkflow extends ScEntity {
       final shortName = truncate(name, env.displayWidth);
       final prefix = env.styleWith('[Epic Workflow]', [entityColor]);
       final epicWorkflowName = env.styleWith(shortName, [yellow])!;
-      final epicWorkflowId = env.styleWith("[${id.value}]", [entityColor])!;
+      final epicWorkflowId = env.styleWith("[$idString]", [entityColor])!;
       return "$prefix $epicWorkflowName $epicWorkflowId";
     }
   }
@@ -7552,7 +7690,7 @@ class ScEpicWorkflow extends ScEntity {
     sb.write(env.styleWith(lblWorkflow.padLeft(labelWidth), [entityColor]));
     sb.writeln(env.styleWith(name, [yellow, styleUnderlined]));
 
-    final workflowId = id.value;
+    final workflowId = idString;
     sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
     sb.writeln(workflowId);
 
@@ -7562,7 +7700,7 @@ class ScEpicWorkflow extends ScEntity {
     final epicStates = data[ScString('epic_states')] as ScList;
     for (final epicState in epicStates.innerList) {
       final es = epicState as ScEpicWorkflowState;
-      if (int.tryParse(es.id.value) == defaultEpicWorkflowStateId.value) {
+      if (int.tryParse(es.idString) == defaultEpicWorkflowStateId.value) {
         sb.writeln(es.inlineSummary(env));
         break;
       }
@@ -7590,7 +7728,11 @@ class ScEpicWorkflow extends ScEntity {
 class ScEpicWorkflowState extends ScEntity {
   ScEpicWorkflowState(ScString id) : super(id);
 
-  static final entityColor = lightCyan;
+  @override
+  String get shortFnName => '';
+
+  @override
+  AnsiCode get entityColor => lightCyan;
 
   factory ScEpicWorkflowState.fromMap(ScEnv env, Map<String, dynamic> data) {
     return ScEpicWorkflowState(ScString(data['id'].toString()))
@@ -7650,7 +7792,7 @@ class ScEpicWorkflowState extends ScEntity {
       }
       final prefix = env.styleWith('[Epic Workflow State]', [entityColor]);
       final workflowStateName = env.styleWith(shortName, [yellow])!;
-      final workflowStateId = env.styleWith("[${id.value}]", [entityColor])!;
+      final workflowStateId = env.styleWith("[$idString]", [entityColor])!;
       return "$prefix$typeStr $workflowStateName $workflowStateId";
     }
   }
@@ -7767,8 +7909,23 @@ ScEntity? entityFromEnvJson(Map<String, dynamic> json) {
   return entity;
 }
 
+ScList teamsOfMember(ScEnv env, ScMember member) {
+  final teams = member.data[ScString('group_ids')];
+  final l = ScList([]);
+  if (teams is ScList) {
+    for (final team in teams.innerList) {
+      if (team is ScTeam) {
+        l.add(team);
+      } else if (team is ScString) {
+        l.add(env.resolveTeam(env, team));
+      }
+    }
+  }
+  return l;
+}
+
 ScList epicsInMilestone(ScEnv env, ScMilestone milestone) {
-  final milestonePublicId = milestone.id.value;
+  final milestonePublicId = milestone.idString;
   final epicsInMilestone =
       waitOn(env.client.getEpicsInMilestone(env, milestonePublicId));
   return epicsInMilestone;
@@ -7776,12 +7933,12 @@ ScList epicsInMilestone(ScEnv env, ScMilestone milestone) {
 
 ScList epicsInIteration(ScEnv env, ScIteration iteration) {
   final iterationStories =
-      waitOn(env.client.getStoriesInIteration(env, iteration.id.value));
+      waitOn(env.client.getStoriesInIteration(env, iteration.idString));
   return uniqueEpicsAcrossStories(env, iterationStories);
 }
 
 ScList epicsInTeam(ScEnv env, ScTeam team) {
-  final storiesInTeam = waitOn(env.client.getStoriesInTeam(env, team.id.value));
+  final storiesInTeam = waitOn(env.client.getStoriesInTeam(env, team.idString));
   return uniqueEpicsAcrossStories(env, storiesInTeam);
 }
 
@@ -7791,7 +7948,8 @@ ScList uniqueEpicsAcrossStories(ScEnv env, ScList stories) {
     final s = story as ScStory;
     final epic = s.data[ScString('epic_id')];
     if (epic is ScEpic) {
-      epicIds.add(epic.id);
+      // TODO Clean up ids as ScExprs
+      epicIds.add(ScString(epic.idString));
     } else if (epic is ScNumber) {
       epicIds.add(ScString(epic.value.toString()));
     }
@@ -7811,7 +7969,8 @@ ScList milestonesInIteration(ScEnv env, ScIteration iteration) {
     final e = epic as ScEpic;
     final milestone = e.data[ScString('milestone_id')];
     if (milestone is ScMilestone) {
-      milestoneIds.add(milestone.id);
+      // TODO Clean up ids as ScExprs
+      milestoneIds.add(ScString(milestone.idString));
     } else if (milestone is ScNumber) {
       milestoneIds.add(ScString(milestone.value.toString()));
     }
@@ -7982,10 +8141,10 @@ dynamic scExprToValue(ScExpr expr,
       );
     }
     if (onlyEntityIds) {
-      return expr.id.value;
+      return expr.idString;
     } else if (currentDepth > 2) {
       // NB: Given Shortcut's data model, we are likely in an cycle like Member -> Teams -> Members -> Teams
-      return expr.id.value;
+      return expr.idString;
     } else {
       // currentDepth++;
       return unwrapScMap(expr.data,
@@ -8120,7 +8279,7 @@ Future<ScEntity> fetchId(ScEnv env, String entityPublicId) async {
               } catch (_) {
                 try {
                   final epicWorkflow = await env.client.getEpicWorkflow(env);
-                  if (epicWorkflow.id.value == entityPublicId) {
+                  if (epicWorkflow.idString == entityPublicId) {
                     return epicWorkflow;
                   } else {
                     throw EntityNotFoundException(
