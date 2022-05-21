@@ -4,7 +4,8 @@
 - The `sc` tool is an interpreter of an intentionally-rudimentary programming language called [[Piped Lisp]].
 - `sc` supports either one-off executions (use `-e` or `--eval`) or an interactive console/REPL (use `-r` or `--repl`).
 	- See [[Usage]] for more details.
-- See also:
+- See next:
 	- [[Installation]]
 	- [[Usage]]
+	- [[Planned Features]]
 	- [[License]]

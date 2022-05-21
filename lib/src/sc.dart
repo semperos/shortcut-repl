@@ -6841,17 +6841,46 @@ class ScEpic extends ScEntity {
       sb.writeln();
     }
 
+    final milestoneId = data[ScString('milestone_id')];
+    ScMilestone? milestone;
+    if (milestoneId is ScNumber) {
+      milestone = ScMilestone(ScString(milestoneId.toString()));
+      waitOn(milestone.fetch(env));
+    } else if (milestoneId is ScMilestone) {
+      milestone = milestoneId;
+    }
+    if (milestone != null) {
+      sb.write(env.styleWith('Milestone '.padLeft(labelWidth), [entityColor]));
+      sb.write(milestone.inlineSummary(env));
+      sb.writeln();
+    }
+
     final stats = data[ScString('stats')];
     if (stats is ScMap) {
+      final numStories = stats[ScString('num_stories_total')];
+      final numStoriesDone = stats[ScString('num_stories_done')];
+      if (numStories is ScNumber) {
+        if (numStoriesDone is ScNumber) {
+          // final numStoriesDoneStr = numStoriesDone.toString().padLeft(2);
+          final numStoriesDoneStr = numStoriesDone.toString();
+          // final numStoriesStr = numStories.toString().padRight(2);
+          final numStoriesStr = numStories.toString();
+          sb.write(
+              env.styleWith('Stories '.padLeft(labelWidth), [entityColor]));
+          sb.write("$numStoriesDoneStr/$numStoriesStr stories done");
+          sb.writeln();
+        }
+      }
+
       final numPoints = stats[ScString('num_points')];
       final numPointsDone = stats[ScString('num_points_done')];
       if (numPoints is ScNumber) {
         if (numPointsDone is ScNumber) {
           sb.write(env.styleWith('Points '.padLeft(labelWidth), [entityColor]));
           sb.write("$numPointsDone/$numPoints points done");
+          sb.writeln();
         }
       }
-      sb.writeln();
     }
 
     env.out.writeln(sb.toString());
