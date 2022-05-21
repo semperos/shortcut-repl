@@ -88,6 +88,33 @@ class ScEnv {
     ScSymbol('type'): ScFnType(),
     ScSymbol('undef'): ScFnUndef(),
 
+    ScSymbol('dt'): ScFnDateTime(),
+    ScSymbol('now'): ScFnNow(),
+    // ScSymbol('plus-microseconds'): ScFnDateTimePlus('microseconds'),
+    // ScSymbol('plus-milliseconds'): ScFnDateTimePlus('milliseconds'),
+    // ScSymbol('plus-seconds'): ScFnDateTimePlus('seconds'),
+    // ScSymbol('plus-minutes'): ScFnDateTimePlus('minutes'),
+    // ScSymbol('plus-hours'): ScFnDateTimePlus('hours'),
+    // ScSymbol('plus-days'): ScFnDateTimePlus('days'),
+    // ScSymbol('minus-microseconds'): ScFnDateTimeMinus('microseconds'),
+    // ScSymbol('minus-milliseconds'): ScFnDateTimeMinus('milliseconds'),
+    // ScSymbol('minus-seconds'): ScFnDateTimeMinus('seconds'),
+    // ScSymbol('minus-minutes'): ScFnDateTimeMinus('minutes'),
+    // ScSymbol('minus-hours'): ScFnDateTimeMinus('hours'),
+    // ScSymbol('minus-days'): ScFnDateTimeMinus('days'),
+    // ScSymbol('microseconds-until'): ScFnDateTimeUntil('microseconds'),
+    // ScSymbol('milliseconds-until'): ScFnDateTimeUntil('milliseconds'),
+    // ScSymbol('seconds-until'): ScFnDateTimeUntil('seconds'),
+    // ScSymbol('minutes-until'): ScFnDateTimeUntil('minutes'),
+    // ScSymbol('hours-until'): ScFnDateTimeUntil('hours'),
+    // ScSymbol('days-until'): ScFnDateTimeUntil('days'),
+    // ScSymbol('microseconds-since'): ScFnDateTimeSince('microseconds'),
+    // ScSymbol('milliseconds-since'): ScFnDateTimeSince('milliseconds'),
+    // ScSymbol('seconds-since'): ScFnDateTimeSince('seconds'),
+    // ScSymbol('minutes-since'): ScFnDateTimeSince('minutes'),
+    // ScSymbol('hours-since'): ScFnDateTimeSince('hours'),
+    // ScSymbol('days-since'): ScFnDateTimeSince('days'),
+
     // REPL Helpers
 
     ScSymbol('help'): ScFnHelp(),
@@ -1001,6 +1028,12 @@ extension StringToScExpr on String {
   }
 }
 
+extension DateTimeToScExpr on DateTime {
+  ScExpr toScExpr() {
+    return ScDateTime(this);
+  }
+}
+
 extension on String {
   String capitalize() {
     return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
@@ -1195,6 +1228,52 @@ class ScString extends ScExpr implements Comparable {
   static final isBlankRegExp = RegExp(r'^\s*$');
   bool isBlank() {
     return value.isEmpty || isBlankRegExp.hasMatch(value);
+  }
+}
+
+class ScDateTime extends ScExpr implements Comparable {
+  ScDateTime(this.value);
+  final DateTime value;
+
+  @override
+  String toString() {
+    return value.toString();
+  }
+
+  @override
+  String printToString(ScEnv env) {
+    final sb = StringBuffer();
+    sb.write(lParen(env));
+    sb.write("dt ");
+    sb.write(env.styleWith('"${toString()}"', [cyan]));
+    sb.write(rParen(env));
+    return sb.toString();
+  }
+
+  @override
+  String informalTypeName() {
+    return 'date+time';
+  }
+
+  @override
+  bool operator ==(Object other) => other is ScDateTime && value == other.value;
+
+  @override
+  int get hashCode => 31 + value.hashCode;
+
+  @override
+  int compareTo(other) {
+    if (other is ScDateTime) {
+      return value.compareTo(other.value);
+    } else if (other is DateTime) {
+      return value.compareTo(other);
+    } else if (other is ScExpr) {
+      throw UnsupportedError(
+          "You cannot sort a string with a ${other.informalTypeName()}");
+    } else {
+      throw UnsupportedError(
+          "You cannot sort a string with a ${other.runtimeType}");
+    }
   }
 }
 
@@ -1634,6 +1713,88 @@ class ScFnUndef extends ScBaseInvocable {
           "The `undef` function expects only 1 argument, but received ${args.length}");
     }
     return ScNil();
+  }
+}
+
+class ScFnDateTime extends ScBaseInvocable {
+  static final ScFnDateTime _instance = ScFnDateTime._internal();
+  ScFnDateTime._internal();
+  factory ScFnDateTime() => _instance;
+
+  @override
+  String get help => 'Return a date+time value for the given string.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull =>
+      help +
+      "\n\n" +
+      r"""
+Creates a date+time object from an acceptable string.
+
+Examples of valid date+time strings are (taken from Dart's documentation):
+
+    "2012-02-27"
+    "2012-02-27 13:27:00"
+    "2012-02-27 13:27:00.123456789z"
+    "2012-02-27 13:27:00,123456789z"
+    "20120227 13:27:00"
+    "20120227T132700"
+    "20120227"
+    "+20120227"
+    "2012-02-27T14Z"
+    "2012-02-27T14+00:00"
+    "-123450101 00:00:00 Z": in the year -12345.
+    "2002-02-27T14:00:00-0500": Same as "2002-02-27T19:00:00Z"
+
+For more details, see the Dart `DateTime.parse()` documentation:
+
+https://api.dart.dev/stable/dart-core/DateTime/parse.html""";
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final dateTimeStr = args[0];
+      if (dateTimeStr is ScString) {
+        final dateTimeString = dateTimeStr.value;
+        final dt = DateTime.tryParse(dateTimeString);
+        if (dt == null) {
+          throw BadArgumentsException(
+              "The `dt` function couldn't parse the string you provided: $dateTimeStr");
+        } else {
+          return ScDateTime(dt);
+        }
+      } else {
+        throw BadArgumentsException(
+            "The `dt` function's argument must be a string, but received a ${dateTimeStr.informalTypeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `dt` function expects a single string argument, which must be parseable by Dart's `DateTime.parse()` method.");
+    }
+  }
+}
+
+class ScFnNow extends ScBaseInvocable {
+  static final ScFnNow _instance = ScFnNow._internal();
+  ScFnNow._internal();
+  factory ScFnNow() => _instance;
+
+  @override
+  String get help => 'Return the current date+time.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 0) {
+      return ScDateTime(DateTime.now());
+    } else {
+      throw BadArgumentsException(
+          "The `now` function expects 0 arguments, but received ${args.length} arguments.");
+    }
   }
 }
 

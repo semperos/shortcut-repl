@@ -4,6 +4,8 @@
 - TODO Date/time support with dedicated data type and functions for relative dates/times in support of things like easy iteration creation.
 -
 - ## REPL
+- TODO Change prompt when in a parent entity.
+	- Thinking a line _previous_ to the main `sc>` prompt, with a starting `;` so copy and paste across lines is minimally disturbed.
 - TODO Way to clear the buffer and get back default prompt without having to exit the REPL
 - TODO State machine to replace the crazy if/else chains that implement interactive entity creation and setting defaults.
 - TODO Story for viewing and setting everything that's configurable via `env.json` and/or environment variables.
