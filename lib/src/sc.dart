@@ -90,18 +90,20 @@ class ScEnv {
 
     ScSymbol('dt'): ScFnDateTime(),
     ScSymbol('now'): ScFnNow(),
-    // ScSymbol('plus-microseconds'): ScFnDateTimePlus('microseconds'),
-    // ScSymbol('plus-milliseconds'): ScFnDateTimePlus('milliseconds'),
-    // ScSymbol('plus-seconds'): ScFnDateTimePlus('seconds'),
-    // ScSymbol('plus-minutes'): ScFnDateTimePlus('minutes'),
-    // ScSymbol('plus-hours'): ScFnDateTimePlus('hours'),
-    // ScSymbol('plus-days'): ScFnDateTimePlus('days'),
-    // ScSymbol('minus-microseconds'): ScFnDateTimeMinus('microseconds'),
-    // ScSymbol('minus-milliseconds'): ScFnDateTimeMinus('milliseconds'),
-    // ScSymbol('minus-seconds'): ScFnDateTimeMinus('seconds'),
-    // ScSymbol('minus-minutes'): ScFnDateTimeMinus('minutes'),
-    // ScSymbol('minus-hours'): ScFnDateTimeMinus('hours'),
-    // ScSymbol('minus-days'): ScFnDateTimeMinus('days'),
+    ScSymbol('plus-microseconds'): ScFnDateTimePlus(DateTimeUnit.microseconds),
+    ScSymbol('plus-milliseconds'): ScFnDateTimePlus(DateTimeUnit.milliseconds),
+    ScSymbol('plus-seconds'): ScFnDateTimePlus(DateTimeUnit.seconds),
+    ScSymbol('plus-minutes'): ScFnDateTimePlus(DateTimeUnit.minutes),
+    ScSymbol('plus-hours'): ScFnDateTimePlus(DateTimeUnit.hours),
+    ScSymbol('plus-days'): ScFnDateTimePlus(DateTimeUnit.days),
+    ScSymbol('minus-microseconds'):
+        ScFnDateTimeMinus(DateTimeUnit.microseconds),
+    ScSymbol('minus-milliseconds'):
+        ScFnDateTimeMinus(DateTimeUnit.milliseconds),
+    ScSymbol('minus-seconds'): ScFnDateTimeMinus(DateTimeUnit.seconds),
+    ScSymbol('minus-minutes'): ScFnDateTimeMinus(DateTimeUnit.minutes),
+    ScSymbol('minus-hours'): ScFnDateTimeMinus(DateTimeUnit.hours),
+    ScSymbol('minus-days'): ScFnDateTimeMinus(DateTimeUnit.days),
     // ScSymbol('microseconds-until'): ScFnDateTimeUntil('microseconds'),
     // ScSymbol('milliseconds-until'): ScFnDateTimeUntil('milliseconds'),
     // ScSymbol('seconds-until'): ScFnDateTimeUntil('seconds'),
@@ -1252,7 +1254,7 @@ class ScDateTime extends ScExpr implements Comparable {
 
   @override
   String informalTypeName() {
-    return 'date+time';
+    return 'date-time';
   }
 
   @override
@@ -1722,7 +1724,7 @@ class ScFnDateTime extends ScBaseInvocable {
   factory ScFnDateTime() => _instance;
 
   @override
-  String get help => 'Return a date+time value for the given string.';
+  String get help => 'Return a date-time value for the given string.';
 
   @override
   // TODO: implement helpFull
@@ -1730,9 +1732,9 @@ class ScFnDateTime extends ScBaseInvocable {
       help +
       "\n\n" +
       r"""
-Creates a date+time object from an acceptable string.
+Creates a date-time object from an acceptable string.
 
-Examples of valid date+time strings are (taken from Dart's documentation):
+Examples of valid date-time strings are (taken from Dart's documentation):
 
     "2012-02-27"
     "2012-02-27 13:27:00"
@@ -1781,7 +1783,7 @@ class ScFnNow extends ScBaseInvocable {
   factory ScFnNow() => _instance;
 
   @override
-  String get help => 'Return the current date+time.';
+  String get help => 'Return the current date-time.';
 
   @override
   // TODO: implement helpFull
@@ -1794,6 +1796,120 @@ class ScFnNow extends ScBaseInvocable {
     } else {
       throw BadArgumentsException(
           "The `now` function expects 0 arguments, but received ${args.length} arguments.");
+    }
+  }
+}
+
+class ScFnDateTimePlus extends ScBaseInvocable {
+  DateTimeUnit unit;
+
+  static final Map<DateTimeUnit, ScFnDateTimePlus> _instances = {
+    DateTimeUnit.microseconds: ScFnDateTimePlus._internalMicroseconds(),
+    DateTimeUnit.milliseconds: ScFnDateTimePlus._internalMilliseconds(),
+    DateTimeUnit.seconds: ScFnDateTimePlus._internalSeconds(),
+    DateTimeUnit.minutes: ScFnDateTimePlus._internalMinutes(),
+    DateTimeUnit.hours: ScFnDateTimePlus._internalHours(),
+    DateTimeUnit.days: ScFnDateTimePlus._internalDays(),
+  };
+
+  ScFnDateTimePlus._internalMicroseconds() : unit = DateTimeUnit.microseconds;
+  ScFnDateTimePlus._internalMilliseconds() : unit = DateTimeUnit.milliseconds;
+  ScFnDateTimePlus._internalSeconds() : unit = DateTimeUnit.seconds;
+  ScFnDateTimePlus._internalMinutes() : unit = DateTimeUnit.minutes;
+  ScFnDateTimePlus._internalHours() : unit = DateTimeUnit.hours;
+  ScFnDateTimePlus._internalDays() : unit = DateTimeUnit.days;
+
+  factory ScFnDateTimePlus(DateTimeUnit unit) => _instances[unit]!;
+
+  @override
+  String get help =>
+      "Return a date-time value that is N units further into the future. Accepts a date-time value and a variable number of arguments (or a list of arguments).";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty) {
+      throw BadArgumentsException(
+          "The `plus-*` date-time functions expect at least 1 argument: a date-time value.");
+    } else {
+      final dt = args[0];
+      if (dt is ScDateTime) {
+        if (args.length == 1) {
+          return dt;
+        } else if (args.length == 2) {
+          final arg = args[1];
+          if (arg is ScList) {
+            return addAllToDateTime(dt, unit, arg);
+          } else {
+            return addAllToDateTime(dt, unit, ScList([arg]));
+          }
+        } else {
+          return addAllToDateTime(dt, unit, args.skip(1));
+        }
+      } else {
+        throw BadArgumentsException(
+            "The `plus-*` date-time functions expect their first argument to be a date-time value, but received a ${dt.informalTypeName()}");
+      }
+    }
+  }
+}
+
+class ScFnDateTimeMinus extends ScBaseInvocable {
+  DateTimeUnit unit;
+
+  static final Map<DateTimeUnit, ScFnDateTimeMinus> _instances = {
+    DateTimeUnit.microseconds: ScFnDateTimeMinus._internalMicroseconds(),
+    DateTimeUnit.milliseconds: ScFnDateTimeMinus._internalMilliseconds(),
+    DateTimeUnit.seconds: ScFnDateTimeMinus._internalSeconds(),
+    DateTimeUnit.minutes: ScFnDateTimeMinus._internalMinutes(),
+    DateTimeUnit.hours: ScFnDateTimeMinus._internalHours(),
+    DateTimeUnit.days: ScFnDateTimeMinus._internalDays(),
+  };
+
+  ScFnDateTimeMinus._internalMicroseconds() : unit = DateTimeUnit.microseconds;
+  ScFnDateTimeMinus._internalMilliseconds() : unit = DateTimeUnit.milliseconds;
+  ScFnDateTimeMinus._internalSeconds() : unit = DateTimeUnit.seconds;
+  ScFnDateTimeMinus._internalMinutes() : unit = DateTimeUnit.minutes;
+  ScFnDateTimeMinus._internalHours() : unit = DateTimeUnit.hours;
+  ScFnDateTimeMinus._internalDays() : unit = DateTimeUnit.days;
+
+  factory ScFnDateTimeMinus(DateTimeUnit unit) => _instances[unit]!;
+
+  @override
+  String get help =>
+      "Return a date-time value that is N units further into the past. Accepts a date-time value and a variable number of arguments (or a list of arguments).";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty) {
+      throw BadArgumentsException(
+          "The `minus-*` date-time functions expect at least 1 argument: a date-time value.");
+    } else {
+      final dt = args[0];
+      if (dt is ScDateTime) {
+        if (args.length == 1) {
+          return dt;
+        } else if (args.length == 2) {
+          final arg = args[1];
+          if (arg is ScList) {
+            return addAllToDateTime(dt, unit, arg, mustNegate: true);
+          } else {
+            return addAllToDateTime(dt, unit, ScList([arg]), mustNegate: true);
+          }
+        } else {
+          return addAllToDateTime(dt, unit, args.skip(1), mustNegate: true);
+        }
+      } else {
+        throw BadArgumentsException(
+            "The `minus-*` date-time functions expect their first argument to be a date-time value, but received a ${dt.informalTypeName()}");
+      }
     }
   }
 }
@@ -7990,6 +8106,51 @@ class ScEpicWorkflowState extends ScEntity {
 
 /// Functions
 
+ScDateTime addAllToDateTime(ScDateTime dt, DateTimeUnit unit, ScList args,
+    {mustNegate = false}) {
+  args.insert(0, dt);
+  return args.reduce((dt, amount) {
+    final dateTime = (dt as ScDateTime).value;
+    if (amount is ScNumber) {
+      final value = amount.value;
+      if (value is int) {
+        Duration dur;
+        switch (unit) {
+          case DateTimeUnit.microseconds:
+            dur = Duration(microseconds: value);
+            break;
+          case DateTimeUnit.milliseconds:
+            dur = Duration(milliseconds: value);
+            break;
+          case DateTimeUnit.seconds:
+            dur = Duration(seconds: value);
+            break;
+          case DateTimeUnit.minutes:
+            dur = Duration(minutes: value);
+            break;
+          case DateTimeUnit.hours:
+            dur = Duration(hours: value);
+            break;
+          case DateTimeUnit.days:
+            dur = Duration(days: value);
+            break;
+        }
+        if (mustNegate) {
+          return ScDateTime(dateTime.add(-dur));
+        } else {
+          return ScDateTime(dateTime.add(dur));
+        }
+      } else {
+        throw BadArgumentsException(
+            "Only integer values may be used to add durations to a date-time value, received a ${value.runtimeType}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "A value of type ${amount.informalTypeName()} cannot be used as a duration to add to a date-time value.");
+    }
+  }) as ScDateTime;
+}
+
 String formatPrompt(ScEnv env) {
   if (env.parentEntity != null) {
     final pe = env.parentEntity!;
@@ -8534,6 +8695,18 @@ File resolveFile(ScEnv env, String filePath) {
 /// Enumerations
 
 enum MyEntityTypes { stories, tasks, epics, milestones, iterations }
+
+enum DateTimeUnit {
+  microseconds,
+  milliseconds,
+  seconds,
+  minutes,
+  hours,
+  days,
+  // weeks,
+  // months,
+  // years
+}
 
 /// Shortcut's API expects [get], [put], [post], [delete] for API requests.
 enum HttpVerb { get, put, post, delete }

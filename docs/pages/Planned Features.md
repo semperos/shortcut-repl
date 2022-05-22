@@ -1,7 +1,12 @@
 - _NB: See also all [[TODO]] entries._
 -
 - ## Piped Lisp
-- TODO Date/time support with dedicated data type and functions for relative dates/times in support of things like easy iteration creation.
+- Date/time support
+	- DONE New `date-time` type
+	- DONE `dt` function for converting a string to a `date-time`
+	- DONE `now` function
+	- TODO `date-time` manipulation functions (see comments in code)
+	-
 -
 - ## REPL
 - DONE Change prompt when in a parent entity.
@@ -16,7 +21,10 @@
 - TODO State machine to replace the crazy if/else chains that implement interactive entity creation and setting defaults.
 - TODO Story for viewing and setting everything that's configurable via `env.json` and/or environment variables.
 - TODO Story for opening up `EDITOR` to handle writing descriptions, comments. Perhaps `SHORTCUT_EDITOR` as possibility, too, so a non-terminal editor can be configured if `EDITOR` is a terminal one by default for folks.
+- TODO Consider replacing current ANSI library with [chalkdart](https://timmaffett.github.io/chalkdart_docs/index.html)
+-
 -
 - ## sc
 - TODO Integration with `bat`, `glow`, or other tools (expose via config) for viewing Markdown in a semi-formatted fashion at the terminal.
+	- First attempt: ANSI codes appear to be stripped when printing sub-process's `stdout`
 -
