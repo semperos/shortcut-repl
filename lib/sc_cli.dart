@@ -142,7 +142,7 @@ Function startProdReplServerIsolateFn(Options options) {
     maybeLoadFiles(env, options);
     unawaited(loadCaches(env));
     final repl = Repl(
-        prompt: '\nsc> ',
+        prompt: formatPrompt(env),
         continuation: ',,,   ',
         validator: replValidator(env),
         env: env);
@@ -213,7 +213,7 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
         env[ScSymbol('__sc_default-team-id')] = expr;
         env.writeToDisk();
         env.out.writeln(env.styleWith("Defaults set!", [green]));
-        repl.prompt = '\nsc> ';
+        repl.prompt = formatPrompt(env);
         // == Interactive Entity Creation ==
       } else if (env.interactivityState ==
               ScInteractivityState.startCreateEntity &&
@@ -333,7 +333,7 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
           default:
             throw UnimplementedError();
         }
-        repl.prompt = '\nsc> ';
+        repl.prompt = formatPrompt(env);
       } else if (env.isExpectingBindingAnswer && expr is ScString) {
         final answer = expr.value.toLowerCase();
         if (answer == 'y' || answer == 'yes') {
@@ -348,7 +348,7 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
           env.bindNextValue = false;
           env.isExpectingBindingAnswer = false;
           env.out.write(env.styleWith('Ok, maybe next time!', [green]));
-          repl.prompt = '\nsc> ';
+          repl.prompt = formatPrompt(env);
         }
       } else if (env.symbolBeingDefined != null && env.bindNextValue) {
         final sym = env.symbolBeingDefined!;
@@ -361,9 +361,10 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
             ' is now bound to that ${expr.informalTypeName()} value.',
             [green]));
         env.symbolBeingDefined = null;
-        repl.prompt = '\nsc> ';
+        repl.prompt = formatPrompt(env);
       } else {
         scPrint(env, expr);
+        repl.prompt = formatPrompt(env);
       }
       env.writeHistory();
     } catch (e, stacktrace) {

@@ -42,7 +42,7 @@ Function startDevReplServerIsolateFn(Options options) {
     maybeLoadFiles(env, options);
     unawaited(loadCaches(env));
     final repl = Repl(
-        prompt: '\nsc> ',
+        prompt: formatPrompt(env),
         continuation: '>>> ',
         validator: replValidator(env),
         env: env);

@@ -6286,7 +6286,7 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
   String inlineSummary(ScEnv env) {
     final t = calculateTitle();
     final readable = readableString(env);
-    return calculateTitle() + ' ' + readable;
+    return t + ' ' + readable;
   }
 
   @override
@@ -7989,6 +7989,15 @@ class ScEpicWorkflowState extends ScEntity {
 }
 
 /// Functions
+
+String formatPrompt(ScEnv env) {
+  if (env.parentEntity != null) {
+    final pe = env.parentEntity!;
+    return "\nsc ${pe.readableString(env)}> ";
+  } else {
+    return '\nsc> ';
+  }
+}
 
 String lParen(ScEnv env) {
   return env.styleWith('(', [darkGray])!;
