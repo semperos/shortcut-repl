@@ -90,12 +90,14 @@ class ScEnv {
 
     ScSymbol('dt'): ScFnDateTime(),
     ScSymbol('now'): ScFnNow(),
+    // ScSymbol('to-utc'): ScFnToUtc(),
     ScSymbol('plus-microseconds'): ScFnDateTimePlus(DateTimeUnit.microseconds),
     ScSymbol('plus-milliseconds'): ScFnDateTimePlus(DateTimeUnit.milliseconds),
     ScSymbol('plus-seconds'): ScFnDateTimePlus(DateTimeUnit.seconds),
     ScSymbol('plus-minutes'): ScFnDateTimePlus(DateTimeUnit.minutes),
     ScSymbol('plus-hours'): ScFnDateTimePlus(DateTimeUnit.hours),
     ScSymbol('plus-days'): ScFnDateTimePlus(DateTimeUnit.days),
+    ScSymbol('plus-weeks'): ScFnDateTimePlus(DateTimeUnit.weeks),
     ScSymbol('minus-microseconds'):
         ScFnDateTimeMinus(DateTimeUnit.microseconds),
     ScSymbol('minus-milliseconds'):
@@ -104,6 +106,7 @@ class ScEnv {
     ScSymbol('minus-minutes'): ScFnDateTimeMinus(DateTimeUnit.minutes),
     ScSymbol('minus-hours'): ScFnDateTimeMinus(DateTimeUnit.hours),
     ScSymbol('minus-days'): ScFnDateTimeMinus(DateTimeUnit.days),
+    ScSymbol('minus-weeks'): ScFnDateTimeMinus(DateTimeUnit.weeks),
     // ScSymbol('microseconds-until'): ScFnDateTimeUntil('microseconds'),
     // ScSymbol('milliseconds-until'): ScFnDateTimeUntil('milliseconds'),
     // ScSymbol('seconds-until'): ScFnDateTimeUntil('seconds'),
@@ -116,6 +119,16 @@ class ScEnv {
     // ScSymbol('minutes-since'): ScFnDateTimeSince('minutes'),
     // ScSymbol('hours-since'): ScFnDateTimeSince('hours'),
     // ScSymbol('days-since'): ScFnDateTimeSince('days'),
+
+    // ScSymbol('year'): ScFnDateTimeFormat('year'),
+    // ScSymbol('month'): ScFnDateTimeFormat('month'),
+    // ScSymbol('date-of-month'): ScFnDateTimeFormat('date-of-month'), // Maybe day-of-month?
+    // ScSymbol('day-of-week'): ScFnDateTimeFormat('day-of-week'),
+    // ScSymbol('hour'): ScFnDateTimeFormat('hour'),
+    // ScSymbol('minute'): ScFnDateTimeFormat('minute'),
+    // ScSymbol('second'): ScFnDateTimeFormat('second'),
+    // ScSymbol('millisecond'): ScFnDateTimeFormat('millisecond'),
+    // ScSymbol('microsecond'): ScFnDateTimeFormat('microsecond'),
 
     // REPL Helpers
 
@@ -1810,6 +1823,7 @@ class ScFnDateTimePlus extends ScBaseInvocable {
     DateTimeUnit.minutes: ScFnDateTimePlus._internalMinutes(),
     DateTimeUnit.hours: ScFnDateTimePlus._internalHours(),
     DateTimeUnit.days: ScFnDateTimePlus._internalDays(),
+    DateTimeUnit.weeks: ScFnDateTimePlus._internalWeeks(),
   };
 
   ScFnDateTimePlus._internalMicroseconds() : unit = DateTimeUnit.microseconds;
@@ -1818,6 +1832,7 @@ class ScFnDateTimePlus extends ScBaseInvocable {
   ScFnDateTimePlus._internalMinutes() : unit = DateTimeUnit.minutes;
   ScFnDateTimePlus._internalHours() : unit = DateTimeUnit.hours;
   ScFnDateTimePlus._internalDays() : unit = DateTimeUnit.days;
+  ScFnDateTimePlus._internalWeeks() : unit = DateTimeUnit.weeks;
 
   factory ScFnDateTimePlus(DateTimeUnit unit) => _instances[unit]!;
 
@@ -1827,7 +1842,11 @@ class ScFnDateTimePlus extends ScBaseInvocable {
 
   @override
   // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+NB: The `-weeks` variants are implemented using a Dart `Duration` of 7 days.""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -1867,6 +1886,7 @@ class ScFnDateTimeMinus extends ScBaseInvocable {
     DateTimeUnit.minutes: ScFnDateTimeMinus._internalMinutes(),
     DateTimeUnit.hours: ScFnDateTimeMinus._internalHours(),
     DateTimeUnit.days: ScFnDateTimeMinus._internalDays(),
+    DateTimeUnit.weeks: ScFnDateTimeMinus._internalWeeks(),
   };
 
   ScFnDateTimeMinus._internalMicroseconds() : unit = DateTimeUnit.microseconds;
@@ -1875,6 +1895,7 @@ class ScFnDateTimeMinus extends ScBaseInvocable {
   ScFnDateTimeMinus._internalMinutes() : unit = DateTimeUnit.minutes;
   ScFnDateTimeMinus._internalHours() : unit = DateTimeUnit.hours;
   ScFnDateTimeMinus._internalDays() : unit = DateTimeUnit.days;
+  ScFnDateTimeMinus._internalWeeks() : unit = DateTimeUnit.weeks;
 
   factory ScFnDateTimeMinus(DateTimeUnit unit) => _instances[unit]!;
 
@@ -1884,7 +1905,11 @@ class ScFnDateTimeMinus extends ScBaseInvocable {
 
   @override
   // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+NB: The `-weeks` variants are implemented using a Dart `Duration` of 7 days.""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -8134,9 +8159,12 @@ ScDateTime addAllToDateTime(ScDateTime dt, DateTimeUnit unit, ScList args,
           case DateTimeUnit.days:
             dur = Duration(days: value);
             break;
+          case DateTimeUnit.weeks:
+            dur = Duration(days: value * 7);
+            break;
         }
         if (mustNegate) {
-          return ScDateTime(dateTime.add(-dur));
+          return ScDateTime(dateTime.subtract(dur));
         } else {
           return ScDateTime(dateTime.add(dur));
         }
@@ -8154,9 +8182,14 @@ ScDateTime addAllToDateTime(ScDateTime dt, DateTimeUnit unit, ScList args,
 String formatPrompt(ScEnv env) {
   if (env.parentEntity != null) {
     final pe = env.parentEntity!;
-    return "\nsc ${pe.readableString(env)}> ";
+    final sb = StringBuffer();
+    sb.writeln();
+    sb.write(env.styleWith('sc ', [green]));
+    sb.write(pe.readableString(env));
+    sb.write(env.styleWith('> ', [green]));
+    return sb.toString();
   } else {
-    return '\nsc> ';
+    return env.styleWith('\nsc> ', [green])!;
   }
 }
 
@@ -8703,9 +8736,7 @@ enum DateTimeUnit {
   minutes,
   hours,
   days,
-  // weeks,
-  // months,
-  // years
+  weeks,
 }
 
 /// Shortcut's API expects [get], [put], [post], [delete] for API requests.
