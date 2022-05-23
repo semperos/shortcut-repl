@@ -6364,6 +6364,26 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
     ScString('workflow_state_id'),
   };
 
+  static final Set<ScString> dateTimeKeys = {
+    ScString("completed_at_end"),
+    ScString("completed_at_override"),
+    ScString("completed_at_start"),
+    ScString("completed_at"),
+    ScString("created_at"),
+    ScString("created_at_end"),
+    ScString("created_at_start"),
+    ScString("deadline"),
+    ScString("deadline_end"),
+    ScString("deadline_start"),
+    ScString("moved_at"),
+    ScString("planned_start_date"),
+    ScString("started_at_override"),
+    ScString("started_at"),
+    ScString("updated_at"),
+    ScString("updated_at_end"),
+    ScString("updated_at_start"),
+  };
+
   static final Set<ScString> epicKeys = {
     ScString('epic_id'),
   };
@@ -6424,6 +6444,16 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
       title = ScString('<No name>');
     }
     for (final key in data.keys) {
+      // # Deserialization #
+      // ## DateTime values
+      if (dateTimeKeys.contains(key)) {
+        final dateTimeStr = data[key];
+        if (dateTimeStr is ScString) {
+          final dtFn = ScFnDateTime();
+          data[key] = dtFn.invoke(env, ScList([dateTimeStr]));
+        }
+      }
+
       // # Cached Things #
       // ## Members
       if (memberKeys.contains(key)) {

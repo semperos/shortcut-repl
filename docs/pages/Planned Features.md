@@ -5,7 +5,9 @@
 	- DONE New `date-time` type
 	- DONE `dt` function for converting a string to a `date-time`
 	- DONE `now` function
-	- TODO `date-time` manipulation functions (see comments in code)
+	- DONE `plus-*` and `minus-*` dt fns
+	- DONE `*-since` and `*-until` dt fns
+	- TODO `date-time` accessors for year, month, day-of-month, etc.
 	-
 -
 - ## REPL
@@ -25,6 +27,7 @@
 -
 -
 - ## sc
+- DONE Parse fields in entity payloads that are known to be date-time values using `dt` so users don't have to `... | dt | ...`
 - TODO Integration with `bat`, `glow`, or other tools (expose via config) for viewing Markdown in a semi-formatted fashion at the terminal.
 	- First attempt: ANSI codes appear to be stripped when printing sub-process's `stdout`
 -
