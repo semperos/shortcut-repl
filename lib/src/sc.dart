@@ -89,36 +89,44 @@ class ScEnv {
     ScSymbol('undef'): ScFnUndef(),
 
     ScSymbol('dt'): ScFnDateTime(),
-    ScSymbol('now'): ScFnNow(),
+    ScSymbol('now'): ScFnDateTimeNow(),
     // ScSymbol('to-utc'): ScFnToUtc(),
-    ScSymbol('plus-microseconds'): ScFnDateTimePlus(DateTimeUnit.microseconds),
-    ScSymbol('plus-milliseconds'): ScFnDateTimePlus(DateTimeUnit.milliseconds),
-    ScSymbol('plus-seconds'): ScFnDateTimePlus(DateTimeUnit.seconds),
-    ScSymbol('plus-minutes'): ScFnDateTimePlus(DateTimeUnit.minutes),
-    ScSymbol('plus-hours'): ScFnDateTimePlus(DateTimeUnit.hours),
-    ScSymbol('plus-days'): ScFnDateTimePlus(DateTimeUnit.days),
-    ScSymbol('plus-weeks'): ScFnDateTimePlus(DateTimeUnit.weeks),
+    ScSymbol('plus-microseconds'):
+        ScFnDateTimePlus(ScDateTimeUnit.microseconds),
+    ScSymbol('plus-milliseconds'):
+        ScFnDateTimePlus(ScDateTimeUnit.milliseconds),
+    ScSymbol('plus-seconds'): ScFnDateTimePlus(ScDateTimeUnit.seconds),
+    ScSymbol('plus-minutes'): ScFnDateTimePlus(ScDateTimeUnit.minutes),
+    ScSymbol('plus-hours'): ScFnDateTimePlus(ScDateTimeUnit.hours),
+    ScSymbol('plus-days'): ScFnDateTimePlus(ScDateTimeUnit.days),
+    ScSymbol('plus-weeks'): ScFnDateTimePlus(ScDateTimeUnit.weeks),
     ScSymbol('minus-microseconds'):
-        ScFnDateTimeMinus(DateTimeUnit.microseconds),
+        ScFnDateTimeMinus(ScDateTimeUnit.microseconds),
     ScSymbol('minus-milliseconds'):
-        ScFnDateTimeMinus(DateTimeUnit.milliseconds),
-    ScSymbol('minus-seconds'): ScFnDateTimeMinus(DateTimeUnit.seconds),
-    ScSymbol('minus-minutes'): ScFnDateTimeMinus(DateTimeUnit.minutes),
-    ScSymbol('minus-hours'): ScFnDateTimeMinus(DateTimeUnit.hours),
-    ScSymbol('minus-days'): ScFnDateTimeMinus(DateTimeUnit.days),
-    ScSymbol('minus-weeks'): ScFnDateTimeMinus(DateTimeUnit.weeks),
-    // ScSymbol('microseconds-until'): ScFnDateTimeUntil('microseconds'),
-    // ScSymbol('milliseconds-until'): ScFnDateTimeUntil('milliseconds'),
-    // ScSymbol('seconds-until'): ScFnDateTimeUntil('seconds'),
-    // ScSymbol('minutes-until'): ScFnDateTimeUntil('minutes'),
-    // ScSymbol('hours-until'): ScFnDateTimeUntil('hours'),
-    // ScSymbol('days-until'): ScFnDateTimeUntil('days'),
-    // ScSymbol('microseconds-since'): ScFnDateTimeSince('microseconds'),
-    // ScSymbol('milliseconds-since'): ScFnDateTimeSince('milliseconds'),
-    // ScSymbol('seconds-since'): ScFnDateTimeSince('seconds'),
-    // ScSymbol('minutes-since'): ScFnDateTimeSince('minutes'),
-    // ScSymbol('hours-since'): ScFnDateTimeSince('hours'),
-    // ScSymbol('days-since'): ScFnDateTimeSince('days'),
+        ScFnDateTimeMinus(ScDateTimeUnit.milliseconds),
+    ScSymbol('minus-seconds'): ScFnDateTimeMinus(ScDateTimeUnit.seconds),
+    ScSymbol('minus-minutes'): ScFnDateTimeMinus(ScDateTimeUnit.minutes),
+    ScSymbol('minus-hours'): ScFnDateTimeMinus(ScDateTimeUnit.hours),
+    ScSymbol('minus-days'): ScFnDateTimeMinus(ScDateTimeUnit.days),
+    ScSymbol('minus-weeks'): ScFnDateTimeMinus(ScDateTimeUnit.weeks),
+    ScSymbol('microseconds-until'):
+        ScFnDateTimeUntil(ScDateTimeUnit.microseconds),
+    ScSymbol('milliseconds-until'):
+        ScFnDateTimeUntil(ScDateTimeUnit.milliseconds),
+    ScSymbol('seconds-until'): ScFnDateTimeUntil(ScDateTimeUnit.seconds),
+    ScSymbol('minutes-until'): ScFnDateTimeUntil(ScDateTimeUnit.minutes),
+    ScSymbol('hours-until'): ScFnDateTimeUntil(ScDateTimeUnit.hours),
+    ScSymbol('days-until'): ScFnDateTimeUntil(ScDateTimeUnit.days),
+    ScSymbol('weeks-until'): ScFnDateTimeUntil(ScDateTimeUnit.weeks),
+    ScSymbol('microseconds-since'):
+        ScFnDateTimeSince(ScDateTimeUnit.microseconds),
+    ScSymbol('milliseconds-since'):
+        ScFnDateTimeSince(ScDateTimeUnit.milliseconds),
+    ScSymbol('seconds-since'): ScFnDateTimeSince(ScDateTimeUnit.seconds),
+    ScSymbol('minutes-since'): ScFnDateTimeSince(ScDateTimeUnit.minutes),
+    ScSymbol('hours-since'): ScFnDateTimeSince(ScDateTimeUnit.hours),
+    ScSymbol('days-since'): ScFnDateTimeSince(ScDateTimeUnit.days),
+    ScSymbol('weeks-since'): ScFnDateTimeSince(ScDateTimeUnit.weeks),
 
     // ScSymbol('year'): ScFnDateTimeFormat('year'),
     // ScSymbol('month'): ScFnDateTimeFormat('month'),
@@ -1790,10 +1798,10 @@ https://api.dart.dev/stable/dart-core/DateTime/parse.html""";
   }
 }
 
-class ScFnNow extends ScBaseInvocable {
-  static final ScFnNow _instance = ScFnNow._internal();
-  ScFnNow._internal();
-  factory ScFnNow() => _instance;
+class ScFnDateTimeNow extends ScBaseInvocable {
+  static final ScFnDateTimeNow _instance = ScFnDateTimeNow._internal();
+  ScFnDateTimeNow._internal();
+  factory ScFnDateTimeNow() => _instance;
 
   @override
   String get help => 'Return the current date-time.';
@@ -1814,27 +1822,27 @@ class ScFnNow extends ScBaseInvocable {
 }
 
 class ScFnDateTimePlus extends ScBaseInvocable {
-  DateTimeUnit unit;
+  ScDateTimeUnit unit;
 
-  static final Map<DateTimeUnit, ScFnDateTimePlus> _instances = {
-    DateTimeUnit.microseconds: ScFnDateTimePlus._internalMicroseconds(),
-    DateTimeUnit.milliseconds: ScFnDateTimePlus._internalMilliseconds(),
-    DateTimeUnit.seconds: ScFnDateTimePlus._internalSeconds(),
-    DateTimeUnit.minutes: ScFnDateTimePlus._internalMinutes(),
-    DateTimeUnit.hours: ScFnDateTimePlus._internalHours(),
-    DateTimeUnit.days: ScFnDateTimePlus._internalDays(),
-    DateTimeUnit.weeks: ScFnDateTimePlus._internalWeeks(),
+  static final Map<ScDateTimeUnit, ScFnDateTimePlus> _instances = {
+    ScDateTimeUnit.microseconds: ScFnDateTimePlus._internalMicroseconds(),
+    ScDateTimeUnit.milliseconds: ScFnDateTimePlus._internalMilliseconds(),
+    ScDateTimeUnit.seconds: ScFnDateTimePlus._internalSeconds(),
+    ScDateTimeUnit.minutes: ScFnDateTimePlus._internalMinutes(),
+    ScDateTimeUnit.hours: ScFnDateTimePlus._internalHours(),
+    ScDateTimeUnit.days: ScFnDateTimePlus._internalDays(),
+    ScDateTimeUnit.weeks: ScFnDateTimePlus._internalWeeks(),
   };
 
-  ScFnDateTimePlus._internalMicroseconds() : unit = DateTimeUnit.microseconds;
-  ScFnDateTimePlus._internalMilliseconds() : unit = DateTimeUnit.milliseconds;
-  ScFnDateTimePlus._internalSeconds() : unit = DateTimeUnit.seconds;
-  ScFnDateTimePlus._internalMinutes() : unit = DateTimeUnit.minutes;
-  ScFnDateTimePlus._internalHours() : unit = DateTimeUnit.hours;
-  ScFnDateTimePlus._internalDays() : unit = DateTimeUnit.days;
-  ScFnDateTimePlus._internalWeeks() : unit = DateTimeUnit.weeks;
+  ScFnDateTimePlus._internalMicroseconds() : unit = ScDateTimeUnit.microseconds;
+  ScFnDateTimePlus._internalMilliseconds() : unit = ScDateTimeUnit.milliseconds;
+  ScFnDateTimePlus._internalSeconds() : unit = ScDateTimeUnit.seconds;
+  ScFnDateTimePlus._internalMinutes() : unit = ScDateTimeUnit.minutes;
+  ScFnDateTimePlus._internalHours() : unit = ScDateTimeUnit.hours;
+  ScFnDateTimePlus._internalDays() : unit = ScDateTimeUnit.days;
+  ScFnDateTimePlus._internalWeeks() : unit = ScDateTimeUnit.weeks;
 
-  factory ScFnDateTimePlus(DateTimeUnit unit) => _instances[unit]!;
+  factory ScFnDateTimePlus(ScDateTimeUnit unit) => _instances[unit]!;
 
   @override
   String get help =>
@@ -1877,27 +1885,29 @@ NB: The `-weeks` variants are implemented using a Dart `Duration` of 7 days.""";
 }
 
 class ScFnDateTimeMinus extends ScBaseInvocable {
-  DateTimeUnit unit;
+  ScDateTimeUnit unit;
 
-  static final Map<DateTimeUnit, ScFnDateTimeMinus> _instances = {
-    DateTimeUnit.microseconds: ScFnDateTimeMinus._internalMicroseconds(),
-    DateTimeUnit.milliseconds: ScFnDateTimeMinus._internalMilliseconds(),
-    DateTimeUnit.seconds: ScFnDateTimeMinus._internalSeconds(),
-    DateTimeUnit.minutes: ScFnDateTimeMinus._internalMinutes(),
-    DateTimeUnit.hours: ScFnDateTimeMinus._internalHours(),
-    DateTimeUnit.days: ScFnDateTimeMinus._internalDays(),
-    DateTimeUnit.weeks: ScFnDateTimeMinus._internalWeeks(),
+  static final Map<ScDateTimeUnit, ScFnDateTimeMinus> _instances = {
+    ScDateTimeUnit.microseconds: ScFnDateTimeMinus._internalMicroseconds(),
+    ScDateTimeUnit.milliseconds: ScFnDateTimeMinus._internalMilliseconds(),
+    ScDateTimeUnit.seconds: ScFnDateTimeMinus._internalSeconds(),
+    ScDateTimeUnit.minutes: ScFnDateTimeMinus._internalMinutes(),
+    ScDateTimeUnit.hours: ScFnDateTimeMinus._internalHours(),
+    ScDateTimeUnit.days: ScFnDateTimeMinus._internalDays(),
+    ScDateTimeUnit.weeks: ScFnDateTimeMinus._internalWeeks(),
   };
 
-  ScFnDateTimeMinus._internalMicroseconds() : unit = DateTimeUnit.microseconds;
-  ScFnDateTimeMinus._internalMilliseconds() : unit = DateTimeUnit.milliseconds;
-  ScFnDateTimeMinus._internalSeconds() : unit = DateTimeUnit.seconds;
-  ScFnDateTimeMinus._internalMinutes() : unit = DateTimeUnit.minutes;
-  ScFnDateTimeMinus._internalHours() : unit = DateTimeUnit.hours;
-  ScFnDateTimeMinus._internalDays() : unit = DateTimeUnit.days;
-  ScFnDateTimeMinus._internalWeeks() : unit = DateTimeUnit.weeks;
+  ScFnDateTimeMinus._internalMicroseconds()
+      : unit = ScDateTimeUnit.microseconds;
+  ScFnDateTimeMinus._internalMilliseconds()
+      : unit = ScDateTimeUnit.milliseconds;
+  ScFnDateTimeMinus._internalSeconds() : unit = ScDateTimeUnit.seconds;
+  ScFnDateTimeMinus._internalMinutes() : unit = ScDateTimeUnit.minutes;
+  ScFnDateTimeMinus._internalHours() : unit = ScDateTimeUnit.hours;
+  ScFnDateTimeMinus._internalDays() : unit = ScDateTimeUnit.days;
+  ScFnDateTimeMinus._internalWeeks() : unit = ScDateTimeUnit.weeks;
 
-  factory ScFnDateTimeMinus(DateTimeUnit unit) => _instances[unit]!;
+  factory ScFnDateTimeMinus(ScDateTimeUnit unit) => _instances[unit]!;
 
   @override
   String get help =>
@@ -1935,6 +1945,138 @@ NB: The `-weeks` variants are implemented using a Dart `Duration` of 7 days.""";
         throw BadArgumentsException(
             "The `minus-*` date-time functions expect their first argument to be a date-time value, but received a ${dt.informalTypeName()}");
       }
+    }
+  }
+}
+
+class ScFnDateTimeUntil extends ScBaseInvocable {
+  ScDateTimeUnit unit;
+
+  static final Map<ScDateTimeUnit, ScFnDateTimeUntil> _instances = {
+    ScDateTimeUnit.microseconds: ScFnDateTimeUntil._internalMicroseconds(),
+    ScDateTimeUnit.milliseconds: ScFnDateTimeUntil._internalMilliseconds(),
+    ScDateTimeUnit.seconds: ScFnDateTimeUntil._internalSeconds(),
+    ScDateTimeUnit.minutes: ScFnDateTimeUntil._internalMinutes(),
+    ScDateTimeUnit.hours: ScFnDateTimeUntil._internalHours(),
+    ScDateTimeUnit.days: ScFnDateTimeUntil._internalDays(),
+    ScDateTimeUnit.weeks: ScFnDateTimeUntil._internalWeeks(),
+  };
+
+  ScFnDateTimeUntil._internalMicroseconds()
+      : unit = ScDateTimeUnit.microseconds;
+  ScFnDateTimeUntil._internalMilliseconds()
+      : unit = ScDateTimeUnit.milliseconds;
+  ScFnDateTimeUntil._internalSeconds() : unit = ScDateTimeUnit.seconds;
+  ScFnDateTimeUntil._internalMinutes() : unit = ScDateTimeUnit.minutes;
+  ScFnDateTimeUntil._internalHours() : unit = ScDateTimeUnit.hours;
+  ScFnDateTimeUntil._internalDays() : unit = ScDateTimeUnit.days;
+  ScFnDateTimeUntil._internalWeeks() : unit = ScDateTimeUnit.weeks;
+
+  factory ScFnDateTimeUntil(ScDateTimeUnit unit) => _instances[unit]!;
+
+  @override
+  String get help =>
+      'Return the duration between two date-time values in the given units (defaults to `now` if only one date-time given), expecting the second to be in the future.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final nowFn = ScFnDateTimeNow();
+      final dtA = nowFn.invoke(env, ScList([])) as ScDateTime;
+      final dtB = args[0];
+      if (dtB is ScDateTime) {
+        return dateTimeDifference(dtA, dtB, unit, mustNegate: true);
+      } else {
+        throw BadArgumentsException(
+            "The `*-until` functions expect only date-time values, but received a first argument of type ${dtB.informalTypeName()}");
+      }
+    } else if (args.length == 2) {
+      final dtA = args[0];
+      final dtB = args[1];
+      if (dtA is ScDateTime) {
+        if (dtB is ScDateTime) {
+          return dateTimeDifference(dtA, dtB, unit, mustNegate: true);
+        } else {
+          throw BadArgumentsException(
+              "The `*-until` functions expect only date-time values, but received a second argument of type ${dtB.informalTypeName()}");
+        }
+      } else {
+        throw BadArgumentsException(
+            "The `*-until` functions expect only date-time values, but received a first argument of type ${dtB.informalTypeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `*-until` functions expect 1 or 2 date-time arguments, but received ${args.length} arguments.");
+    }
+  }
+}
+
+class ScFnDateTimeSince extends ScBaseInvocable {
+  ScDateTimeUnit unit;
+
+  static final Map<ScDateTimeUnit, ScFnDateTimeSince> _instances = {
+    ScDateTimeUnit.microseconds: ScFnDateTimeSince._internalMicroseconds(),
+    ScDateTimeUnit.milliseconds: ScFnDateTimeSince._internalMilliseconds(),
+    ScDateTimeUnit.seconds: ScFnDateTimeSince._internalSeconds(),
+    ScDateTimeUnit.minutes: ScFnDateTimeSince._internalMinutes(),
+    ScDateTimeUnit.hours: ScFnDateTimeSince._internalHours(),
+    ScDateTimeUnit.days: ScFnDateTimeSince._internalDays(),
+    ScDateTimeUnit.weeks: ScFnDateTimeSince._internalWeeks(),
+  };
+
+  ScFnDateTimeSince._internalMicroseconds()
+      : unit = ScDateTimeUnit.microseconds;
+  ScFnDateTimeSince._internalMilliseconds()
+      : unit = ScDateTimeUnit.milliseconds;
+  ScFnDateTimeSince._internalSeconds() : unit = ScDateTimeUnit.seconds;
+  ScFnDateTimeSince._internalMinutes() : unit = ScDateTimeUnit.minutes;
+  ScFnDateTimeSince._internalHours() : unit = ScDateTimeUnit.hours;
+  ScFnDateTimeSince._internalDays() : unit = ScDateTimeUnit.days;
+  ScFnDateTimeSince._internalWeeks() : unit = ScDateTimeUnit.weeks;
+
+  factory ScFnDateTimeSince(ScDateTimeUnit unit) => _instances[unit]!;
+
+  @override
+  String get help =>
+      'Return the duration between two date-time values in the given units (defaults to `now` if only one date-time given), expecting the second to be in the past.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final nowFn = ScFnDateTimeNow();
+      final dtA = nowFn.invoke(env, ScList([])) as ScDateTime;
+      final dtB = args[0];
+      if (dtB is ScDateTime) {
+        return dateTimeDifference(dtA, dtB, unit);
+      } else {
+        throw BadArgumentsException(
+            "The `*-since` functions expect only date-time values, but received a first argument of type ${dtB.informalTypeName()}");
+      }
+    } else if (args.length == 2) {
+      final dtA = args[0];
+      final dtB = args[1];
+      if (dtA is ScDateTime) {
+        if (dtB is ScDateTime) {
+          return dateTimeDifference(dtA, dtB, unit);
+        } else {
+          throw BadArgumentsException(
+              "The `*-since` functions expect only date-time values, but received a second argument of type ${dtB.informalTypeName()}");
+        }
+      } else {
+        throw BadArgumentsException(
+            "The `*-since` functions expect only date-time values, but received a first argument of type ${dtB.informalTypeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `*-since` functions expect 1 or 2 date-time arguments, but received ${args.length} arguments.");
     }
   }
 }
@@ -4075,7 +4217,22 @@ class ScFnUpdate extends ScBaseInvocable {
 
   @override
   // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+The `!` or `update!` function supports a couple of calling signatures:
+
+    ! .owner_ids [me]
+
+This expects to find a parent entity with an `"owner_ids"` entry. It calls the Shortcut API to _replace_ (not extend) the owners of this entity with `[me]`, resulting in you completely owning it.
+
+    ! {.name "New name" .description "New description" .owner_ids [me]}
+
+This is similar to the previous example regarding an expected parent entity, but allows you to provide a map with which to update the entity that contains several entries at once.
+
+Both of these signatures support a first argument that is an entity, so that you can update any entity, rather than just the current parent entity you have `cd`ed into.
+""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -8131,7 +8288,43 @@ class ScEpicWorkflowState extends ScEntity {
 
 /// Functions
 
-ScDateTime addAllToDateTime(ScDateTime dt, DateTimeUnit unit, ScList args,
+ScNumber dateTimeDifference(ScDateTime dtA, ScDateTime dtB, ScDateTimeUnit unit,
+    {mustNegate = false}) {
+  final dateTimeA = dtA.value;
+  final dateTimeB = dtB.value;
+  final dur = dateTimeA.difference(dateTimeB);
+  int amount;
+  switch (unit) {
+    case ScDateTimeUnit.microseconds:
+      amount = dur.inMicroseconds;
+      break;
+    case ScDateTimeUnit.milliseconds:
+      amount = dur.inMilliseconds;
+      break;
+    case ScDateTimeUnit.seconds:
+      amount = dur.inSeconds;
+      break;
+    case ScDateTimeUnit.minutes:
+      amount = dur.inMinutes;
+      break;
+    case ScDateTimeUnit.hours:
+      amount = dur.inHours;
+      break;
+    case ScDateTimeUnit.days:
+      amount = dur.inDays;
+      break;
+    case ScDateTimeUnit.weeks:
+      amount = (dur.inDays / 7).floor();
+      break;
+  }
+  if (mustNegate) {
+    return ScNumber(-amount);
+  } else {
+    return ScNumber(amount);
+  }
+}
+
+ScDateTime addAllToDateTime(ScDateTime dt, ScDateTimeUnit unit, ScList args,
     {mustNegate = false}) {
   args.insert(0, dt);
   return args.reduce((dt, amount) {
@@ -8141,25 +8334,25 @@ ScDateTime addAllToDateTime(ScDateTime dt, DateTimeUnit unit, ScList args,
       if (value is int) {
         Duration dur;
         switch (unit) {
-          case DateTimeUnit.microseconds:
+          case ScDateTimeUnit.microseconds:
             dur = Duration(microseconds: value);
             break;
-          case DateTimeUnit.milliseconds:
+          case ScDateTimeUnit.milliseconds:
             dur = Duration(milliseconds: value);
             break;
-          case DateTimeUnit.seconds:
+          case ScDateTimeUnit.seconds:
             dur = Duration(seconds: value);
             break;
-          case DateTimeUnit.minutes:
+          case ScDateTimeUnit.minutes:
             dur = Duration(minutes: value);
             break;
-          case DateTimeUnit.hours:
+          case ScDateTimeUnit.hours:
             dur = Duration(hours: value);
             break;
-          case DateTimeUnit.days:
+          case ScDateTimeUnit.days:
             dur = Duration(days: value);
             break;
-          case DateTimeUnit.weeks:
+          case ScDateTimeUnit.weeks:
             dur = Duration(days: value * 7);
             break;
         }
@@ -8553,6 +8746,12 @@ dynamic scExprToValue(ScExpr expr,
     return expr._name;
   } else if (expr is ScNumber) {
     return expr.value;
+  } else if (expr is ScDateTime) {
+    if (forJson) {
+      return expr.value.toString().replaceFirst(' ', 'T');
+    } else {
+      return expr.value;
+    }
   } else if (expr is ScBoolean) {
     return expr.toBool();
   } else if (expr == ScNil()) {
@@ -8729,7 +8928,7 @@ File resolveFile(ScEnv env, String filePath) {
 
 enum MyEntityTypes { stories, tasks, epics, milestones, iterations }
 
-enum DateTimeUnit {
+enum ScDateTimeUnit {
   microseconds,
   milliseconds,
   seconds,

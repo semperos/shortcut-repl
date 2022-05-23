@@ -32,6 +32,8 @@ import 'package:async/async.dart';
 import '../../cli_repl.dart';
 import 'codes.dart';
 
+final RegExp promptPattern = RegExp(r'^(sc[^>]*>\s*)+');
+
 class ReplAdapter {
   Repl repl;
 
@@ -359,8 +361,7 @@ class ReplAdapter {
         setCursor(buffer.length);
         input(char);
         if (repl.env.history.isEmpty || contents != repl.env.history.first) {
-          repl.env.history
-              .insert(0, contents.replaceFirst(RegExp(r'^(sc>\s*)+'), ''));
+          repl.env.history.insert(0, contents.replaceFirst(promptPattern, ''));
         }
         while (repl.env.history.length > repl.maxHistory) {
           repl.env.history.removeLast();

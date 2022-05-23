@@ -7,6 +7,7 @@ import 'package:petitparser/matcher.dart';
 import 'package:sc_cli/cli_repl.dart';
 
 import 'package:sc_cli/src/options.dart';
+import 'package:sc_cli/src/repl_adapter/vm.dart';
 import 'package:sc_cli/src/sc.dart';
 import 'package:sc_cli/src/sc_api.dart' show ScLiveClient;
 import 'package:sc_cli/src/sc_config.dart';
@@ -154,7 +155,7 @@ Function startProdReplServerIsolateFn(Options options) {
 
 void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
   var trimmed = x.trim();
-  trimmed = trimmed.replaceFirst(RegExp(r'^(sc>\s*)+'), '');
+  trimmed = trimmed.replaceFirst(promptPattern, '');
   if (trimmed.isEmpty) return;
   final lowered = trimmed.toLowerCase();
   if (lowered == 'exit' || lowered == 'quit') {
