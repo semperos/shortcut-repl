@@ -488,6 +488,10 @@ class ReplAdapter {
   clearScreen() {
     write('$ansiEscape[2J'); // clear
     write('$ansiEscape[H'); // return home
+    rewriteBuffer();
+  }
+
+  rewriteBuffer() {
     write(inContinuation ? repl.continuation : repl.prompt);
     write(String.fromCharCodes(buffer));
     moveCursor(cursor - buffer.length);

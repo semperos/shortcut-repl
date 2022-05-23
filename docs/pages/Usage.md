@@ -9,6 +9,7 @@
 	- TODO Tutorial: Initial setup as an engineer
 	- TODO Tutorial: Initial setup as a manager
 	- TODO Tutorial: Piped Lisp as a language (no Shortcut specifics)
+		- [[Tutorial: Piped Lisp the Language]]
 	- TODO Tutorial: Quick creation of new entities
 	- TODO Tutorial: `find-stories` and `search`
 	-

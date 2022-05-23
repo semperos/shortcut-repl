@@ -40,12 +40,15 @@ Function startDevReplServerIsolateFn(Options options) {
         isAnsiEnabled: options.isAnsiEnabled ?? true);
     env.loadPrelude();
     maybeLoadFiles(env, options);
-    unawaited(loadCaches(env));
     final repl = Repl(
         prompt: formatPrompt(env),
         continuation: '>>> ',
         validator: replValidator(env),
         env: env);
+    env.out.writeln(env.styleWith(
+        "[INFO] Loading caches from disk, some data may appear missing until finished...",
+        [yellow]));
+    unawaited(loadCaches(env, repl));
     await for (final x in repl.runAsync()) {
       handleRepl(env, repl, sendPort, x);
     }

@@ -67,6 +67,8 @@ class Repl {
   /// Kills and cleans up the REPL.
   FutureOr<void> exit() => _adapter.exit();
 
+  void rewriteBuffer() => _adapter.rewriteBuffer();
+
   /// History is by line, not by statement.
   ///
   /// The first item in the list is the most recent history item.

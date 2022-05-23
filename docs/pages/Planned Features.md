@@ -8,6 +8,9 @@
 	- DONE `plus-*` and `minus-*` dt fns
 	- DONE `*-since` and `*-until` dt fns
 	- TODO `date-time` accessors for year, month, day-of-month, etc.
+- Printing
+	- TODO Reconcile `printToString` and `readableString`
+		- Context: `readableString` arose during work on `ScEntity` and sub-classes
 	-
 -
 - ## REPL

@@ -211,6 +211,7 @@ class ScEnv {
     ScSymbol('interpret'): ScFnInterpret(),
     ScSymbol('load'): ScFnLoad(),
     ScSymbol('open'): ScFnOpen(),
+    ScSymbol('edit'): ScFnEdit(),
 
     ScSymbol('default'): ScFnDefault(),
     ScSymbol('defaults'): ScFnDefaults(),
@@ -1465,12 +1466,22 @@ class ScFile extends ScExpr {
 
   @override
   String toString() {
-    return '<file: ${file.path}>';
+    return file.path;
   }
 
   @override
   String informalTypeName() {
     return 'file';
+  }
+
+  @override
+  String printToString(ScEnv env) {
+    final sb = StringBuffer();
+    sb.write(lParen(env));
+    sb.write("file ");
+    sb.write(env.styleWith('"${file.path}"', [magenta]));
+    sb.write(rParen(env));
+    return sb.toString();
   }
 
   ScString readAsStringSync({Encoding encoding = utf8}) {
@@ -4037,12 +4048,36 @@ Caveat: Only Linux and macOS supported, this function shells out to `xdg-open` o
     ScEntity entity = env.resolveArgEntity(args, 'open');
     final appUrl = entity.data[ScString('app_url')];
     if (appUrl is ScString) {
-      openInBrowser(appUrl.value);
+      execOpenInBrowser(appUrl.value);
     } else {
       throw MissingEntityDataException(
           "The app_url of this ${entity.informalTypeName()} could not be accessed.");
     }
     return ScNil();
+  }
+}
+
+class ScFnEdit extends ScBaseInvocable {
+  static final ScFnEdit _instance = ScFnEdit._internal();
+  ScFnEdit._internal();
+  factory ScFnEdit() => _instance;
+
+  @override
+  String get help =>
+      'Opens your SHORTCUT_EDITOR or EDITOR and returns the temp file created.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty) {
+      return execOpenInEditor(env);
+    } else {
+      throw BadArgumentsException(
+          "The `edit` function does not take any arguments, but received ${args.length} arguments.");
+    }
   }
 }
 
@@ -4880,7 +4915,7 @@ class ScFnMember extends ScBaseInvocable {
   factory ScFnMember() => _instance;
 
   @override
-  String get help => 'Fetch the current member based on the API token.';
+  String get help => 'Fetch the member with the given ID.';
 
   @override
   // TODO: implement helpFull
@@ -6467,13 +6502,13 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
       // NB: In practice, should be unreachable.
       title = ScString('<No name>');
     }
+    final dtFn = ScFnDateTime();
     for (final key in data.keys) {
       // # Deserialization #
       // ## DateTime values
       if (dateTimeKeys.contains(key)) {
         final dateTimeStr = data[key];
         if (dateTimeStr is ScString) {
-          final dtFn = ScFnDateTime();
           data[key] = dtFn.invoke(env, ScList([dateTimeStr]));
         }
       }
@@ -7466,17 +7501,19 @@ class ScStory extends ScEntity {
       final state = data[ScString('workflow_state_id')];
       String storyStateType = '';
       if (state is ScWorkflowState) {
-        final stateType = (state.data[ScString('type')] as ScString).value;
-        switch (stateType) {
-          case 'unstarted':
-            storyStateType = env.styleWith('[U]', [lightRed])!;
-            break;
-          case 'started':
-            storyStateType = env.styleWith('[S]', [lightMagenta])!;
-            break;
-          case 'done':
-            storyStateType = env.styleWith('[D]', [lightGreen])!;
-            break;
+        final stateType = state.data[ScString('type')];
+        if (stateType is ScString) {
+          switch (stateType.value) {
+            case 'unstarted':
+              storyStateType = env.styleWith('[U]', [lightRed])!;
+              break;
+            case 'started':
+              storyStateType = env.styleWith('[S]', [lightMagenta])!;
+              break;
+            case 'done':
+              storyStateType = env.styleWith('[D]', [lightGreen])!;
+              break;
+          }
         }
       }
 
@@ -7501,7 +7538,7 @@ class ScStory extends ScEntity {
       }
 
       final estimate = data[ScString('estimate')];
-      String estimateStr = '';
+      String estimateStr = env.styleWith('[_]', [lightGreen])!;
       if (estimate is ScNumber) {
         estimateStr = env.styleWith("[${estimate.value}]", [lightGreen])!;
       }
@@ -8944,15 +8981,40 @@ Future<ScEntity> fetchId(ScEnv env, String entityPublicId) async {
   }
 }
 
-openInBrowser(String url) async {
+execOpenInBrowser(String url) async {
   if (Platform.isMacOS) {
-    Process.run('open', [url]);
+    unawaited(Process.run('open', [url]));
   } else if (Platform.isLinux) {
-    Process.run('xdg-open', [url]);
+    unawaited(Process.run('xdg-open', [url]));
   } else {
     throw UnsupportedError(
         "Your operating system is not supported.\nPlease open $url manually.");
   }
+}
+
+ScFile execOpenInEditor(ScEnv env) {
+  String editor;
+  final shortcutEditor = Platform.environment['SHORTCUT_EDITOR'];
+  final defaultEditor = Platform.environment['EDITOR'];
+  if (shortcutEditor != null) {
+    editor = shortcutEditor;
+  } else if (defaultEditor != null) {
+    editor = defaultEditor;
+  } else {
+    editor = 'vi';
+  }
+
+  final tempFile = File(Directory.systemTemp.absolute.path +
+      'sc_' +
+      DateTime.now().millisecondsSinceEpoch.toString());
+  startAndPrintPid(env, editor, [tempFile.absolute.path]);
+  return ScFile(tempFile);
+}
+
+void startAndPrintPid(ScEnv env, String program, List<String> args) {
+  final proc = waitOn(Process.start(program, args));
+  env.out.writeln(env
+      .styleWith("[INFO] Editor opened with process ID ${proc.pid}", [yellow]));
 }
 
 File resolveFile(ScEnv env, String filePath) {

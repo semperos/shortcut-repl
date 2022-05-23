@@ -141,12 +141,15 @@ Function startProdReplServerIsolateFn(Options options) {
         isAnsiEnabled: options.isAnsiEnabled ?? true);
     env.loadPrelude();
     maybeLoadFiles(env, options);
-    unawaited(loadCaches(env));
     final repl = Repl(
         prompt: formatPrompt(env),
         continuation: ',,,   ',
         validator: replValidator(env),
         env: env);
+    env.out.writeln(env.styleWith(
+        "\n[INFO] Loading caches from disk, some data may appear missing until finished...",
+        [yellow]));
+    unawaited(loadCaches(env, repl));
     await for (final x in repl.runAsync()) {
       handleRepl(env, repl, sendPort, x);
     }
@@ -424,12 +427,16 @@ void maybeLoadFiles(ScEnv env, Options options) {
 /// to start up more quickly but still have these loaded (hopefully) before
 /// the user starts issuing commands that need to resolve workflows, workflow
 /// states, members, or teams.
-Future loadCaches(ScEnv env) async {
+Future loadCaches(ScEnv env, Repl repl) async {
   try {
     await env.loadCachesFromDisk();
+    env.out
+        .write(env.styleWith("\n[INFO] Finished loading caches.\n", [yellow]));
+    repl.rewriteBuffer();
   } catch (_) {
-    env.err.writeln(
-        "Failed to load caches. Delete the cache*.json files under your config direction (default is ~/.config/shortcut-cli/) and try again.");
+    env.err.writeln(env.styleWith(
+        "Failed to load caches. Delete the cache*.json files under your config direction (default is ~/.config/shortcut-cli/) and try again.",
+        [red]));
     exit(1);
   }
 }
