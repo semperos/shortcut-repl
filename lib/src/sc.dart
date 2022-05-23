@@ -144,6 +144,7 @@ class ScEnv {
     ScSymbol('?'): ScFnHelp(),
     ScSymbol('print'): ScFnPrint(''),
     ScSymbol('println'): ScFnPrint('\n'),
+    ScSymbol('pr-str'): ScFnPrStr(),
 
     // Parent Entity History
 
@@ -2592,6 +2593,30 @@ class ScFnPrint extends ScBaseInvocable {
   }
 }
 
+class ScFnPrStr extends ScBaseInvocable {
+  static final ScFnPrStr _instance = ScFnPrStr._internal();
+  ScFnPrStr._internal();
+  factory ScFnPrStr() => _instance;
+
+  @override
+  String get help => "Return a readable string of the given argument.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final expr = args[0];
+      return ScString(expr.printToString(env));
+    } else {
+      throw BadArgumentsException(
+          "The `pr-str` function expects 1 argument, but received ${args.length} arguments.");
+    }
+  }
+}
+
 class ScFnDefaults extends ScBaseInvocable {
   @override
   String get help => "Display all workspace-level defaults set using sc.";
@@ -3373,8 +3398,7 @@ class ScFnConcat extends ScBaseInvocable {
           if (coll is ScString) {
             sb.write(coll.value);
           } else {
-            throw BadArgumentsException(
-                "The `concat` function can concatenate strings, but all arguments must then be strings; received a ${coll.informalTypeName()}");
+            sb.write(coll.toString());
           }
         }
         return ScString(sb.toString());
@@ -3844,7 +3868,7 @@ class ScFnJoin extends ScBaseInvocable {
       throw BadArgumentsException(
           'The `join` function expects one or two arguments: a collection and an optional separator (default is newline)');
     } else {
-      final coll = args.first;
+      final coll = args[0];
       ScString sep;
       if (args.length == 2) {
         final argSep = args[1];
