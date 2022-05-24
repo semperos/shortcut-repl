@@ -503,31 +503,32 @@ class ScEnv {
   void loadPrelude() {
     final prelude = '''
 ;; Accessors
-def first        value %(get % 0)
-def second       value %(get % 1)
-def third        value %(get % 2)
-def fourth       value %(get % 3)
-def fifth        value %(get % 4)
-def sixth        value %(get % 5)
-def seventh      value %(get % 6)
-def eighth       value %(get % 7)
-def ninth        value %(get % 8)
-def tenth        value %(get % 9)
+def first   value %(get % 0)
+def second  value %(get % 1)
+def third   value %(get % 2)
+def fourth  value %(get % 3)
+def fifth   value %(get % 4)
+def sixth   value %(get % 5)
+def seventh value %(get % 6)
+def eighth  value %(get % 7)
+def ninth   value %(get % 8)
+def tenth   value %(get % 9)
 
 ;; Conditionals
-def not          value (fn [x] (if x %(value false) %(value true)))
-def or           value (fn [this that] ((fn [this-res] (if this-res %(value this-res) that)) (this)))
-def when         value (fn [condition then-branch] (if condition then-branch %(identity nil)))
-def first-where  value (fn [coll where-clause] (first (where coll where-clause)))
+def not         value (fn [x] (if x %(value false) %(value true)))
+def or          value (fn [this that] ((fn [this-res] (if this-res %(value this-res) that)) (this)))
+def when        value (fn [condition then-branch] (if condition then-branch %(identity nil)))
+def first-where value (fn [coll where-clause] (first (where coll where-clause)))
 
 ;; Mathematics
+def sum value %(reduce % 0 +)
 def avg value (fn [coll] (/ (reduce coll +) (count coll)))
 
 ;; Collections
-def mapcat       value (fn [coll f] (apply (map coll f) concat))
+def mapcat value (fn [coll f] (apply (map coll f) concat))
 
 ;; Entities
-def story-states value (fn [entity] (ls (.workflow_id (fetch entity))))
+def story-states         value (fn [entity] (ls (.workflow_id (fetch entity))))
 def workflow-state-types ["unstarted" "started" "done"]
 ''';
     interpretAll("<built-in prelude source>", prelude.split('\n'));
@@ -1445,7 +1446,7 @@ When used within a structure that gets serialized to JSON and sent to Shortcut, 
     } else if (args.length == 1) {
       final arg = args[0];
       if (arg is ScMap || arg is ScEntity) {
-        args.insert(1, this);
+        args.insertMutable(1, this);
         final getFn = ScFnGet();
         return getFn.invoke(env, args);
       } else {
@@ -1460,7 +1461,7 @@ When used within a structure that gets serialized to JSON and sent to Shortcut, 
       }
     } else if (args.length == 2) {
       // NB: Assumes arg 2 is a "default if not found" which [ScFnGet] supports.
-      args.insert(1, this);
+      args.insertMutable(1, this);
       final getFn = ScFnGet();
       return getFn.invoke(env, args);
     } else {
@@ -1551,7 +1552,7 @@ A future extension to the language either for help or arbitrary metadata may be 
       // NB: Support fns leveraging implicit env.parentEntity
       if (1 == (params.length - args.length)) {
         if (env.parentEntity != null) {
-          args.insert(0, env.parentEntity!);
+          args.insertMutable(0, env.parentEntity!);
         } else {
           throw BadArgumentsException(
               "The function expects ${params.length} arguments, but received ${args.length}");
@@ -1610,7 +1611,7 @@ class ScAnonymousFunction extends ScBaseInvocable {
       // NB: Support anon fns leveraging implicit env.parentEntity
       if (1 == (numArgs - args.length)) {
         if (env.parentEntity != null) {
-          args.insert(0, env.parentEntity!);
+          args.insertMutable(0, env.parentEntity!);
         }
       } else {
         throw BadArgumentsException(
@@ -2401,7 +2402,7 @@ If provided a function, this behaves as a "take while", returning as many items 
           if (theNum > coll.length) {
             return coll;
           } else {
-            return coll.sublistImmutable(0, theNum);
+            return coll.sublist(0, theNum);
           }
         } else {
           throw BadArgumentsException(
@@ -2453,7 +2454,7 @@ If provided a function, this behaves as a "skip while", skipping as many items a
           if (theNum > coll.length) {
             return ScList([]);
           } else {
-            return coll.sublistImmutable(theNum, coll.length);
+            return coll.sublist(theNum, coll.length);
           }
         } else {
           throw BadArgumentsException(
@@ -2491,7 +2492,7 @@ class ScFnDistinct extends ScBaseInvocable {
         final l = ScList([]);
         for (final item in coll.innerList) {
           if (!l.contains(item)) {
-            l.add(item);
+            l.addMutable(item);
           }
         }
         return l;
@@ -2517,7 +2518,7 @@ class ScFnHelp extends ScBaseInvocable {
       // TODO Make this more a table of contents/concepts
       env.out.writeln('Available commands:');
       ScMap m = ScMap({});
-      ScEnv.defaultBindings.forEach((key, value) {
+      env.bindings.forEach((key, value) {
         if (value is ScBaseInvocable) {
           m[key] = ScString(value.help);
         } else if (value is ScExpr) {
@@ -2527,6 +2528,9 @@ class ScFnHelp extends ScBaseInvocable {
       final ks = m.keys.toList();
       ks.sort();
       printTable(env, ks, m);
+      env.out.writeln(env.styleWith(
+          'Try `? "example"` to search through all function names and help strings.',
+          [yellow]));
     } else {
       final query = args[0];
       if (query is ScBaseInvocable) {
@@ -3353,7 +3357,23 @@ class ScFnReduce extends ScBaseInvocable {
 
   @override
   // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+NB: For Clojure developers, `reduce` has similar signature expectations, with the obvious exception of the position of the collection in the function parameters.
+
+If the collection is empty:
+  The function is expected to have a 0-arity that can be invoked to provide the return value of the reduction.
+If the collection has 1 item:
+  That item is returned without invoking the function.
+Otherwise:
+  If a starting accumulator is provided, that is used with the reducing function.
+  If a starting accumulator is not provided and the collection has 2 or more elements:
+    The first item of the collection is used as the starting accumulator, then the rest of the collection has the reducing function applied.
+
+NB: Although Piped Lisp does not support implementing your own multi-arity functions, several built-in functions do support multiple arities and work well with reduce (e.g., `+` and other arithmetic functions).
+""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -3365,8 +3385,19 @@ class ScFnReduce extends ScBaseInvocable {
       if (list is ScList) {
         if (args.length == 2) {
           // list + fn
+
           final invocable = args[1];
           if (invocable is ScBaseInvocable) {
+            if (list.isEmpty) {
+              try {
+                final defaultValue = invocable.invoke(env, ScList([]));
+                return defaultValue;
+              } catch (e) {
+                env.err.writeln("ERROR: $e");
+                throw BadArgumentsException(
+                    "The `reduce` function expects a starting accumulator or a function that can be invoked with zero arguments when the collection passed in is empty. The collection is empty, no accumulator was passed, and the function threw an exception.");
+              }
+            }
             return list.reduce(
                 (acc, item) => invocable.invoke(env, ScList([acc, item])));
           } else {
@@ -3376,15 +3407,19 @@ class ScFnReduce extends ScBaseInvocable {
         } else {
           // list + acc + fn
           final startingAcc = args[1];
-          final invocable = args[2];
-          if (invocable is ScBaseInvocable) {
-            final listCopy = ScList(List<ScExpr>.from(list.innerList));
-            listCopy.insert(0, startingAcc);
-            return listCopy.reduce(
-                (acc, item) => invocable.invoke(env, ScList([acc, item])));
+          if (list.isEmpty) {
+            return startingAcc;
           } else {
-            throw BadArgumentsException(
-                "When passing three arguments to `reduce`, the third argument must be a function, but received ${invocable.informalTypeName()}");
+            final invocable = args[2];
+            if (invocable is ScBaseInvocable) {
+              final listCopy = ScList(List<ScExpr>.from(list.innerList));
+              listCopy.insertMutable(0, startingAcc);
+              return listCopy.reduce(
+                  (acc, item) => invocable.invoke(env, ScList([acc, item])));
+            } else {
+              throw BadArgumentsException(
+                  "When passing three arguments to `reduce`, the third argument must be a function, but received ${invocable.informalTypeName()}");
+            }
           }
         }
       } else {
@@ -5382,7 +5417,6 @@ class ScFnMilestone extends ScBaseInvocable {
   }
 }
 
-// TODO START HERE Make milestones return only the current team's milestones if parent entity is ScTeam
 class ScFnMilestones extends ScBaseInvocable {
   static final ScFnMilestones _instance = ScFnMilestones._internal();
   ScFnMilestones._internal();
@@ -5405,33 +5439,24 @@ class ScFnMilestones extends ScBaseInvocable {
         return milestonesInIteration(env, iteration);
       } else if (env.parentEntity is ScTeam) {
         final team = env.parentEntity as ScTeam;
-        final epics = epicsInTeam(env, team);
-        final milestones = ScList([]);
-        for (final epic in epics.innerList) {
-          final ep = epic as ScEpic;
-          final milestoneId = ep.data[ScString('milestone_id')];
-          if (milestoneId != null &&
-              milestoneId != ScNil() &&
-              !milestones.contains(epic)) {
-            ScMilestone? milestone;
-            if (milestoneId is ScNumber) {
-              milestone = ScMilestone(ScString(milestoneId.value.toString()));
-            } else if (milestoneId is ScMilestone) {
-              milestone = milestoneId;
-            }
-            if (milestone != null) {
-              milestones.add(waitOn(milestone.fetch(env)));
-            }
-          }
-        }
-        return milestones;
+        return milestonesInTeam(env, team);
       } else {
         final milestones = waitOn(env.client.getMilestones(env));
         return milestones;
       }
+    } else if (args.length == 1) {
+      final entity = args[0];
+      if (entity is ScIteration) {
+        return milestonesInIteration(env, entity);
+      } else if (entity is ScTeam) {
+        return milestonesInTeam(env, entity);
+      } else {
+        throw BadArgumentsException(
+            "The `milestones` function doesn't know how to find milestones in a ${entity.informalTypeName()}.");
+      }
     } else {
       throw BadArgumentsException(
-          "The `milestones` function does not take any arguments, but received ${args.length}");
+          "The `milestones` function expects 0 or 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -6079,7 +6104,7 @@ class ScList extends ScExpr {
     return "list";
   }
 
-  void add(ScExpr expr) {
+  void addMutable(ScExpr expr) {
     innerList.add(expr);
   }
 
@@ -6162,11 +6187,13 @@ class ScList extends ScExpr {
     }).toList());
   }
 
-  /// Mutable skip
-  ScList skip(int i) {
-    // innerList = List<ScExpr>.from(innerList.skip(i));
+  ScList skipMutable(int i) {
     innerList = List<ScExpr>.from(innerList.sublist(i));
     return this;
+  }
+
+  ScList skip(int i) {
+    return ScList(innerList.sublist(i));
   }
 
   ScExpr reduce(ScExpr Function(ScExpr acc, ScExpr item) fn) {
@@ -6175,8 +6202,8 @@ class ScList extends ScExpr {
   }
 
   static from(ScList otherScList) {
-    final newInnerList = List<ScExpr>.from(otherScList.innerList);
-    return ScList(newInnerList);
+    final copy = List<ScExpr>.from(otherScList.innerList);
+    return ScList(copy);
   }
 
   bool contains(Object? object) {
@@ -6192,7 +6219,7 @@ class ScList extends ScExpr {
   }
 
   /// Consider if better return value would be [this]
-  void insert(int index, ScExpr expr) {
+  void insertMutable(int index, ScExpr expr) {
     innerList.insert(index, expr);
   }
 
@@ -6208,12 +6235,7 @@ class ScList extends ScExpr {
     return ScString(strs.join(separator.value));
   }
 
-  /// Mutable sublist
   ScExpr sublist(int start, int end) {
-    return ScList(innerList.sublist(start, end));
-  }
-
-  ScExpr sublistImmutable(int start, int end) {
     final copy = List<ScExpr>.from(innerList);
     return ScList(copy.sublist(start, end));
   }
@@ -8437,7 +8459,7 @@ ScNumber dateTimeDifference(ScDateTime dtA, ScDateTime dtB, ScDateTimeUnit unit,
 
 ScDateTime addAllToDateTime(ScDateTime dt, ScDateTimeUnit unit, ScList args,
     {mustNegate = false}) {
-  args.insert(0, dt);
+  args.insertMutable(0, dt);
   return args.reduce((dt, amount) {
     final dateTime = (dt as ScDateTime).value;
     if (amount is ScNumber) {
@@ -8612,9 +8634,9 @@ ScList teamsOfMember(ScEnv env, ScMember member) {
   if (teams is ScList) {
     for (final team in teams.innerList) {
       if (team is ScTeam) {
-        l.add(team);
+        l.addMutable(team);
       } else if (team is ScString) {
-        l.add(env.resolveTeam(env, team));
+        l.addMutable(env.resolveTeam(env, team));
       }
     }
   }
@@ -8677,6 +8699,27 @@ ScList milestonesInIteration(ScEnv env, ScIteration iteration) {
     milestones.add(waitOn(env.client.getMilestone(env, milestoneId.value)));
   }
   return ScList(milestones);
+}
+
+ScList milestonesInTeam(ScEnv env, ScTeam team) {
+  final epics = epicsInTeam(env, team);
+  final milestones = ScList([]);
+  for (final epic in epics.innerList) {
+    final ep = epic as ScEpic;
+    final milestoneId = ep.data[ScString('milestone_id')];
+    if (milestoneId != null && milestoneId != ScNil()) {
+      ScMilestone? milestone;
+      if (milestoneId is ScNumber) {
+        milestone = ScMilestone(ScString(milestoneId.value.toString()));
+      } else if (milestoneId is ScMilestone) {
+        milestone = milestoneId;
+      }
+      if (milestone != null && !milestones.contains(milestone)) {
+        milestones.addMutable(waitOn(milestone.fetch(env)));
+      }
+    }
+  }
+  return milestones;
 }
 
 ScList iterationsOfTeam(ScEnv env, ScTeam team,

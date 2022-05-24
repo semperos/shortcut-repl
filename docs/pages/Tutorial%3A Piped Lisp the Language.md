@@ -105,7 +105,7 @@ title:: Tutorial: Piped Lisp the Language
 -
 - ### Arithmetic
 	- Functions: `+`, `-`, `*`, `/`, `>`, `>=`, `<`, `<=`, `max`, `min`, `mod`
-	- TODO Implement `avg`, `sum`, consider std. dev.
+	- DONE Implement `avg`, `sum`
 - ```
   ; Let's do some math and learn about Piped Lisp!
   

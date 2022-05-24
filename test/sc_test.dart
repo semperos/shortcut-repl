@@ -27,7 +27,7 @@ void main() {
       expect(env.interpret("double 21"), ScNumber(42));
     });
   });
-  group('ScNumber', () {
+  group('Numbers', () {
     final env = e();
     group('Arithmetic', () {
       final env = e();
@@ -107,7 +107,7 @@ void main() {
       expect(env.interpret('<= -1 -2 1'), ScBoolean.falsitas());
     });
   });
-  group('ScString', () {
+  group('Strings', () {
     test('isBlank', () {
       expect(ScString('').isBlank(), true);
       expect(ScString(' ').isBlank(), true);
@@ -120,29 +120,50 @@ void main() {
       expect(ScString('  \n\t\t\n a').isBlank(), false);
     });
   });
+  group('date-time', () {
+    final env = e();
+    test('plus-*', () {
+      expect(env.interpret('dt "2022-01-01" | plus-days 2'),
+          env.interpret('dt "2022-01-03"'));
+    });
+    test('minus-*', () {
+      expect(env.interpret('dt "2022-01-01" | minus-days 2'),
+          env.interpret('dt "2021-12-30"'));
+    });
+    test('*-since', () {
+      expect(env.interpret('dt "2022-01-31" | days-since (dt "2022-01-15")'),
+          ScNumber(16));
+    });
+    test('*-since', () {
+      expect(env.interpret('dt "2022-01-01" | days-until (dt "2022-01-15")'),
+          ScNumber(14));
+    });
+  });
   group('Collections', () {
     final env = e();
-    test('Lists', () {
-      expect(
-          env.interpret(
-              '["yes", "no", "yep", "nope"] | where %(= (count %) 3)'),
-          ScList([ScString('yes'), ScString('yep')]));
-      expect(
-          env.interpret(
-              '[{"user" "daniel" "lang" "en"} {"user" "leinad" "lang" "ne"}] | where {.user "daniel"}'),
-          ScList([
-            ScMap({
-              ScString('user'): ScString('daniel'),
-              ScString('lang'): ScString('en')
-            })
-          ]));
-      expect(
-          env.interpret(
-              '[{.items [.a] .user .daniel} {.items [.a .b] .user .leinad}] | where {.items %(= (count %) 2)}'),
-          env.interpret('[{.items [.a .b] .user .leinad}]'));
+    group('Lists', () {
+      test('filter/where', () {
+        expect(
+            env.interpret(
+                '["yes", "no", "yep", "nope"] | where %(= (count %) 3)'),
+            ScList([ScString('yes'), ScString('yep')]));
+        expect(
+            env.interpret(
+                '[{"user" "daniel" "lang" "en"} {"user" "leinad" "lang" "ne"}] | where {.user "daniel"}'),
+            env.interpret(r'''[{"user" "daniel" "lang" "en"}]'''));
+        expect(
+            env.interpret(
+                '[{.items [.a] .user .daniel} {.items [.a .b] .user .leinad}] | where {.items %(= (count %) 2)}'),
+            env.interpret('[{.items [.a .b] .user .leinad}]'));
+      });
+      test('reduce', () {
+        expect(env.interpret('reduce [] +'), ScNumber(0));
+        expect(env.interpret('reduce [] *'), ScNumber(1));
+        expect(env.interpret('reduce [] 42 +'), ScNumber(42));
+        expect(env.interpret('reduce [1 2] 42 +'), ScNumber(45));
+      });
     });
     test('Nested maps', () {
-      // final m = env.evalProgram('{"foo" {"bar" 42}}');
       expect(env.interpret('{"foo" {"bar" 42}} | get-in ["foo"]'),
           env.interpret('{"bar" 42}'));
       expect(env.interpret('{"foo" {"bar" 42}} | get-in ["foo" "bar"]'),
@@ -187,6 +208,10 @@ void main() {
       });
     });
     group('Mathematics', () {
+      test('Sum', () {
+        expect(env.interpret('sum [1 2 3 4 5]'), ScNumber(15));
+        expect(env.interpret('sum []'), ScNumber(0));
+      });
       test('Average', () {
         expect(env.interpret('avg [0 100 0 100]'), ScNumber(50.0));
         // NB: Also test of mutable/immutable reduce.

@@ -33,4 +33,4 @@
 - DONE Parse fields in entity payloads that are known to be date-time values using `dt` so users don't have to `... | dt | ...`
 - TODO Integration with `bat`, `glow`, or other tools (expose via config) for viewing Markdown in a semi-formatted fashion at the terminal.
 	- First attempt: ANSI codes appear to be stripped when printing sub-process's `stdout`
--
+- TODO Search by commenter (find stories/epics with comments by so-and-so)

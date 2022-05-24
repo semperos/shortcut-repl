@@ -377,7 +377,7 @@ ScInvocation windUpPipes(ScEnv env, ScList scListExprs) {
     }
 
     // This skip skips the Pipe
-    ScList pipedExpr = ScList.from((tailExprs[0] as ScList).skip(1))[0];
+    ScList pipedExpr = ScList.from((tailExprs[0] as ScList).skipMutable(1))[0];
     final pipedArgIdx = pipedExpr.indexOf(pipedArg);
     if (pipedArgIdx != -1) {
       final anotherPipedArgIdx = pipedExpr.lastIndexOf(pipedArg);
@@ -393,7 +393,7 @@ ScInvocation windUpPipes(ScEnv env, ScList scListExprs) {
       // Thread-first as the default:
       //  - Item 0 is the invocable
       //  - Put innermostInvocation as the first _argument_ to that invocable.
-      pipedExpr.insert(1, innermostInvocation);
+      pipedExpr.insertMutable(1, innermostInvocation);
     }
     final nextInvocation = ScInvocation(pipedExpr);
     if (tailExprs.length == 1) {
@@ -402,16 +402,16 @@ ScInvocation windUpPipes(ScEnv env, ScList scListExprs) {
       // Recursion. Could tie in pipedExpr from above, but for now this is fine.
       var lastInvocation = nextInvocation;
       // This skip skips the nextInvocation specified above.
-      for (final scList in tailExprs.skip(1).innerList) {
+      for (final scList in tailExprs.skipMutable(1).innerList) {
         // This skip skips the Pipe
-        final piped = ScList.from((scList as ScList).skip(1))[0];
+        final piped = ScList.from((scList as ScList).skipMutable(1))[0];
         final pai = piped.indexOf(pipedArg);
         if (pai != -1) {
           piped[pai] = lastInvocation;
         } else {
           // NB: This implemented thread-last as the default.
           // piped.add(lastInvocation);
-          piped.insert(1, lastInvocation);
+          piped.insertMutable(1, lastInvocation);
         }
         lastInvocation = ScInvocation(piped);
       }

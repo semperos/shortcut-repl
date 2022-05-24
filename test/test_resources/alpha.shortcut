@@ -9,6 +9,12 @@ def is-owned-by value (fn [member]
          (concat "is-owned-by expects a member, but received a " (type member)))
  {.owner_ids [member]})
 
+ def is-requested-by value (fn [member]
+ (assert (= "member" (type member))
+         (concat "is-requested-by expects a member, but received a " (type member)))
+ {.requested_by_id [member]})
+
+
 def epics-unstarted   value (fn [epics] (where epics {.state "to do"}))
 def epics-todo        value (fn [epics] (where epics {.state "to do"}))
 def epics-in-progress value (fn [epics] (where epics {.state "in progress"}))
