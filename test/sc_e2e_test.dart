@@ -48,19 +48,19 @@ void main() {
     group('pwd', () {
       test('Epic parent', () {
         final env = ScEnv.fromMap(client, configParentEpic);
-        final res = env.interpretExprString('pwd');
+        final res = env.interpret('pwd');
         expect(res, TypeMatcher<ScEpic>());
       });
       test('Story parent', () {
         final env = ScEnv.fromMap(client, configParentStory);
-        final res = env.interpretExprString('pwd');
+        final res = env.interpret('pwd');
         expect(res, TypeMatcher<ScStory>());
       });
     });
     group('ls', () {
       test('No parent', () {
         final env = ScEnv.fromMap(client, configNoParent);
-        final res = env.interpretExprString('ls');
+        final res = env.interpret('ls');
         expect(res, TypeMatcher<ScMember>());
         final member = res as ScMember;
         expect(member.id, ScString("aaaaaaaaa-1111-4444-aaaa-ffffffffffff"));
@@ -75,7 +75,7 @@ void main() {
           ScString('90144'),
           ScString('90370')
         };
-        final stories = env.interpretExprString('ls') as ScList;
+        final stories = env.interpret('ls') as ScList;
         expect(stories.length, 5);
         expect(stories.innerList.map((s) => (s as ScStory).id).toSet(),
             storyIdSet);
@@ -83,7 +83,7 @@ void main() {
       test('Milestone parent', () {
         final env = ScEnv.fromMap(client, configParentMilestone);
         final epicIdSet = <ScString>{ScString('209565'), ScString('207081')};
-        final epics = env.interpretExprString('ls') as ScList;
+        final epics = env.interpret('ls') as ScList;
         expect(epics.innerList.map((e) => (e as ScEpic).id).toSet(), epicIdSet);
       });
     });
@@ -134,14 +134,14 @@ void main() {
     group('Search', () {
       test('Default', () {
         final env = ScEnv.fromMap(client, configNoParent);
-        final searchResults = env.interpretExprString('select | search');
+        final searchResults = env.interpret('select | search');
         expect(searchResults, TypeMatcher<ScMap>());
       });
     });
     group('Fetching', () {
       test('fetch-all', () {
         final env = ScEnv.fromMap(client, configNoParent);
-        env.interpretExprString('fetch-all');
+        env.interpret('fetch-all');
       });
     });
   });

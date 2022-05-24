@@ -396,7 +396,7 @@ class ScEnv {
     return env;
   }
 
-  ScExpr interpretProgram(String sourceName, List<String> sourceLines) {
+  ScExpr interpretAll(String sourceName, List<String> sourceLines) {
     ScExpr returnValue = ScNil();
     final multiLineExprString = StringBuffer();
     for (var i = 0; i < sourceLines.length; i++) {
@@ -408,7 +408,7 @@ class ScEnv {
         final currentProgram = multiLineExprString.toString();
         if (scParser.accept(currentProgram)) {
           try {
-            returnValue = interpretExprString(currentProgram);
+            returnValue = interpret(currentProgram);
           } catch (e) {
             if (e is LispParserException) {
               final parseResult = e.parseResult;
@@ -435,7 +435,7 @@ class ScEnv {
         //
         // Editing the parser involved a lot of changes. This is
         // good enough.
-        returnValue = interpretExprString('$line\nnil');
+        returnValue = interpret('$line\nnil');
       } else if (!scParser.accept(trimmed)) {
         // Allow multi-line programs
         multiLineExprString.write("$trimmed ");
@@ -443,7 +443,7 @@ class ScEnv {
         // Single-line parenthetical program
         if (scParser.accept(currentExprString)) {
           try {
-            returnValue = interpretExprString(currentExprString);
+            returnValue = interpret(currentExprString);
           } catch (e) {
             if (e is LispParserException) {
               final parseResult = e.parseResult;
@@ -464,7 +464,7 @@ class ScEnv {
         }
       } else {
         try {
-          returnValue = interpretExprString(line);
+          returnValue = interpret(line);
         } catch (e) {
           if (e is LispParserException) {
             final parseResult = e.parseResult;
@@ -481,7 +481,7 @@ class ScEnv {
     return returnValue;
   }
 
-  ScExpr interpretExprString(String exprString) {
+  ScExpr interpret(String exprString) {
     final expr = scEval(this, readExprString(exprString));
     if (isReplMode) {
       final star2 = this[ScSymbol('*2')];
@@ -502,6 +502,7 @@ class ScEnv {
   /// error messages compared to those built-in ones.
   void loadPrelude() {
     final prelude = '''
+;; Accessors
 def first        value %(get % 0)
 def second       value %(get % 1)
 def third        value %(get % 2)
@@ -512,15 +513,24 @@ def seventh      value %(get % 6)
 def eighth       value %(get % 7)
 def ninth        value %(get % 8)
 def tenth        value %(get % 9)
+
+;; Conditionals
 def not          value (fn [x] (if x %(value false) %(value true)))
 def or           value (fn [this that] ((fn [this-res] (if this-res %(value this-res) that)) (this)))
 def when         value (fn [condition then-branch] (if condition then-branch %(identity nil)))
 def first-where  value (fn [coll where-clause] (first (where coll where-clause)))
+
+;; Mathematics
+def avg value (fn [coll] (/ (reduce coll +) (count coll)))
+
+;; Collections
 def mapcat       value (fn [coll f] (apply (map coll f) concat))
+
+;; Entities
 def story-states value (fn [entity] (ls (.workflow_id (fetch entity))))
 def workflow-state-types ["unstarted" "started" "done"]
 ''';
-    interpretProgram("<built-in prelude source>", prelude.split('\n'));
+    interpretAll("<built-in prelude source>", prelude.split('\n'));
   }
 
   void writeHistory() {
@@ -3351,32 +3361,32 @@ class ScFnReduce extends ScBaseInvocable {
       throw BadArgumentsException(
           "The `reduce` function expects 2 or 3 arguments: a list, an optional starting accumulator, and a function of (acc, item).");
     } else {
-      var list = args[0];
+      final list = args[0];
       if (list is ScList) {
-        ScExpr acc;
-        ScBaseInvocable invocable;
         if (args.length == 2) {
-          acc = list.first;
-          final maybeInvocable = args[1];
-          if (maybeInvocable is! ScBaseInvocable) {
+          // list + fn
+          final invocable = args[1];
+          if (invocable is ScBaseInvocable) {
+            return list.reduce(
+                (acc, item) => invocable.invoke(env, ScList([acc, item])));
+          } else {
             throw BadArgumentsException(
-                "When passing two arguments to `reduce`, the second argument must be a function, but received ${maybeInvocable.informalTypeName()}");
+                "When passing two arguments to `reduce`, the second argument must be a function, but received ${invocable.informalTypeName()}");
           }
-          list = list.skip(1);
-          invocable = maybeInvocable;
         } else {
-          acc = args[1];
-          final maybeInvocable = args[2];
-          if (maybeInvocable is! ScBaseInvocable) {
+          // list + acc + fn
+          final startingAcc = args[1];
+          final invocable = args[2];
+          if (invocable is ScBaseInvocable) {
+            final listCopy = ScList(List<ScExpr>.from(list.innerList));
+            listCopy.insert(0, startingAcc);
+            return listCopy.reduce(
+                (acc, item) => invocable.invoke(env, ScList([acc, item])));
+          } else {
             throw BadArgumentsException(
-                "When passing three arguments to `reduce`, the third argument must be a function, but received ${maybeInvocable.informalTypeName()}");
+                "When passing three arguments to `reduce`, the third argument must be a function, but received ${invocable.informalTypeName()}");
           }
-          invocable = maybeInvocable;
         }
-        for (final item in list.innerList) {
-          acc = invocable.invoke(env, ScList([acc, item]));
-        }
-        return acc;
       } else {
         throw BadArgumentsException(
             "The first argument to `reduce` must be a list, but received ${list.informalTypeName()}");
@@ -3980,7 +3990,7 @@ class ScFnInterpret extends ScBaseInvocable {
     if (args.length == 1) {
       final sourceString = args[0];
       if (sourceString is ScString) {
-        return env.interpretProgram(
+        return env.interpretAll(
             '<string from console>', sourceString.value.split('\n'));
       } else {
         throw BadArgumentsException(
@@ -4019,7 +4029,7 @@ class ScFnLoad extends ScBaseInvocable {
             "The `load` function expects a string argument, but received a ${sourceFilePath.informalTypeName()}");
       }
       final sourceLines = sourceFile.readAsLinesSync();
-      return env.interpretProgram(sourceFile.absolute.path, sourceLines);
+      return env.interpretAll(sourceFile.absolute.path, sourceLines);
     } else {
       throw BadArgumentsException(
           "The `load` function expects one argument: the path of the file to load.");
@@ -5558,19 +5568,24 @@ class ScFnMax extends ScBaseInvocable {
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
-      throw UnsupportedError("The max function expects at least one argument.");
-    } else if (args.length == 1) {
-      final arg = args[0];
-      if (arg is ScList) {
-        return arg.reduce((acc, value) {
-          return value > acc ? value : acc;
-        });
-      } else {
-        return arg;
-      }
+      throw UnsupportedError(
+          "The `max` function expects at least one argument.");
     } else {
-      return args.reduce((acc, value) {
-        return value > acc ? value : acc;
+      final arg = args[0];
+      ScList list;
+      if (arg is ScList) {
+        list = arg;
+      } else {
+        list = args;
+      }
+      return list.reduce((acc, value) {
+        final a = acc as ScNumber;
+        if (value is ScNumber) {
+          return value > a ? value : a;
+        } else {
+          throw BadArgumentsException(
+              "The `max` function only works with numbers, but received a ${value.informalTypeName()}");
+        }
       });
     }
   }
@@ -5593,18 +5608,22 @@ class ScFnMin extends ScBaseInvocable {
     if (args.isEmpty) {
       throw BadArgumentsException(
           "The `min` function expects at least one argument.");
-    } else if (args.length == 1) {
-      final arg = args[0];
-      if (arg is ScList) {
-        return arg.reduce((acc, value) {
-          return value < acc ? value : acc;
-        });
-      } else {
-        return arg;
-      }
     } else {
-      return args.reduce((acc, value) {
-        return value < acc ? value : acc;
+      final arg = args[0];
+      ScList list;
+      if (arg is ScList) {
+        list = arg;
+      } else {
+        list = args;
+      }
+      return list.reduce((acc, value) {
+        final a = acc as ScNumber;
+        if (value is ScNumber) {
+          return value < a ? value : a;
+        } else {
+          throw BadArgumentsException(
+              "The `max` function only works with numbers, but received a ${value.informalTypeName()}");
+        }
       });
     }
   }
@@ -6150,8 +6169,9 @@ class ScList extends ScExpr {
     return this;
   }
 
-  ScExpr reduce(ScExpr Function(dynamic acc, dynamic item) fn) {
-    return innerList.reduce(fn);
+  ScExpr reduce(ScExpr Function(ScExpr acc, ScExpr item) fn) {
+    final copy = List<ScExpr>.from(innerList);
+    return copy.reduce(fn);
   }
 
   static from(ScList otherScList) {

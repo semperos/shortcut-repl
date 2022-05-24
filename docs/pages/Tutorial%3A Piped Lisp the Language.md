@@ -10,14 +10,14 @@ title:: Tutorial: Piped Lisp the Language
   nil
   sc> type nil
   "nil"
-  ; Truthiness: nil and false are falsey,
+  ; 💡 Truthiness: nil and false are falsey,
   ; all other values are truthy.
   
   sc> true
   true
   sc> type true
   "boolean"
-  ; Piped Lisp conditional functions use truthiness,
+  ; 💡 Piped Lisp conditional functions use truthiness,
   ; not strict true/false, for conditions.
   
   sc> 1
@@ -29,13 +29,13 @@ title:: Tutorial: Piped Lisp the Language
   1.0
   sc> type 1.0
   "number"
-  ; Arithmetic ops rely on Dart's semantics.
+  ; 💡 Arithmetic ops rely on Dart's semantics.
   
   sc> "abc"
   "abc"
   sc> type "abc"
   "string"
-  ; Strings support whitespace escapes, using backslack,
+  ; 💡 Strings support whitespace escapes, using backslack,
   ; but not the more advanced ones that Dart strings do.
   
   sc> qwerty
@@ -43,14 +43,14 @@ title:: Tutorial: Piped Lisp the Language
   ^^^^^^ This symbol isn't defined.
   
   Do you want to define it? (y/n) >
-  ; REPL mode allows interactive symbol binding.
+  ; 💡 REPL mode allows interactive symbol binding.
   
   sc> .foo
   .foo
   sc> type .foo
   "dotted symbol"
-  ; A dotted symbol is like a Clojure keyword, but with some
-  ; extended semantics.
+  ; 💡 A dotted symbol is like a Clojure keyword, but with
+  ; some extended semantics.
   
   sc> [1 "2" .three]
   [
@@ -73,9 +73,9 @@ title:: Tutorial: Piped Lisp the Language
   "map"
   
   sc> (fn [])
-  nil ; This is returned because the function is _invoked_
+  nil ; 💡 This is returned because the function is _invoked_
   sc> identity (fn [])
-  <function> ; Function as a value, not invoked
+  <function> ; 💡 Function as a value, not invoked
   sc> type (fn [])
   "function"
   
@@ -98,8 +98,8 @@ title:: Tutorial: Piped Lisp the Language
   sc> type *1
   "file"
   
-  ; In addition to these ^ all supported Shortcut entities have
-  ; dedicated types: story, epic, milestone, iteration, label,
+  ; 💡 In addition to these types, all supported Shortcut entities
+  ; have dedicated types: story, epic, milestone, iteration, label,
   ; workflow, workflow state, epic workflow, epic workflow state.
   ```
 -
