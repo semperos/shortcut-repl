@@ -3473,7 +3473,7 @@ class ScFnConcat extends ScBaseInvocable {
         ScMap m = ScMap({});
         for (final coll in args.innerList) {
           if (coll is ScMap) {
-            m.addMap(coll);
+            m.addMapMutable(coll);
           } else {
             throw BadArgumentsException(
                 "The `concat` function can concatenate maps, but all arguments must then be maps; received a ${coll.informalTypeName()}");
@@ -4626,7 +4626,7 @@ class ScFnCreate extends ScBaseInvocable {
       final maybeDataMap = args[0];
       ScEntity? entity;
       if (maybeDataMap is ScMap) {
-        final ScMap dataMap = maybeDataMap;
+        ScMap dataMap = maybeDataMap;
         final maybeType =
             dataMap[ScString('type')] ?? dataMap[ScDottedSymbol('type')];
         if (maybeType == null) {
@@ -4642,8 +4642,8 @@ class ScFnCreate extends ScBaseInvocable {
             throw BadArgumentsException(
                 'The map passed to `create` must have a a "type" field with one of "story", "epic", "iteration", or "milestone", but received ${maybeType.toString()}');
           }
-          dataMap.remove(ScString('type'));
-          dataMap.remove(ScDottedSymbol('type'));
+          dataMap = dataMap.remove(ScString('type'));
+          dataMap = dataMap.remove(ScDottedSymbol('type'));
           switch (typeStr) {
             case 'story':
               if (!dataMap.containsKey(ScString('epic_id'))) {
@@ -4737,8 +4737,8 @@ class ScFnCreate extends ScBaseInvocable {
                   throw BadArgumentsException(
                       "The \"story_id\" field must be a string or number, but received a ${rawStoryId.informalTypeName()}");
                 }
-                dataMap.remove(ScString('story_id'));
-                dataMap.remove(ScDottedSymbol('story_id'));
+                dataMap = dataMap.remove(ScString('story_id'));
+                dataMap = dataMap.remove(ScDottedSymbol('story_id'));
                 entity = waitOn(env.client.createTask(
                     env,
                     storyPublicId,
@@ -5161,10 +5161,12 @@ class ScFnTeams extends ScBaseInvocable {
         final pe = env.parentEntity;
         if (pe is ScMember) {
           return teamsOfMember(env, pe);
+        } else {
+          return waitOn(env.client.getTeams(env));
         }
+      } else {
+        return waitOn(env.client.getTeams(env));
       }
-      throw BadArgumentsException(
-          "The `teams` function takes no arguments, or you must be within a member parent entity.");
     } else if (args.length == 1) {
       final member = env.resolveArgEntity(args, 'teams');
       if (member is ScMember) {
@@ -6271,8 +6273,14 @@ class ScMap extends ScExpr {
     return "map";
   }
 
-  void remove(ScExpr key) {
+  void removeMutable(ScExpr key) {
     innerMap.remove(key);
+  }
+
+  ScMap remove(ScExpr key) {
+    final copy = Map<ScExpr, ScExpr>.from(innerMap);
+    copy.remove(key);
+    return ScMap(copy);
   }
 
   bool containsKey(ScExpr key) => innerMap.containsKey(key);
@@ -6363,7 +6371,7 @@ class ScMap extends ScExpr {
     innerMap[key] = value;
   }
 
-  void addAll(Map<String, dynamic> map) {
+  void addAllMutable(Map<String, dynamic> map) {
     for (final key in map.keys) {
       final value = map[key];
       final scKey = ScString(key);
@@ -6373,16 +6381,16 @@ class ScMap extends ScExpr {
     }
   }
 
-  void addMap(ScMap map) {
+  void addMapMutable(ScMap map) {
     for (final key in map.keys) {
       final value = map[key];
       this[key] = value!;
     }
   }
 
-  ScExpr where(ScBoolean Function(ScExpr key, ScExpr value) fn) {
-    // Why does dart have removeWhere but not where for Map?
-    innerMap.removeWhere((k, v) {
+  ScMap where(ScBoolean Function(ScExpr key, ScExpr value) fn) {
+    final copy = Map<ScExpr, ScExpr>.from(innerMap);
+    copy.removeWhere((k, v) {
       final scBool = fn(k, v);
       if (scBool == ScBoolean.veritas()) {
         return false; // don't remove
@@ -6390,7 +6398,7 @@ class ScMap extends ScExpr {
         return true; // remove
       }
     });
-    return this;
+    return ScMap(copy);
   }
 
   @override
@@ -6533,7 +6541,7 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
   };
 
   ScEntity addAll(ScEnv env, Map<String, dynamic> map) {
-    data.addAll(map);
+    data.addAllMutable(map);
     final name = map[ScString('name')];
     final description = map[ScString('description')];
     if (name is ScString) {

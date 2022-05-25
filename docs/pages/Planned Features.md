@@ -1,6 +1,10 @@
 - _NB: See also all [[TODO]] entries._
 -
 - ## Piped Lisp
+- Maps
+	- TODO Audit mutable vs. immutable methods and rename accordingly
+- Lists
+	- DONE Audit mutable vs. immutable methods and rename accordingly
 - Date/time support
 	- DONE New `date-time` type
 	- DONE `dt` function for converting a string to a `date-time`
