@@ -24,6 +24,11 @@ abstract class ScApiContract {
       String taskPublicId, Map<String, dynamic> updateMap);
   // bool deleteTask(String storyPublicId, String taskPublicId);
 
+  Future<ScComment> getComment(
+      ScEnv env, String storyPublicId, String commentPublicId);
+  Future<ScComment> updateComment(ScEnv env, String storyPublicId,
+      String commentPublicId, Map<String, dynamic> updateMap);
+
   // ## Epics
   Future<ScEpic> createEpic(ScEnv env, Map<String, dynamic> epicData);
   Future<ScEpic> getEpic(ScEnv env, String epicPublicId);
@@ -272,6 +277,23 @@ class ScLiveClient extends ScClient {
         env, "/stories/$storyPublicId/tasks/$taskPublicId",
         httpVerb: HttpVerb.put, body: updateMap);
     return taba.task(env, storyPublicId);
+  }
+
+  @override
+  Future<ScComment> getComment(
+      ScEnv env, String storyPublicId, String commentPublicId) async {
+    final taba = await authedCall(
+        env, "/stories/$storyPublicId/comments/$commentPublicId");
+    return taba.comment(env, storyPublicId);
+  }
+
+  @override
+  Future<ScComment> updateComment(ScEnv env, String storyPublicId,
+      String commentPublicId, Map<String, dynamic> updateMap) async {
+    final taba = await authedCall(
+        env, "/stories/$storyPublicId/comments/$commentPublicId",
+        httpVerb: HttpVerb.put, body: updateMap);
+    return taba.comment(env, storyPublicId);
   }
 
   @override
@@ -549,6 +571,11 @@ class ThereAndBackAgain {
   ScTask task(ScEnv env, String storyPublicId) {
     Map<String, dynamic> task = objectBody();
     return ScTask.fromMap(env, ScString(storyPublicId), task);
+  }
+
+  ScComment comment(ScEnv env, String storyPublicId) {
+    Map<String, dynamic> comment = objectBody();
+    return ScComment.fromMap(env, ScString(storyPublicId), comment);
   }
 
   ScMilestone milestone(ScEnv env) {

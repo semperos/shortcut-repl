@@ -253,6 +253,8 @@ class ScEnv {
     ScSymbol('stories'): ScFnStories(),
     ScSymbol('task'): ScFnTask(),
     ScSymbol('tk'): ScFnTask(),
+    ScSymbol('comment'): ScFnComment(),
+    ScSymbol('cm'): ScFnComment(),
     ScSymbol('epic'): ScFnEpic(),
     ScSymbol('ep'): ScFnEpic(),
     ScSymbol('epics'): ScFnEpics(),
@@ -5269,6 +5271,65 @@ class ScFnTask extends ScBaseInvocable {
   }
 }
 
+class ScFnComment extends ScBaseInvocable {
+  static final ScFnComment _instance = ScFnComment._internal();
+  ScFnComment._internal();
+  factory ScFnComment() => _instance;
+
+  @override
+  String get help => 'Fetch a comment given its identifier.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty) {
+      throw UnimplementedError();
+    } else if (args.length == 1) {
+      if (env.parentEntity is ScStory) {
+        final ScStory story = env.parentEntity! as ScStory;
+        var commentId = args[0];
+        if (commentId is ScNumber) {
+          commentId = ScString(commentId.value.toString());
+        } else if (commentId is! ScString) {
+          throw BadArgumentsException(
+              "The `comment` function expects a comment ID that is a number or string, but received a ${commentId.informalTypeName()}");
+        }
+        final comment =
+            ScComment(ScString(story.idString), commentId as ScString);
+        return waitOn(comment.fetch(env));
+      } else {
+        throw BadArgumentsException(
+            "The `comment` function expects two arguments, or just a comment ID and your parent entity to be a story. Instead, it received one argument and the parent is _not_ a story.");
+      }
+    } else if (args.length == 2) {
+      var storyId = args[0];
+      var commentId = args[1];
+      if (storyId is ScNumber) {
+        storyId = ScString(storyId.toString());
+      } else if (storyId is ScStory) {
+        storyId = storyId.id;
+      } else if (storyId is! ScString) {
+        throw BadArgumentsException(
+            "The story ID must be a number, a string, or the story itself, but received a ${storyId.informalTypeName()}");
+      }
+      if (commentId is ScNumber) {
+        commentId = ScString(commentId.toString());
+      } else if (commentId is! ScString) {
+        throw BadArgumentsException(
+            "The comment ID must be a a number or string, but received a ${storyId.informalTypeName()}");
+      }
+      final comment = ScComment(storyId as ScString, commentId as ScString);
+      return waitOn(comment.fetch(env));
+    } else {
+      throw BadArgumentsException(
+          "The `comment` function does not support ${args.length} arguments.");
+    }
+  }
+}
+
 class ScFnEpic extends ScBaseInvocable {
   static final ScFnEpic _instance = ScFnEpic._internal();
   ScFnEpic._internal();
@@ -6841,6 +6902,17 @@ class ScMember extends ScEntity {
         "You cannot update a Shortcut member via its API.");
   }
 
+  ScString? get mentionName {
+    final profile = data[ScString('profile')];
+    if (profile is ScMap) {
+      final mentionName = profile[ScString('mention_name')];
+      if (mentionName is ScString) {
+        return mentionName;
+      }
+    }
+    return null;
+  }
+
   @override
   String printToString(ScEnv env) {
     if (env.isPrintJson) {
@@ -7508,9 +7580,21 @@ class ScStory extends ScEntity {
           ScTask.fromMap(env, ScString(data['id'].toString()), taskMap))));
     }
     data.remove('tasks');
+
+    var commentsData = data['comments'] ?? [];
+    ScList comments = ScList([]);
+    if (commentsData.isNotEmpty) {
+      comments = ScList(List<ScExpr>.from(commentsData.map((commentMap) =>
+          ScComment.fromMap(
+              env, ScString(data['id'].toString()), commentMap))));
+    }
+    data.remove('comments');
+
     final story =
         ScStory(ScString(data['id'].toString())).addAll(env, data) as ScStory;
     story.data[ScString('tasks')] = tasks;
+    story.data[ScString('comments')] = comments;
+
     return story;
   }
 
@@ -7832,6 +7916,94 @@ class ScTask extends ScEntity {
       final taskDescription = env.styleWith(shortDescription, [yellow])!;
       final taskId = env.styleWith("[$idString]", [lightMagenta])!;
       return "$prefix$status $taskDescription $taskId";
+    }
+  }
+}
+
+class ScComment extends ScEntity {
+  ScComment(this.storyId, ScString commentId) : super(commentId);
+  final ScString storyId;
+
+  @override
+  // TODO: implement entityColor
+  AnsiCode get entityColor => magenta;
+
+  @override
+  String get shortFnName => 'cm';
+
+  @override
+  String informalTypeName() {
+    return 'comment';
+  }
+
+  factory ScComment.fromMap(
+      ScEnv env, ScString storyId, Map<String, dynamic> data) {
+    return ScComment(storyId, ScString(data['id'].toString())).addAll(env, data)
+        as ScComment;
+  }
+
+  @override
+  Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) {
+    throw OperationNotSupported(
+        "The `ls` function doesn't have a meaningful purpose for comments. Try `details` for a subset or `data` if you want to see everything about your comment.");
+  }
+
+  @override
+  Future<ScEntity> update(ScEnv env, Map<String, dynamic> updateMap) async {
+    final comment =
+        await env.client.updateComment(env, storyId.value, idString, updateMap);
+    data = comment.data;
+    return this;
+  }
+
+  @override
+  Future<ScEntity> fetch(ScEnv env) async {
+    final comment = await env.client.getComment(env, storyId.value, idString);
+    data = comment.data;
+    return this;
+  }
+
+  @override
+  String readableString(ScEnv env) {
+    final lp = lParen(env);
+    final rp = rParen(env);
+
+    final fnName = env.styleWith(shortFnName, [entityColor])!;
+    return "$lp$fnName ${storyId.value} $idString$rp";
+  }
+
+  @override
+  String printToString(ScEnv env) {
+    if (env.isPrintJson) {
+      return super.printToString(env);
+    } else {
+      final sb = StringBuffer();
+      final text = dataFieldOr<ScString?>(data, 'text', title) ??
+          ScString("<No text: run fetch>");
+      final cmt = comment(env);
+      // final shortDescription = truncate(text.value, env.displayWidth);
+
+      sb.write(readableString(env));
+      sb.write(" $cmt");
+
+      final author = data[ScString('author_id')];
+      if (author is ScMember) {
+        sb.write(env.styleWith(
+            " @${author.mentionName?.value ?? '<No mention name: run fetch>'}",
+            [author.entityColor]));
+      }
+
+      final createdAt = data[ScString('created_at')];
+      if (createdAt is ScDateTime) {
+        final dateTime = createdAt.value;
+        final local = dateTime.toLocal();
+        sb.write(env.styleWith(" ${local.toString()}", [cyan]));
+      }
+
+      final colorText =
+          env.styleWith(wrap(text.value, 100, " $cmt "), [yellow]);
+      sb.write("\n$colorText");
+      return sb.toString();
     }
   }
 }
@@ -8996,6 +9168,46 @@ String truncate(String s, int displayWidth) {
     returnValue += '...';
   }
   return returnValue;
+}
+
+String wrap(String s, int displayWidth, String prefix) {
+  final sb = StringBuffer();
+  List<int> currentLine = [];
+  final newline = '\n'.codeUnitAt(0);
+  var col = 0;
+  for (final rune in s.runes) {
+    col++;
+    currentLine.add(rune);
+    if (col % displayWidth == 0) {
+      final line = String.fromCharCodes(currentLine);
+      final spaceIdx = line.lastIndexOf(' ');
+      stderr.writeln(
+          "I $col ${col % displayWidth} $spaceIdx ${String.fromCharCode(rune)}");
+      if (spaceIdx == -1) {
+        sb.writeln("$prefix$line");
+        currentLine = [];
+        col = 0;
+        continue;
+      } else if (spaceIdx != displayWidth - 1) {
+        final unread = line.substring(spaceIdx + 1);
+        sb.writeln("$prefix${line.substring(0, spaceIdx)}");
+        currentLine = unread.runes.toList();
+        col = currentLine.length;
+        continue;
+      } else {
+        sb.writeln("$prefix$line");
+        currentLine = [];
+        col = 0;
+        continue;
+      }
+    } else if (rune == newline) {
+      sb.write("$prefix${String.fromCharCodes(currentLine)}");
+      currentLine = [];
+      col = 0;
+    }
+  }
+  sb.write("$prefix${String.fromCharCodes(currentLine)}");
+  return sb.toString();
 }
 
 Map<String, dynamic> jsonRoundTrip(Map<String, dynamic> map) {
