@@ -4772,7 +4772,18 @@ class ScFnCreateStory extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.length == 1) {
+    if (args.isEmpty) {
+      final tempFile = newTempFile();
+      final fields = ScStory.exposedFields.toList();
+      fields.sort();
+      final formatted = fields.join(', ');
+      tempFile.writeAsStringSync(';; Fields: $formatted\n{.name "STORYNAME"}');
+      execOpenInEditor(env, existingFile: tempFile);
+      env.out.writeln(env.styleWith(
+          "\n[HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-story\n",
+          [green]));
+      return ScFile(tempFile);
+    } else if (args.length == 1) {
       final rawDataMap = args[0];
       ScMap dataMap = ScMap({});
 
@@ -7564,6 +7575,36 @@ class ScStory extends ScEntity {
   @override
   String get shortFnName => 'st';
 
+  static Set<String> exposedFields = {
+    'after_id',
+    'archived',
+    'before_id',
+    'branch_ids',
+    'commit_ids',
+    'completed_at_override',
+    'custom_fields',
+    'deadline',
+    'description',
+    'epic_id',
+    'estimate',
+    'external_links',
+    'file_ids',
+    'follower_ids',
+    'group_id',
+    'iteration_id',
+    'labels',
+    'linked_file_ids',
+    'move_to',
+    'name',
+    'owner_ids',
+    'project_id',
+    'pull_request_ids',
+    'requested_by_id',
+    'started_at_override',
+    'story_type',
+    'workflow_state_id',
+  };
+
   @override
   AnsiCode get entityColor => magenta;
 
@@ -9275,7 +9316,7 @@ execOpenInBrowser(String url) async {
   }
 }
 
-ScFile execOpenInEditor(ScEnv env) {
+ScFile execOpenInEditor(ScEnv env, {File? existingFile}) {
   String editor;
   final shortcutEditor = Platform.environment['SHORTCUT_EDITOR'];
   final defaultEditor = Platform.environment['EDITOR'];
@@ -9287,11 +9328,21 @@ ScFile execOpenInEditor(ScEnv env) {
     editor = 'vi';
   }
 
-  final tempFile = File(Directory.systemTemp.absolute.path +
-      'sc_' +
-      DateTime.now().millisecondsSinceEpoch.toString());
+  File tempFile;
+  if (existingFile != null) {
+    tempFile = existingFile;
+  } else {
+    tempFile = newTempFile();
+  }
+
   startAndPrintPid(env, editor, [tempFile.absolute.path]);
   return ScFile(tempFile);
+}
+
+File newTempFile() {
+  return File(Directory.systemTemp.absolute.path +
+      'sc_' +
+      DateTime.now().millisecondsSinceEpoch.toString());
 }
 
 void startAndPrintPid(ScEnv env, String program, List<String> args) {
