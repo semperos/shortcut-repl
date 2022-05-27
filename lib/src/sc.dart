@@ -515,6 +515,7 @@ def seventh value %(get % 6)
 def eighth  value %(get % 7)
 def ninth   value %(get % 8)
 def tenth   value %(get % 9)
+def last    value (fn [coll] (get coll (- (count coll) 1)))
 
 ;; Conditionals
 def not         value (fn [x] (if x %(value false) %(value true)))
@@ -4777,7 +4778,7 @@ class ScFnCreateStory extends ScBaseInvocable {
       final fields = ScStory.exposedFields.toList();
       fields.sort();
       final formatted = fields.join(', ');
-      tempFile.writeAsStringSync(';; Fields: $formatted\n{.name "STORYNAME"}');
+      tempFile.writeAsStringSync(';; Fields: $formatted\n{.name "STORY_NAME"}');
       execOpenInEditor(env, existingFile: tempFile);
       env.out.writeln(env.styleWith(
           "\n[HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-story\n",
@@ -7361,7 +7362,19 @@ class ScEpic extends ScEntity {
   }
 
   factory ScEpic.fromMap(ScEnv env, Map<String, dynamic> data) {
-    return ScEpic(ScString(data['id'].toString())).addAll(env, data) as ScEpic;
+    var epicCommentsData = data['comments'] ?? [];
+    ScList epicComments = ScList([]);
+    if (epicCommentsData.isNotEmpty) {
+      epicComments = ScList(List<ScExpr>.from(epicCommentsData.map(
+          (commentMap) => ScEpicComment.fromMap(
+              env, ScString(data['id'].toString()), commentMap,
+              commentLevel: 0))));
+    }
+    data.remove('comments');
+    final epic =
+        ScEpic(ScString(data['id'].toString())).addAll(env, data) as ScEpic;
+    epic.data[ScString('comments')] = epicComments;
+    return epic;
   }
 
   @override
@@ -8041,9 +8054,130 @@ class ScComment extends ScEntity {
         sb.write(env.styleWith(" ${local.toString()}", [cyan]));
       }
 
-      final colorText =
-          env.styleWith(wrap(text.value, 100, " $cmt "), [yellow]);
-      sb.write("\n$colorText");
+      final formattedText = wrap(text.value, 100, " $cmt ");
+      sb.write("\n$formattedText");
+      return sb.toString();
+    }
+  }
+}
+
+class ScEpicComment extends ScEntity {
+  ScEpicComment(this.epicId, ScString commentId) : super(commentId);
+  final ScString epicId;
+  int level = 0;
+
+  @override
+  // TODO: implement entityColor
+  AnsiCode get entityColor => green;
+
+  @override
+  String get shortFnName => 'ec';
+
+  @override
+  String informalTypeName() {
+    return 'epic comment';
+  }
+
+  factory ScEpicComment.fromMap(
+      ScEnv env, ScString epicId, Map<String, dynamic> data,
+      {commentLevel = 0}) {
+    var epicCommentsData = data['comments'] ?? [];
+    ScList epicComments = ScList([]);
+    if (epicCommentsData.isNotEmpty) {
+      epicComments = ScList(List<ScExpr>.from(epicCommentsData.map(
+          (commentMap) => ScEpicComment.fromMap(
+              env, ScString(data['id'].toString()), commentMap,
+              commentLevel: commentLevel + 1))));
+    }
+    data.remove('comments');
+    final epicComment = ScEpicComment(epicId, ScString(data['id'].toString()))
+        .addAll(env, data) as ScEpicComment;
+    epicComment.level = commentLevel;
+    epicComment.data[ScString('comments')] = epicComments;
+    return epicComment;
+  }
+
+  @override
+  Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) {
+    throw OperationNotSupported(
+        "The `ls` function doesn't have a meaningful purpose for epic comments. Try `details` for a subset or `data` if you want to see everything about your comment.");
+  }
+
+  @override
+  Future<ScEntity> update(ScEnv env, Map<String, dynamic> updateMap) async {
+    final comment = await env.client
+        .updateEpicComment(env, epicId.value, idString, updateMap);
+    data = comment.data;
+    return this;
+  }
+
+  @override
+  Future<ScEntity> fetch(ScEnv env) async {
+    final comment =
+        await env.client.getEpicComment(env, epicId.value, idString);
+    data = comment.data;
+    return this;
+  }
+
+  @override
+  String readableString(ScEnv env) {
+    final lp = lParen(env);
+    final rp = rParen(env);
+
+    final fnName = env.styleWith(shortFnName, [entityColor])!;
+    return "$lp$fnName ${epicId.value} $idString$rp";
+  }
+
+  @override
+  String printToString(ScEnv env) {
+    if (env.isPrintJson) {
+      return super.printToString(env);
+    } else {
+      final sb = StringBuffer();
+      final text = dataFieldOr<ScString?>(data, 'text', title) ??
+          ScString("<No text: run fetch>");
+      final cmt = comment(env);
+      // final shortDescription = truncate(text.value, env.displayWidth);
+
+      final readable = readableString(env);
+      if (level == 0) {
+        sb.write(readable);
+      } else {
+        // Because this is called recursively from this method, we have to add
+        // the default indentation that level 0 gets from being an ScList value.
+        sb.write("  ${'  ' * level}$readable");
+      }
+
+      sb.write(" $cmt");
+
+      final author = data[ScString('author_id')];
+      if (author is ScMember) {
+        sb.write(env.styleWith(
+            " @${author.mentionName?.value ?? '<No mention name: run fetch>'}",
+            [author.entityColor]));
+      }
+
+      final createdAt = data[ScString('created_at')];
+      if (createdAt is ScDateTime) {
+        final dateTime = createdAt.value;
+        final local = dateTime.toLocal();
+        sb.write(env.styleWith(" ${local.toString()}", [cyan]));
+      }
+
+      final formattedText = wrap(text.value, 100, "  ${'  ' * level}$cmt ");
+      sb.write("\n$formattedText");
+
+      final epicComments = data[ScString('comments')];
+      if (epicComments is ScList) {
+        if (epicComments.isNotEmpty) {
+          sb.writeln();
+          for (final epicComment in epicComments.innerList) {
+            if (epicComment is ScEpicComment) {
+              sb.writeln(epicComment.printToString(env));
+            }
+          }
+        }
+      }
       return sb.toString();
     }
   }
@@ -9222,8 +9356,6 @@ String wrap(String s, int displayWidth, String prefix) {
     if (col % displayWidth == 0) {
       final line = String.fromCharCodes(currentLine);
       final spaceIdx = line.lastIndexOf(' ');
-      stderr.writeln(
-          "I $col ${col % displayWidth} $spaceIdx ${String.fromCharCode(rune)}");
       if (spaceIdx == -1) {
         sb.writeln("$prefix$line");
         currentLine = [];

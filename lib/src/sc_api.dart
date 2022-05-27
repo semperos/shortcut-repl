@@ -29,6 +29,11 @@ abstract class ScApiContract {
   Future<ScComment> updateComment(ScEnv env, String storyPublicId,
       String commentPublicId, Map<String, dynamic> updateMap);
 
+  Future<ScComment> getEpicComment(
+      ScEnv env, String epicPublicId, String commentPublicId);
+  Future<ScComment> updateEpicComment(ScEnv env, String epicPublicId,
+      String commentPublicId, Map<String, dynamic> updateMap);
+
   // ## Epics
   Future<ScEpic> createEpic(ScEnv env, Map<String, dynamic> epicData);
   Future<ScEpic> getEpic(ScEnv env, String epicPublicId);
@@ -294,6 +299,23 @@ class ScLiveClient extends ScClient {
         env, "/stories/$storyPublicId/comments/$commentPublicId",
         httpVerb: HttpVerb.put, body: updateMap);
     return taba.comment(env, storyPublicId);
+  }
+
+  @override
+  Future<ScComment> getEpicComment(
+      ScEnv env, String epicPublicId, String commentPublicId) async {
+    final taba =
+        await authedCall(env, "/epics/$epicPublicId/comments/$commentPublicId");
+    return taba.comment(env, epicPublicId);
+  }
+
+  @override
+  Future<ScComment> updateEpicComment(ScEnv env, String epicPublicId,
+      String commentPublicId, Map<String, dynamic> updateMap) async {
+    final taba = await authedCall(
+        env, "/epics/$epicPublicId/comments/$commentPublicId",
+        httpVerb: HttpVerb.put, body: updateMap);
+    return taba.comment(env, epicPublicId);
   }
 
   @override
