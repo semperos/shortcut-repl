@@ -46,7 +46,7 @@ Function startDevReplServerIsolateFn(Options options) {
         validator: replValidator(env),
         env: env);
     env.out.writeln(env.styleWith(
-        "[INFO] Loading caches from disk, some data may appear missing until finished...",
+        "\n;; [INFO] Loading caches from disk, some data may appear missing until finished...",
         [yellow]));
     unawaited(loadCaches(env, repl));
     await for (final x in repl.runAsync()) {

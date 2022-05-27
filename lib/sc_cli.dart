@@ -147,7 +147,7 @@ Function startProdReplServerIsolateFn(Options options) {
         validator: replValidator(env),
         env: env);
     env.out.writeln(env.styleWith(
-        "\n[INFO] Loading caches from disk, some data may appear missing until finished...",
+        "\n;; [INFO] Loading caches from disk, some data may appear missing until finished...",
         [yellow]));
     unawaited(loadCaches(env, repl));
     await for (final x in repl.runAsync()) {
@@ -429,12 +429,13 @@ void maybeLoadFiles(ScEnv env, Options options) {
 Future loadCaches(ScEnv env, Repl repl) async {
   try {
     await env.loadCachesFromDisk();
-    env.out
-        .write(env.styleWith("\n[INFO] Finished loading caches.\n", [yellow]));
+    env.out.write(
+        env.styleWith("\n;; [INFO] Finished loading caches.\n", [yellow]));
+    bindAllTheThings(env);
     repl.rewriteBuffer();
   } catch (_) {
     env.err.writeln(env.styleWith(
-        "Failed to load caches. Delete the cache*.json files under your config direction (default is ~/.config/shortcut-cli/) and try again.",
+        ";; [WARN] Failed to load caches. Delete the cache*.json files under your config direction (default is ~/.config/shortcut-cli/) and try again.",
         [red]));
     exit(1);
   }

@@ -828,7 +828,6 @@ def workflow-state-types ["unstarted" "started" "done"]
       }
       final resolutionDepth = env.resolutionDepth[memberId]!;
       if (resolutionDepth > 2) {
-        env.err.writeln("RESOLVE MEMBER Depth met");
         env.resolutionDepth[memberId] = 0;
         return member;
       } else {
@@ -860,7 +859,6 @@ def workflow-state-types ["unstarted" "started" "done"]
       }
       final resolutionDepth = env.resolutionDepth[teamId]!;
       if (resolutionDepth > 2) {
-        env.err.writeln("RESOLVE TEAM Depth met");
         env.resolutionDepth[teamId] = 0;
         return team;
       } else {
@@ -2971,8 +2969,9 @@ class ScFnBackward extends ScBaseInvocable {
         env.parentEntityHistoryCursor++;
         return previousParentEntity;
       } else {
-        env.err.writeln(
-            "[INFO] No previous parent found in history; you've reached the beginning of time.");
+        env.err.writeln(env.styleWith(
+            ";; [WARN] No previous parent found in history; you've reached the beginning of time.",
+            [yellow]));
         return ScNil();
       }
     } else {
@@ -2995,8 +2994,9 @@ class ScFnForward extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
       if (env.parentEntityHistoryCursor == 0) {
-        env.err.writeln(
-            "[INFO] No subsequent parent found in history; you're back to the latest.");
+        env.err.writeln(env.styleWith(
+            ";; [WARN] No subsequent parent found in history; you're back to the latest.",
+            [yellow]));
         return ScNil();
       } else {
         env.parentEntityHistoryCursor--;
@@ -3395,7 +3395,6 @@ NB: Although Piped Lisp does not support implementing your own multi-arity funct
                 final defaultValue = invocable.invoke(env, ScList([]));
                 return defaultValue;
               } catch (e) {
-                env.err.writeln("ERROR: $e");
                 throw BadArgumentsException(
                     "The `reduce` function expects a starting accumulator or a function that can be invoked with zero arguments when the collection passed in is empty. The collection is empty, no accumulator was passed, and the function threw an exception.");
               }
@@ -4297,8 +4296,9 @@ class ScFnFetchAll extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
       // NB: Fetch things that change infrequently but will make everything else here faster.
-      env.out.writeln(
-          "[Please Wait] Caching of all workflows, workflow states, members, and teams for this session. Run `fetch-all` to refresh.");
+      env.out.writeln(env.styleWith(
+          ";; [Please Wait] Caching of all workflows, workflow states, members, and teams for this session. Run `fetch-all` to refresh.",
+          [yellow]));
       fetchAllTheThings(env);
       return ScNil();
     } else {
@@ -4410,7 +4410,7 @@ NB: Iterations are not included in this list, because their "state" is based sol
       } else if (idx == workflowStates.length - 1) {
         // At end, warn and move on.
         env.err.writeln(
-            '[WARN] Already at last workflow state for the workflow ${workflow.printToString(env)}');
+            ';; [WARN] Already at last workflow state for the workflow ${workflow.printToString(env)}');
         return entity;
       } else {
         final nextWorkflowState = workflowStates[idx + 1] as ScWorkflowState;
@@ -4419,8 +4419,9 @@ NB: Iterations are not included in this list, because their "state" is based sol
             entity.idString,
             {"workflow_state_id": int.tryParse(nextWorkflowState.idString)}));
         entity.data = updatedEntity.data;
-        env.out.writeln(
-            "[INFO] Moved from ${currentWorkflowState.printToString(env)} to ${nextWorkflowState.printToString(env)}");
+        env.out.writeln(env.styleWith(
+            ";; [INFO] Moved from ${currentWorkflowState.inlineSummary(env)} to ${nextWorkflowState.inlineSummary(env)}",
+            [green]));
         return entity;
       }
     } else if (entity is ScEpic) {
@@ -4437,7 +4438,7 @@ NB: Iterations are not included in this list, because their "state" is based sol
       } else if (idx == epicWorkflowStates.length - 1) {
         // At end, warn and move on.
         env.err.writeln(
-            '[WARN] Already at last epic workflow state for the workflow ${epicWorkflow.printToString(env)}');
+            ';; [WARN] Already at last epic workflow state for the workflow ${epicWorkflow.printToString(env)}');
         return entity;
       } else {
         final nextEpicWorkflowState =
@@ -4445,8 +4446,9 @@ NB: Iterations are not included in this list, because their "state" is based sol
         final updatedEntity = waitOn(env.client.updateEpic(env, entity.idString,
             {"epic_state_id": int.tryParse(nextEpicWorkflowState.idString)}));
         entity.data = updatedEntity.data;
-        env.out.writeln(
-            "[INFO] Moved from ${currentEpicWorkflowState.printToString(env)} to ${nextEpicWorkflowState.printToString(env)}");
+        env.out.writeln(env.styleWith(
+            ";; [INFO] Moved from ${currentEpicWorkflowState.inlineSummary(env)} to ${nextEpicWorkflowState.inlineSummary(env)}",
+            [green]));
         return entity;
       }
     } else if (entity is ScMilestone) {
@@ -4456,13 +4458,14 @@ NB: Iterations are not included in this list, because their "state" is based sol
         throw BadArgumentsException(
             'The milestone is in an unsupported state: "$currentState"');
       } else if (idx == ScMilestone.states.length - 1) {
-        env.err.writeln('[WARN] Milestone is already done.');
+        env.err.writeln(';; [WARN] Milestone is already done.');
         return entity;
       } else {
         final nextState = ScMilestone.states[idx + 1];
         final updatedEntity = waitOn(env.client
             .updateMilestone(env, entity.idString, {'state': nextState}));
-        env.out.writeln('[INFO] Moved from "$currentState" to "$nextState"');
+        env.out.writeln(env.styleWith(
+            ';; [INFO] Moved from "$currentState" to "$nextState"', [green]));
         entity.data = updatedEntity.data;
         return entity;
       }
@@ -4476,7 +4479,7 @@ NB: Iterations are not included in this list, because their "state" is based sol
         entity.data = updatedEntity.data;
         return entity;
       } else {
-        env.err.writeln('[WARN] Task is already complete.');
+        env.err.writeln(';; [WARN] Task is already complete.');
         return entity;
       }
     } else {
@@ -4524,7 +4527,7 @@ NB: Iterations are not included in this list, because their "state" is based sol
       } else if (idx == 0) {
         // At beginning, warn and move on.
         env.err.writeln(
-            '[WARN] Already at first workflow state for the workflow ${workflow.printToString(env)}');
+            ';; [WARN] Already at first workflow state for the workflow ${workflow.printToString(env)}');
         return entity;
       } else {
         final nextWorkflowState = workflowStates[idx - 1] as ScWorkflowState;
@@ -4533,8 +4536,9 @@ NB: Iterations are not included in this list, because their "state" is based sol
             entity.idString,
             {"workflow_state_id": int.tryParse(nextWorkflowState.idString)}));
         entity.data = updatedEntity.data;
-        env.out.writeln(
-            "[INFO] Moved from ${currentWorkflowState.printToString(env)} to ${nextWorkflowState.printToString(env)}");
+        env.out.writeln(env.styleWith(
+            ";; [INFO] Moved from ${currentWorkflowState.inlineSummary(env)} to ${nextWorkflowState.inlineSummary(env)}",
+            [green]));
         return entity;
       }
     } else if (entity is ScEpic) {
@@ -4551,7 +4555,7 @@ NB: Iterations are not included in this list, because their "state" is based sol
       } else if (idx == 0) {
         // At beginning, warn and move on.
         env.err.writeln(
-            '[WARN] Already at first epic workflow state for the workflow ${epicWorkflow.printToString(env)}');
+            ';; [WARN] Already at first epic workflow state for the workflow ${epicWorkflow.printToString(env)}');
         return entity;
       } else {
         final nextEpicWorkflowState =
@@ -4559,8 +4563,9 @@ NB: Iterations are not included in this list, because their "state" is based sol
         final updatedEntity = waitOn(env.client.updateEpic(env, entity.idString,
             {"epic_state_id": int.tryParse(nextEpicWorkflowState.idString)}));
         entity.data = updatedEntity.data;
-        env.out.writeln(
-            "[INFO] Moved from ${currentEpicWorkflowState.printToString(env)} to ${nextEpicWorkflowState.printToString(env)}");
+        env.out.writeln(env.styleWith(
+            ";; [INFO] Moved from ${currentEpicWorkflowState.inlineSummary(env)} to ${nextEpicWorkflowState.inlineSummary(env)}",
+            [green]));
         return entity;
       }
     } else if (entity is ScMilestone) {
@@ -4571,13 +4576,14 @@ NB: Iterations are not included in this list, because their "state" is based sol
             'The milestone is in an unsupported state: "$currentState"');
       } else if (idx == 0) {
         env.err.writeln(
-            '[WARN] Milestone is already in the first, "to do" state.');
+            ';; [WARN] Milestone is already in the first, "to do" state.');
         return entity;
       } else {
         final nextState = ScMilestone.states[idx - 1];
         final updatedEntity = waitOn(env.client
             .updateMilestone(env, entity.idString, {'state': nextState}));
-        env.out.writeln('[INFO] Moved from "$currentState" to "$nextState"');
+        env.out.writeln(env.styleWith(
+            ';; [INFO] Moved from "$currentState" to "$nextState"', [green]));
         entity.data = updatedEntity.data;
         return entity;
       }
@@ -4591,7 +4597,7 @@ NB: Iterations are not included in this list, because their "state" is based sol
         entity.data = updatedEntity.data;
         return entity;
       } else {
-        env.err.writeln('[WARN] Task is already in an incomplete state.');
+        env.err.writeln(';; [WARN] Task is already in an incomplete state.');
         return entity;
       }
     } else {
@@ -4776,7 +4782,7 @@ class ScFnCreateStory extends ScBaseInvocable {
       tempFile.writeAsStringSync(';; Fields: $formatted\n{.name "STORY_NAME"}');
       execOpenInEditor(env, existingFile: tempFile);
       env.out.writeln(env.styleWith(
-          "\n[HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-story\n",
+          "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-story\n",
           [green]));
       return ScFile(tempFile);
     } else if (args.length == 1) {
@@ -5022,7 +5028,7 @@ class ScFnMembers extends ScBaseInvocable {
           return memberIds;
         } else {
           env.err.writeln(
-              "[WARNING] Team didn't have expected \"member_ids\" entry, even after fetching.");
+              ";; [WARNING] Team didn't have expected \"member_ids\" entry, even after fetching.");
           return ScNil();
         }
       } else {
@@ -7104,6 +7110,14 @@ class ScTeam extends ScEntity {
     return 'team';
   }
 
+  ScString? get mentionName {
+    final mentionName = data[ScString('mention_name')];
+    if (mentionName is ScString) {
+      return mentionName;
+    }
+    return null;
+  }
+
   @override
   Future<ScEntity> fetch(ScEnv env) async {
     final team = await env.client.getTeam(env, idString);
@@ -7897,7 +7911,16 @@ class ScStory extends ScEntity {
         sb.writeln('$numComplete/${ts.length} complete:');
         for (final task in ts.innerList) {
           final t = task as ScTask;
-          sb.writeln("            ${t.inlineSummary(env)}");
+          final isComplete = t.data[ScString('complete')];
+          var prefix = '';
+          if (isComplete is ScBoolean) {
+            if (isComplete == ScBoolean.veritas()) {
+              prefix = env.styleWith("[DONE]", [green])!;
+            } else if (isComplete == ScBoolean.falsitas()) {
+              prefix = env.styleWith("[TODO]", [red, styleUnderlined])!;
+            }
+          }
+          sb.writeln("            $prefix ${t.inlineSummary(env)}");
         }
       }
     }
@@ -7910,6 +7933,9 @@ class ScStory extends ScEntity {
 class ScTask extends ScEntity {
   ScTask(this.storyId, ScString taskId) : super(taskId);
   final ScString storyId;
+
+  @override
+  AnsiCode get entityColor => lightMagenta;
 
   @override
   String get shortFnName => 'tk';
@@ -7958,16 +7984,26 @@ class ScTask extends ScEntity {
       final shortDescription = truncate(description.value, env.displayWidth);
       final complete =
           dataFieldOr<ScBoolean>(data, 'complete', ScBoolean.falsitas());
-      String status;
+      String? status;
       if (complete == ScBoolean.veritas()) {
         status = env.styleWith("[DONE]", [green])!;
-      } else {
+      } else if (complete == ScBoolean.falsitas()) {
         status = env.styleWith("[TODO]", [red, styleUnderlined])!;
       }
-      final prefix = env.styleWith('[Task]', [lightMagenta]);
-      final taskDescription = env.styleWith(shortDescription, [yellow])!;
-      final taskId = env.styleWith("[$idString]", [lightMagenta])!;
-      return "$prefix$status $taskDescription $taskId";
+
+      final sb = StringBuffer();
+      sb.write(readableString(env));
+
+      final cmt = comment(env);
+      sb.write(' $cmt');
+
+      if (status != null) {
+        sb.write(' $status');
+      }
+
+      sb.write(' ' + env.styleWith(shortDescription, [yellow])!);
+
+      return sb.toString();
     }
   }
 }
@@ -8581,7 +8617,9 @@ class ScWorkflowState extends ScEntity {
 
   @override
   Future<ScEntity> fetch(ScEnv env) async {
-    env.err.writeln("To fetch a workflow state, fetch its workflow instead.");
+    env.err.writeln(env.styleWith(
+        ";; [WARN] To fetch a workflow state, fetch its workflow instead.",
+        [yellow]));
     return this;
   }
 
@@ -8813,15 +8851,17 @@ class ScEpicWorkflowState extends ScEntity {
 
   @override
   Future<ScEntity> fetch(ScEnv env) async {
-    env.err.writeln(
-        "To fetch an epic workflow state, fetch its workflow instead.");
+    env.err.writeln(env.styleWith(
+        ";; [WARN] To fetch an epic workflow state, fetch its workflow instead.",
+        [yellow]));
     return this;
   }
 
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) async {
-    env.err.writeln(
-        "The `ls` function is not supported within epic workflow states.");
+    env.err.writeln(env.styleWith(
+        "[WARN] The `ls` function is not supported within epic workflow states.",
+        [yellow]));
     return ScList([]);
   }
 
@@ -8883,6 +8923,99 @@ void fetchAllTheThings(ScEnv env) {
   env.cacheTeams(waitOn(env.client.getTeams(env)));
   env.cacheEpicWorkflow(waitOn(env.client.getEpicWorkflow(env)));
   env.writeCachesToDisk();
+  bindAllTheThings(env);
+}
+
+void bindAllTheThings(ScEnv env) {
+  for (final memberId in env.membersById.keys) {
+    final member = env.membersById[memberId] as ScMember;
+    final mentionName = member.mentionName;
+    if (mentionName is ScString) {
+      final isDisabled = member.data[ScString('disabled')];
+      if (isDisabled != ScBoolean.veritas()) {
+        final sym = ScSymbol("member-${mentionName.value}");
+        env.bindings[sym] = member;
+      }
+    }
+  }
+
+  for (final teamId in env.teamsById.keys) {
+    final team = env.teamsById[teamId] as ScTeam;
+    final mentionName = team.mentionName;
+    if (mentionName is ScString) {
+      final isArchived = team.data[ScString('archived')];
+      if (isArchived != ScBoolean.veritas()) {
+        final sym = ScSymbol("team-${mentionName.value}");
+        env.bindings[sym] = team;
+      }
+    }
+  }
+
+  for (final workflowId in env.workflowsById.keys) {
+    final workflow = env.workflowsById[workflowId] as ScWorkflow;
+    final workflowName = workflow.data[ScString('name')];
+    if (workflowName is ScString) {
+      // Names aren't unique; appending ID if there's a conflict.
+      final legalName = mungeToLegalSymbolName(workflowName.value);
+      final sym = ScSymbol("workflow-$legalName");
+      if (env.bindings[sym] is ScWorkflow) {
+        final uniqueSym = ScSymbol("workflow-$legalName-$workflowId");
+        env.bindings[uniqueSym] = workflow;
+      } else {
+        env.bindings[sym] = workflow;
+      }
+    }
+  }
+
+  final defaultFn = ScFnDefault();
+  final defaultWorkflow = defaultFn.invoke(env, ScList([ScString('workflow')]));
+  if (defaultWorkflow is ScWorkflow) {
+    final states = defaultWorkflow.data[ScString('states')];
+    if (states is ScList) {
+      for (final state in states.innerList) {
+        if (state is ScWorkflowState) {
+          final stateName = state.data[ScString('name')];
+          if (stateName is ScString) {
+            final legalName = mungeToLegalSymbolName(stateName.value);
+            final sym = ScSymbol('state-$legalName');
+            if (env.bindings[sym] is ScWorkflowState) {
+              final uniqueSym = ScSymbol('state-$legalName-${state.idString}');
+              env.bindings[uniqueSym] = state;
+            } else {
+              env.bindings[sym] = state;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (env.epicWorkflow is ScEpicWorkflow) {
+    final epicWorkflowStates =
+        (env.epicWorkflow as ScEpicWorkflow).data[ScString('epic_states')];
+    if (epicWorkflowStates is ScList) {
+      for (final epicWorkflowState in epicWorkflowStates.innerList) {
+        if (epicWorkflowState is ScEpicWorkflowState) {
+          final name = epicWorkflowState.data[ScString('name')];
+          if (name is ScString) {
+            final legalName = mungeToLegalSymbolName(name.value);
+            final sym = ScSymbol("epic-state-$legalName");
+            if (env.bindings[sym] is ScEpicWorkflowState) {
+              final uniqueSym = ScSymbol(
+                  "epic-state-$legalName-${epicWorkflowState.idString}");
+              env.bindings[uniqueSym] = epicWorkflowState;
+            } else {
+              env.bindings[sym] = epicWorkflowState;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+String mungeToLegalSymbolName(String s) {
+  return s.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '-').toLowerCase();
 }
 
 ScNumber dateTimeDifference(ScDateTime dtA, ScDateTime dtB, ScDateTimeUnit unit,
@@ -9587,8 +9720,8 @@ File newTempFile() {
 
 void startAndPrintPid(ScEnv env, String program, List<String> args) {
   final proc = waitOn(Process.start(program, args));
-  env.out.writeln(env
-      .styleWith("[INFO] Editor opened with process ID ${proc.pid}", [yellow]));
+  env.out.writeln(env.styleWith(
+      ";; [INFO] Editor opened with process ID ${proc.pid}", [green]));
 }
 
 File resolveFile(ScEnv env, String filePath) {
