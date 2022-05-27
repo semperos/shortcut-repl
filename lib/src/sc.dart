@@ -208,6 +208,8 @@ class ScEnv {
 
     ScSymbol('file'): ScFnFile(),
     ScSymbol('read-file'): ScFnReadFile(),
+    ScSymbol('write-file'): ScFnWriteFile(),
+    // ScSymbol('clipboard'): ScFnClipboard(),
     ScSymbol('interpret'): ScFnInterpret(),
     ScSymbol('load'): ScFnLoad(),
     ScSymbol('open'): ScFnOpen(),
@@ -4008,6 +4010,48 @@ class ScFnReadFile extends ScBaseInvocable {
     } else {
       throw BadArgumentsException(
           'The `read-file` function expects one argument: the file to read.');
+    }
+  }
+}
+
+class ScFnWriteFile extends ScBaseInvocable {
+  static final ScFnWriteFile _instance = ScFnWriteFile._internal();
+  ScFnWriteFile._internal();
+  factory ScFnWriteFile() => _instance;
+
+  @override
+  String get help => 'Write string contents to a file.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 2) {
+      final maybeFile = args[0];
+      File file;
+      if (maybeFile is ScFile) {
+        file = maybeFile.file;
+      } else if (maybeFile is ScString) {
+        file = resolveFile(env, maybeFile.value);
+      } else {
+        throw BadArgumentsException(
+            'The `write-file` function expects its first argument to be a file, but received a ${maybeFile.informalTypeName()}');
+      }
+      final content = args[1];
+      String contentStr;
+      if (content is ScString) {
+        contentStr = content.value;
+      } else {
+        contentStr = content.toString();
+      }
+
+      file.writeAsStringSync(contentStr);
+      return ScNil();
+    } else {
+      throw BadArgumentsException(
+          'The `write-file` function expects two arguments: the file to read.');
     }
   }
 }
@@ -9500,7 +9544,8 @@ dynamic scExprToValue(ScExpr expr,
     if (forJson) {
       return expr.value.toString().replaceFirst(' ', 'T');
     } else {
-      return expr.value;
+      // TODO Make DateTime and JSON encoding work nicely
+      return expr.value.toString();
     }
   } else if (expr is ScBoolean) {
     return expr.toBool();
