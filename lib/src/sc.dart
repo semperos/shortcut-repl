@@ -7979,7 +7979,6 @@ class ScComment extends ScEntity {
   final ScString storyId;
 
   @override
-  // TODO: implement entityColor
   AnsiCode get entityColor => magenta;
 
   @override
@@ -8037,7 +8036,14 @@ class ScComment extends ScEntity {
       final cmt = comment(env);
       // final shortDescription = truncate(text.value, env.displayWidth);
 
-      sb.write(readableString(env));
+      final parentId = data[ScString('parent_id')];
+
+      final readable = readableString(env);
+      if (parentId != ScNil()) {
+        sb.write("  $readable");
+      } else {
+        sb.write(readable);
+      }
       sb.write(" $cmt");
 
       final author = data[ScString('author_id')];
@@ -8054,8 +8060,12 @@ class ScComment extends ScEntity {
         sb.write(env.styleWith(" ${local.toString()}", [cyan]));
       }
 
-      final formattedText = wrap(text.value, 100, " $cmt ");
-      sb.write("\n$formattedText");
+      var indent = '';
+      if (parentId != ScNil()) {
+        indent = '  ';
+      }
+      final formattedText = wrap(text.value, 100, "  $indent$cmt ");
+      sb.writeln("\n$formattedText");
       return sb.toString();
     }
   }
@@ -8067,7 +8077,6 @@ class ScEpicComment extends ScEntity {
   int level = 0;
 
   @override
-  // TODO: implement entityColor
   AnsiCode get entityColor => green;
 
   @override
@@ -8165,12 +8174,11 @@ class ScEpicComment extends ScEntity {
       }
 
       final formattedText = wrap(text.value, 100, "  ${'  ' * level}$cmt ");
-      sb.write("\n$formattedText");
+      sb.writeln("\n$formattedText");
 
       final epicComments = data[ScString('comments')];
       if (epicComments is ScList) {
         if (epicComments.isNotEmpty) {
-          sb.writeln();
           for (final epicComment in epicComments.innerList) {
             if (epicComment is ScEpicComment) {
               sb.writeln(epicComment.printToString(env));
