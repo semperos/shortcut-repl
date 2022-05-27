@@ -8490,6 +8490,7 @@ class ScWorkflow extends ScEntity {
   ScExpr printSummary(ScEnv env) {
     final lblWorkflow = 'Workflow ';
     final lblId = 'Id ';
+    final lblDefaultState = 'Default State';
     final lblStates = 'States ';
     int labelWidth = maxPaddedLabelWidth([lblWorkflow, lblId, lblStates]);
 
@@ -8507,16 +8508,49 @@ class ScWorkflow extends ScEntity {
     sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
     sb.writeln(workflowId);
 
+    sb.write(env.styleWith(lblDefaultState.padLeft(labelWidth), [entityColor]));
+    final defaultWorkflowStateId =
+        data[ScString('default_state_id')] as ScNumber;
+    final epicStates = data[ScString('states')] as ScList;
+    for (final epicState in epicStates.innerList) {
+      final es = epicState as ScEpicWorkflowState;
+      if (int.tryParse(es.idString) == defaultWorkflowStateId.value) {
+        sb.writeln(es.inlineSummary(env));
+        break;
+      }
+    }
+
     final states = data[ScString('states')] as ScList;
     sb.write(env.styleWith(lblStates.padLeft(labelWidth), [entityColor]));
     var isFirst = true;
     for (final state in states.innerList) {
       if (state is ScWorkflowState) {
+        final type = state.data[ScString('type')];
+        String typeStr = '';
+        if (type is ScString) {
+          final ts = type.value;
+          var color = entityColor;
+          switch (ts) {
+            case 'unstarted':
+              color = lightRed;
+              break;
+            case 'started':
+              color = lightMagenta;
+              break;
+            case 'done':
+              color = lightGreen;
+              break;
+          }
+          typeStr =
+              env.styleWith('[${ts.substring(0, 1).toUpperCase()}]', [color])!;
+        }
+
         if (isFirst) {
           isFirst = false;
-          sb.writeln(state.inlineSummary(env));
+          sb.writeln("$typeStr ${state.inlineSummary(env)}");
         } else {
-          sb.writeln('${"".padLeft(labelWidth)}${state.inlineSummary(env)}');
+          sb.writeln(
+              '${"".padLeft(labelWidth)}$typeStr ${state.inlineSummary(env)}');
         }
       }
     }
@@ -8612,7 +8646,7 @@ class ScEpicWorkflow extends ScEntity {
   ScEpicWorkflow(ScString id) : super(id);
 
   @override
-  String get shortFnName => '';
+  String get shortFnName => 'ew';
 
   @override
   AnsiCode get entityColor => lightCyan;
@@ -8667,10 +8701,20 @@ class ScEpicWorkflow extends ScEntity {
     } else {
       final name = 'Workspace-wide Epic Workflow';
       final shortName = truncate(name, env.displayWidth);
-      final prefix = env.styleWith('[Epic Workflow]', [entityColor]);
-      final epicWorkflowName = env.styleWith(shortName, [yellow])!;
-      final epicWorkflowId = env.styleWith("[$idString]", [entityColor])!;
-      return "$prefix $epicWorkflowName $epicWorkflowId";
+
+      final sb = StringBuffer();
+
+      sb.write(readableString(env));
+
+      final cmt = comment(env);
+      sb.write(' $cmt ');
+      sb.write(env.styleWith(shortName, [yellow]));
+      final states = data[ScString('epic_states')];
+      if (states is ScList) {
+        final numStates = states.length;
+        sb.write(env.styleWith(' [$numStates states]', [cyan]));
+      }
+      return sb.toString();
     }
   }
 
@@ -8713,11 +8757,32 @@ class ScEpicWorkflow extends ScEntity {
     var isFirst = true;
     for (final state in states.innerList) {
       if (state is ScEpicWorkflowState) {
+        final type = state.data[ScString('type')];
+        String typeStr = '';
+        if (type is ScString) {
+          final ts = type.value;
+          var color = entityColor;
+          switch (ts) {
+            case 'unstarted':
+              color = lightRed;
+              break;
+            case 'started':
+              color = lightMagenta;
+              break;
+            case 'done':
+              color = lightGreen;
+              break;
+          }
+          typeStr =
+              env.styleWith('[${ts.substring(0, 1).toUpperCase()}]', [color])!;
+        }
+
         if (isFirst) {
           isFirst = false;
-          sb.writeln(state.inlineSummary(env));
+          sb.writeln("$typeStr ${state.inlineSummary(env)}");
         } else {
-          sb.writeln('${"".padLeft(labelWidth)}${state.inlineSummary(env)}');
+          sb.writeln(
+              '${"".padLeft(labelWidth)}$typeStr ${state.inlineSummary(env)}');
         }
       }
     }
@@ -8790,12 +8855,22 @@ class ScEpicWorkflowState extends ScEntity {
             color = lightGreen;
             break;
         }
-        typeStr = env.styleWith('[$ts]', [color])!;
+        typeStr =
+            env.styleWith('[${ts.substring(0, 1).toUpperCase()}]', [color])!;
       }
-      final prefix = env.styleWith('[Epic Workflow State]', [entityColor]);
-      final workflowStateName = env.styleWith(shortName, [yellow])!;
-      final workflowStateId = env.styleWith("[$idString]", [entityColor])!;
-      return "$prefix$typeStr $workflowStateName $workflowStateId";
+
+      final sb = StringBuffer();
+      sb.write(readableString(env));
+
+      final cmt = comment(env);
+      sb.write(' $cmt');
+      sb.write(env.styleWith(' [Epic Workflow State]', [entityColor]));
+      if (typeStr.isNotEmpty) {
+        sb.write(typeStr);
+      }
+      sb.write(env.styleWith(' $shortName', [yellow]));
+
+      return sb.toString();
     }
   }
 }
