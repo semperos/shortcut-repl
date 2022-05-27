@@ -220,6 +220,7 @@ class ScEnv {
     ScSymbol('cd'): ScFnCd(),
     ScSymbol('ls'): ScFnLs(),
     ScSymbol('cwd'): ScFnCwd(),
+    ScSymbol('.'): ScFnCwd(),
     ScSymbol('pwd'): ScFnPwd(),
     ScSymbol('data'): ScFnData(),
     ScSymbol('details'): ScFnDetails(),
@@ -1075,7 +1076,7 @@ extension DateTimeToScExpr on DateTime {
 
 extension on String {
   String capitalize() {
-    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
+    return "${substring(0, 1).toUpperCase()}${substring(1).toLowerCase()}";
   }
 }
 
@@ -2873,7 +2874,6 @@ You can `cd` into an entity to make that entity your current "parent entity." Ma
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
       env.parentEntity = null;
-      env[ScSymbol('.')] = ScNil();
       env.parentEntityHistoryCursor = 0;
       return ScNil();
     } else if (args.length == 1) {
@@ -2896,7 +2896,6 @@ You can `cd` into an entity to make that entity your current "parent entity." Ma
             final task = waitOn(
                 env.client.getTask(env, oldParentEntity.idString, id.value));
             env.parentEntity = task;
-            env[ScSymbol('.')] = task;
             env[ScSymbol('__sc_previous-parent-entity')] = oldParentEntity;
             // NB: Don't! env.writeToDisk() or put in parentEntityHistory. It's not usable on re-boot unless we store storyId as well.
             return task;
@@ -4300,11 +4299,7 @@ class ScFnFetchAll extends ScBaseInvocable {
       // NB: Fetch things that change infrequently but will make everything else here faster.
       env.out.writeln(
           "[Please Wait] Caching of all workflows, workflow states, members, and teams for this session. Run `fetch-all` to refresh.");
-      env.cacheWorkflows(waitOn(env.client.getWorkflows(env)));
-      env.cacheMembers(waitOn(env.client.getMembers(env)));
-      env.cacheTeams(waitOn(env.client.getTeams(env)));
-      env.cacheEpicWorkflow(waitOn(env.client.getEpicWorkflow(env)));
-      env.writeCachesToDisk();
+      fetchAllTheThings(env);
       return ScNil();
     } else {
       throw BadArgumentsException(
@@ -7726,9 +7721,12 @@ class ScStory extends ScEntity {
       }
 
       final estimate = data[ScString('estimate')];
-      String estimateStr = env.styleWith('[_]', [lightGreen])!;
-      if (estimate is ScNumber) {
-        estimateStr = env.styleWith("[${estimate.value}]", [lightGreen])!;
+      var estimateStr = '';
+      if (estimate != null) {
+        estimateStr = env.styleWith('[_]', [lightGreen])!;
+        if (estimate is ScNumber) {
+          estimateStr = env.styleWith("[${estimate.value}]", [lightGreen])!;
+        }
       }
 
       final prefix = "$storyStateType$estimateStr$storyType";
@@ -8471,10 +8469,20 @@ class ScWorkflow extends ScEntity {
       final name = dataFieldOr<ScString?>(data, 'name', title) ??
           ScString("<No name: run fetch>");
       final shortName = truncate(name.value, env.displayWidth);
-      final prefix = env.styleWith('[Workflow]', [lightCyan]);
-      final workflowName = env.styleWith(shortName, [yellow])!;
-      final workflowId = env.styleWith("[$idString]", [lightCyan])!;
-      return "$prefix $workflowName $workflowId";
+
+      final sb = StringBuffer();
+
+      sb.write(readableString(env));
+
+      final cmt = comment(env);
+      sb.write(' $cmt ');
+      sb.write(env.styleWith(shortName, [yellow]));
+      final states = data[ScString('states')];
+      if (states is ScList) {
+        final numStates = states.length;
+        sb.write(env.styleWith(' [$numStates states]', [cyan]));
+      }
+      return sb.toString();
     }
   }
 
@@ -8580,12 +8588,22 @@ class ScWorkflowState extends ScEntity {
             color = lightGreen;
             break;
         }
-        typeStr = env.styleWith('[$ts]', [color])!;
+        typeStr =
+            env.styleWith('[${ts.substring(0, 1).toUpperCase()}]', [color])!;
       }
-      final prefix = env.styleWith('[Workflow State]', [entityColor]);
-      final workflowStateName = env.styleWith(shortName, [yellow])!;
-      final workflowStateId = env.styleWith("[$idString]", [entityColor])!;
-      return "$prefix$typeStr $workflowStateName $workflowStateId";
+
+      final sb = StringBuffer();
+      sb.write(readableString(env));
+
+      final cmt = comment(env);
+      sb.write(' $cmt');
+      sb.write(env.styleWith(' [Workflow State]', [entityColor]));
+      if (typeStr.isNotEmpty) {
+        sb.write(typeStr);
+      }
+      sb.write(env.styleWith(' $shortName', [yellow]));
+
+      return sb.toString();
     }
   }
 }
@@ -8784,6 +8802,14 @@ class ScEpicWorkflowState extends ScEntity {
 
 /// Functions
 
+void fetchAllTheThings(ScEnv env) {
+  env.cacheWorkflows(waitOn(env.client.getWorkflows(env)));
+  env.cacheMembers(waitOn(env.client.getMembers(env)));
+  env.cacheTeams(waitOn(env.client.getTeams(env)));
+  env.cacheEpicWorkflow(waitOn(env.client.getEpicWorkflow(env)));
+  env.writeCachesToDisk();
+}
+
 ScNumber dateTimeDifference(ScDateTime dtA, ScDateTime dtB, ScDateTimeUnit unit,
     {mustNegate = false}) {
   final dateTimeA = dtA.value;
@@ -8910,7 +8936,6 @@ String sep(ScEnv env) {
 void setParentEntity(ScEnv env, ScEntity entity, {bool isHistory = true}) {
   final previousParentEntity = env.parentEntity;
   env.parentEntity = entity;
-  env[ScSymbol('.')] = entity;
   ScEntity? previousParentInHistory;
   if (env.parentEntityHistory.isEmpty) {
     previousParentInHistory = null;
