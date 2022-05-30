@@ -209,7 +209,8 @@ class ScEnv {
     ScSymbol('file'): ScFnFile(),
     ScSymbol('read-file'): ScFnReadFile(),
     ScSymbol('write-file'): ScFnWriteFile(),
-    // ScSymbol('clipboard'): ScFnClipboard(),
+    ScSymbol('clip'): ScFnClipboard(),
+    ScSymbol('clipboard'): ScFnClipboard(),
     ScSymbol('interpret'): ScFnInterpret(),
     ScSymbol('load'): ScFnLoad(),
     ScSymbol('open'): ScFnOpen(),
@@ -1024,7 +1025,6 @@ class ScExpr extends AbstractScExpr {
     return this;
   }
 
-  /// ScExprs print their default Dart [toString] by default.
   @override
   void print(ScEnv env) {
     env.out.write(printToString(env));
@@ -2638,7 +2638,11 @@ class ScFnPrStr extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length == 1) {
       final expr = args[0];
-      return ScString(expr.printToString(env));
+      final isAnsiEnabled = env.isAnsiEnabled;
+      env.isAnsiEnabled = false;
+      final exprStr = expr.printToString(env);
+      env.isAnsiEnabled = isAnsiEnabled;
+      return ScString(exprStr);
     } else {
       throw BadArgumentsException(
           "The `pr-str` function expects 1 argument, but received ${args.length} arguments.");
@@ -4044,7 +4048,10 @@ class ScFnWriteFile extends ScBaseInvocable {
       if (content is ScString) {
         contentStr = content.value;
       } else {
-        contentStr = content.toString();
+        final isAnsiEnabled = env.isAnsiEnabled;
+        env.isAnsiEnabled = false;
+        contentStr = content.printToString(env);
+        env.isAnsiEnabled = isAnsiEnabled;
       }
 
       file.writeAsStringSync(contentStr);
@@ -4052,6 +4059,57 @@ class ScFnWriteFile extends ScBaseInvocable {
     } else {
       throw BadArgumentsException(
           'The `write-file` function expects two arguments: the file to read.');
+    }
+  }
+}
+
+class ScFnClipboard extends ScBaseInvocable {
+  static final ScFnClipboard _instance = ScFnClipboard._internal();
+  ScFnClipboard._internal();
+  factory ScFnClipboard() => _instance;
+
+  @override
+  String get help => "Copy the given string to your system clipboard.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final content = args[0];
+      String contentStr;
+      if (content is ScString) {
+        contentStr = content.value;
+      } else {
+        final isAnsiEnabled = env.isAnsiEnabled;
+        env.isAnsiEnabled = false;
+        contentStr = content.printToString(env);
+        env.isAnsiEnabled = isAnsiEnabled;
+      }
+      String executable;
+      List<String> executableArgs = [];
+      if (Platform.isMacOS) {
+        executable = 'pbcopy';
+      } else if (Platform.isLinux) {
+        executable = 'xclip';
+        executableArgs = ['-selection', 'clipboard', '-i'];
+      } else if (Platform.isWindows) {
+        executable = 'clip';
+      } else {
+        throw PlatformNotSupported(
+            "Only macOS, Linux, and Windows support clipboard access at this time.");
+      }
+      final proc = waitOn(Process.start(executable, executableArgs));
+      proc.stdin.write(contentStr);
+      proc.stdin.close();
+      env.out.writeln(
+          env.styleWith('[INFO] Content copied to system clipboard.', [green]));
+      return ScString(contentStr);
+    } else {
+      throw BadArgumentsException(
+          "The `clip` function only accepts 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -9851,6 +9909,10 @@ class BadArgumentsException extends ExceptionWithMessage {
 
 class OperationNotSupported extends ExceptionWithMessage {
   OperationNotSupported(String message) : super(message);
+}
+
+class PlatformNotSupported extends ExceptionWithMessage {
+  PlatformNotSupported(String message) : super(message);
 }
 
 class MissingEntityDataException extends ExceptionWithMessage {
