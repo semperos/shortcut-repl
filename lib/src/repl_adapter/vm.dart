@@ -523,19 +523,38 @@ String calculateSharedPrefix(
   final initLength = autoCompletePrefix.length;
   String workingPrefix = autoCompletions.first.substring(initLength);
   for (final autoCompletion in autoCompletions.skip(1)) {
-    final s = autoCompletion.substring(initLength);
-    final sub = s.substring(0, workingPrefix.length);
-    final subUnits = sub.codeUnits;
-    final workingPrefixUnits = workingPrefix.codeUnits;
-    int? breakingIdx;
-    for (var i = 0; i < subUnits.length; i++) {
-      if (subUnits[i] != workingPrefixUnits[i]) {
-        breakingIdx = i;
-        break;
+    String s = autoCompletion.substring(initLength);
+    if (workingPrefix.length <= s.length) {
+      final sub = s.substring(0, workingPrefix.length);
+      final subUnits = sub.codeUnits;
+      final workingPrefixUnits = workingPrefix.codeUnits;
+      int? breakingIdx;
+      for (var i = 0; i < subUnits.length; i++) {
+        if (subUnits[i] != workingPrefixUnits[i]) {
+          breakingIdx = i;
+          break;
+        }
       }
-    }
-    if (breakingIdx != null) {
-      workingPrefix = sub.substring(0, breakingIdx);
+      if (breakingIdx != null) {
+        workingPrefix = sub.substring(0, breakingIdx);
+      }
+    } else {
+      final swap = workingPrefix;
+      workingPrefix = s;
+      s = swap;
+      final sub = s.substring(0, workingPrefix.length);
+      final subUnits = sub.codeUnits;
+      final workingPrefixUnits = workingPrefix.codeUnits;
+      int? breakingIdx;
+      for (var i = 0; i < subUnits.length; i++) {
+        if (subUnits[i] != workingPrefixUnits[i]) {
+          breakingIdx = i;
+          break;
+        }
+      }
+      if (breakingIdx != null) {
+        workingPrefix = sub.substring(0, breakingIdx);
+      }
     }
   }
   return workingPrefix;

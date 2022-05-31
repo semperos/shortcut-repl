@@ -76,11 +76,11 @@ def query-requested-by value (fn [member]
          (concat "query-requested-by expects a member, but received a " (type member)))
  {.requested_by_id member})
 
-def query-bug     {.story_type "bug"}
+def query-bug                {.story_type "bug"}
 def query-story-type-bug     {.story_type "bug"}
-def query-chore   {.story_type "chore"}
+def query-chore              {.story_type "chore"}
 def query-story-type-chore   {.story_type "chore"}
-def query-feature {.story_type "feature"}
+def query-feature            {.story_type "feature"}
 def query-story-type-feature {.story_type "feature"}
 
 def query-updated-at-start value (fn [dt]
