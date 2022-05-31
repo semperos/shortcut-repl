@@ -28,6 +28,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:async/async.dart';
+import 'package:io/ansi.dart';
 
 import '../../cli_repl.dart';
 import 'codes.dart';
@@ -346,9 +347,26 @@ class ReplAdapter {
               }
             } else {
               // Show autocomplete results
+              String sharedFurtherPrefix =
+                  calculateSharedPrefix(autoCompletePrefix, autoCompletions);
+              if (sharedFurtherPrefix.isNotEmpty) {
+                for (final byte in utf8.encode(sharedFurtherPrefix)) {
+                  input(byte);
+                }
+              }
+
               saveCursorPosition();
               clearToEnd(); // clear from here to end, to remove previous autocomplete results
-              write("\n${autoCompletions.join(' ')}");
+              write('\n');
+              final prefixLength =
+                  autoCompletePrefix.length + sharedFurtherPrefix.length;
+              for (final autoCompletion in autoCompletions) {
+                final s = autoCompletion.substring(prefixLength);
+                write(repl.env.styleWith(
+                    autoCompletePrefix + sharedFurtherPrefix, [darkGray])!);
+                write(s);
+                write(' ');
+              }
               restoreCursorPosition();
               // moveCursorUp(1);
             }
@@ -496,4 +514,29 @@ class ReplAdapter {
     write(String.fromCharCodes(buffer));
     moveCursor(cursor - buffer.length);
   }
+}
+
+/// Return shared further prefix for the given strings, so that autocomplete
+/// is even more helpful.
+String calculateSharedPrefix(
+    String autoCompletePrefix, Iterable<String> autoCompletions) {
+  final initLength = autoCompletePrefix.length;
+  String workingPrefix = autoCompletions.first.substring(initLength);
+  for (final autoCompletion in autoCompletions.skip(1)) {
+    final s = autoCompletion.substring(initLength);
+    final sub = s.substring(0, workingPrefix.length);
+    final subUnits = sub.codeUnits;
+    final workingPrefixUnits = workingPrefix.codeUnits;
+    int? breakingIdx;
+    for (var i = 0; i < subUnits.length; i++) {
+      if (subUnits[i] != workingPrefixUnits[i]) {
+        breakingIdx = i;
+        break;
+      }
+    }
+    if (breakingIdx != null) {
+      workingPrefix = sub.substring(0, breakingIdx);
+    }
+  }
+  return workingPrefix;
 }

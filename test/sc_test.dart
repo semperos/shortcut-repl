@@ -214,6 +214,37 @@ void main() {
         expect(env.interpret('reduce [] 42 +'), ScNumber(42));
         expect(env.interpret('reduce [1 2] 42 +'), ScNumber(45));
       });
+      group('subset?', () {
+        test('strings', () {
+          expect(env.interpret('subset? "" ""'), ScBoolean.veritas());
+          expect(env.interpret('subset? "" "a"'), ScBoolean.veritas());
+          expect(env.interpret('subset? "a" "a"'), ScBoolean.veritas());
+          expect(env.interpret('subset? "a" "abc"'), ScBoolean.veritas());
+          expect(env.interpret('subset? "x" "abc"'), ScBoolean.falsitas());
+          expect(env.interpret('subset? "xy" "abc"'), ScBoolean.falsitas());
+        });
+        test('lists', () {
+          expect(env.interpret('subset? [] []'), ScBoolean.veritas());
+          expect(env.interpret('subset? [] [1]'), ScBoolean.veritas());
+          expect(env.interpret('subset? [1] [1 2 3]'), ScBoolean.veritas());
+          expect(env.interpret('subset? [1 2] [1 2 3]'), ScBoolean.veritas());
+          expect(env.interpret('subset? [2 3] [1 2 3]'), ScBoolean.veritas());
+          expect(env.interpret('subset? [3] [1 2 3]'), ScBoolean.veritas());
+          expect(env.interpret('subset? [4] [1 2 3]'), ScBoolean.falsitas());
+          expect(env.interpret('subset? [4 5] [1 2 3]'), ScBoolean.falsitas());
+        });
+        test('maps', () {
+          expect(env.interpret('subset? {} {}'), ScBoolean.veritas());
+          expect(env.interpret('subset? {} {.a 42}'), ScBoolean.veritas());
+          expect(env.interpret('subset? {.a 42} {.a 42}'), ScBoolean.veritas());
+          expect(env.interpret('subset? {.a 42 .b 23} {.a 42 .b 23}'),
+              ScBoolean.veritas());
+          expect(env.interpret('subset? {.a 42 .b 23} {.a 42 .b 23 .c 1}'),
+              ScBoolean.veritas());
+          expect(env.interpret('subset? {.a 42 .b 23 .c 2} {.a 42 .b 23 .c 1}'),
+              ScBoolean.falsitas());
+        });
+      });
     });
     test('Nested maps', () {
       expect(env.interpret('{"foo" {"bar" 42}} | get-in ["foo"]'),

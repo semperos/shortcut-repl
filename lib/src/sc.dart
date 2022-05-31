@@ -164,6 +164,8 @@ class ScEnv {
     ScSymbol('next'): ScFnForward(),
     ScSymbol('..'): ScNil(),
 
+    // Collections
+
     ScSymbol('for-each'): ScFnForEach(),
     ScSymbol('map'): ScFnForEach(),
     ScSymbol('reduce'): ScFnReduce(),
@@ -208,6 +210,7 @@ class ScEnv {
     ScSymbol('join'): ScFnJoin(),
     ScSymbol('sort'): ScFnSort(),
     ScSymbol('contains?'): ScFnContains(),
+    ScSymbol('subset?'): ScFnIsSubset(),
 
     ScSymbol('file'): ScFnFile(),
     ScSymbol('read-file'): ScFnReadFile(),
@@ -218,6 +221,8 @@ class ScEnv {
     ScSymbol('load'): ScFnLoad(),
     ScSymbol('open'): ScFnOpen(),
     ScSymbol('edit'): ScFnEdit(),
+
+    // Entities
 
     ScSymbol('default'): ScFnDefault(),
     ScSymbol('defaults'): ScFnDefaults(),
@@ -543,6 +548,7 @@ def mapcat value (fn [coll f] (apply (map coll f) concat))
 
 ;; Entities
 def story-states         value (fn [entity] (ls (.workflow_id (fetch entity))))
+def epic-states          value (fn [entity] (ls (epic-workflow)))
 def workflow-state-types ["unstarted" "started" "done"]
 ''';
     interpretAll("<built-in prelude source>", prelude.split('\n'));
@@ -3946,6 +3952,66 @@ class ScFnContains extends ScBaseInvocable {
     } else {
       throw BadArgumentsException(
           "The `contains?` function's first argument must be a collection or string, but received ${source.informalTypeName()}");
+    }
+  }
+}
+
+class ScFnIsSubset extends ScBaseInvocable {
+  static final ScFnIsSubset _instance = ScFnIsSubset._internal();
+  ScFnIsSubset._internal();
+  factory ScFnIsSubset() => _instance;
+
+  @override
+  String get help =>
+      "Returns true if the first collection is a subset of the second.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 2) {
+      final subset = args[0];
+      final superset = args[1];
+      if (subset is ScList) {
+        if (superset is ScList) {
+          for (final item in subset.innerList) {
+            if (!superset.contains(item)) {
+              return ScBoolean.falsitas();
+            }
+          }
+          return ScBoolean.veritas();
+        } else {
+          throw BadArgumentsException(
+              "The `subset?` function expects both arguments to be of the same type, received one list and one ${superset.informalTypeName()}");
+        }
+      } else if (subset is ScString) {
+        if (superset is ScString) {
+          return ScBoolean.fromBool(superset.value.contains(subset.value));
+        } else {
+          throw BadArgumentsException(
+              "The `subset?` function expects both arguments to be of the same type, received one string and one ${superset.informalTypeName()}");
+        }
+      } else if (subset is ScMap) {
+        if (superset is ScMap) {
+          for (final key in subset.innerMap.keys) {
+            if (!(superset.containsKey(key) && superset[key] == subset[key])) {
+              return ScBoolean.falsitas();
+            }
+          }
+          return ScBoolean.veritas();
+        } else {
+          throw BadArgumentsException(
+              "The `subset?` function expects both arguments to be of the same type, received one map and one ${superset.informalTypeName()}");
+        }
+      } else {
+        throw BadArgumentsException(
+            "The `subset?` function does not support values of type ${subset.informalTypeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `subset?` function expects to receive 2 arguments, but received ${args.length} arguments.");
     }
   }
 }
