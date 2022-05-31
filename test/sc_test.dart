@@ -27,6 +27,21 @@ void main() {
       expect(env.interpret("double 21"), ScNumber(42));
     });
   });
+  group('REPL facilities', () {
+    test('*1 *2 *3', () {
+      final env = e();
+      env.isReplMode = true;
+      env.interpret('"a"');
+      expect(env.interpret('*1'), ScString('a'));
+      env.interpret('"b"');
+      expect(env.interpret('*1'), ScString('b'));
+      expect(env.interpret('*2'), ScString('a'));
+      env.interpret('"c"');
+      expect(env.interpret('*1'), ScString('c'));
+      expect(env.interpret('*2'), ScString('b'));
+      expect(env.interpret('*3'), ScString('a'));
+    });
+  });
   group('Numbers', () {
     final env = e();
     group('Arithmetic', () {

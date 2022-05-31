@@ -492,11 +492,16 @@ class ScEnv {
   ScExpr interpret(String exprString) {
     final expr = scEval(this, readExprString(exprString));
     if (isReplMode) {
-      final star2 = this[ScSymbol('*2')];
-      final star1 = this[ScSymbol('*1')];
-      if (star2 != null) this[ScSymbol('*3')] = star2;
-      if (star1 != null) this[ScSymbol('*2')] = star1;
-      this[ScSymbol('*1')] = expr;
+      final trimmed = exprString.trim();
+      if (trimmed == '*1' || trimmed == '*2' || trimmed == '*3') {
+        // Pass: Let user check these values without affecting them.
+      } else {
+        final star2 = this[ScSymbol('*2')];
+        final star1 = this[ScSymbol('*1')];
+        if (star2 != null) this[ScSymbol('*3')] = star2;
+        if (star1 != null) this[ScSymbol('*2')] = star1;
+        this[ScSymbol('*1')] = expr;
+      }
     }
     return expr;
   }
@@ -6624,6 +6629,11 @@ class ScList extends ScExpr {
         .skipWhile((value) => ScBoolean.fromTruthy(fn(value)).toBool())
         .toList());
   }
+
+  @override
+  String toString() {
+    return innerList.toString();
+  }
 }
 
 class ScMap extends ScExpr {
@@ -6774,6 +6784,11 @@ class ScMap extends ScExpr {
   String toJson() {
     JsonEncoder jsonEncoder = JsonEncoder.withIndent('  ');
     return jsonEncoder.convert(scExprToValue(this, forJson: true));
+  }
+
+  @override
+  String toString() {
+    return innerMap.toString();
   }
 }
 
