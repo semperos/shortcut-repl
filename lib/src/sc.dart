@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:intl/intl.dart';
 import 'package:io/ansi.dart';
 import 'package:petitparser/petitparser.dart';
 import 'package:sc_cli/sc_static.dart';
@@ -90,7 +91,8 @@ class ScEnv {
 
     ScSymbol('dt'): ScFnDateTime(),
     ScSymbol('now'): ScFnDateTimeNow(),
-    // ScSymbol('to-utc'): ScFnToUtc(),
+    ScSymbol('to-utc'): ScFnDateTimeToUtc(),
+    ScSymbol('to-local'): ScFnDateTimeToLocal(),
     ScSymbol('plus-microseconds'):
         ScFnDateTimePlus(ScDateTimeUnit.microseconds),
     ScSymbol('plus-milliseconds'):
@@ -128,15 +130,16 @@ class ScEnv {
     ScSymbol('days-since'): ScFnDateTimeSince(ScDateTimeUnit.days),
     ScSymbol('weeks-since'): ScFnDateTimeSince(ScDateTimeUnit.weeks),
 
-    // ScSymbol('year'): ScFnDateTimeFormat('year'),
-    // ScSymbol('month'): ScFnDateTimeFormat('month'),
-    // ScSymbol('date-of-month'): ScFnDateTimeFormat('date-of-month'), // Maybe day-of-month?
-    // ScSymbol('day-of-week'): ScFnDateTimeFormat('day-of-week'),
-    // ScSymbol('hour'): ScFnDateTimeFormat('hour'),
-    // ScSymbol('minute'): ScFnDateTimeFormat('minute'),
-    // ScSymbol('second'): ScFnDateTimeFormat('second'),
-    // ScSymbol('millisecond'): ScFnDateTimeFormat('millisecond'),
-    // ScSymbol('microsecond'): ScFnDateTimeFormat('microsecond'),
+    ScSymbol('year'): ScFnDateTimeField(ScDateTimeFormat.year),
+    ScSymbol('month'): ScFnDateTimeField(ScDateTimeFormat.month),
+    ScSymbol('week-of-year'): ScFnDateTimeField(ScDateTimeFormat.weekOfYear),
+    ScSymbol('date-of-month'): ScFnDateTimeField(ScDateTimeFormat.dateOfMonth),
+    ScSymbol('day-of-week'): ScFnDateTimeField(ScDateTimeFormat.dayOfWeek),
+    ScSymbol('hour'): ScFnDateTimeField(ScDateTimeFormat.hour),
+    ScSymbol('minute'): ScFnDateTimeField(ScDateTimeFormat.minute),
+    ScSymbol('second'): ScFnSecond(),
+    ScSymbol('millisecond'): ScFnDateTimeField(ScDateTimeFormat.millisecond),
+    ScSymbol('microsecond'): ScFnDateTimeField(ScDateTimeFormat.microsecond),
 
     // REPL Helpers
 
@@ -244,7 +247,6 @@ class ScEnv {
     ScSymbol('new-task'): ScFnCreateTask(),
     ScSymbol('!'): ScFnUpdate(),
     ScSymbol('update!'): ScFnUpdate(),
-    // ScSymbol('!'): ScFnUpdateParentEntity(),
     ScSymbol('mv!'): ScFnMv(),
     // ScSymbol('unstarted'): ScFnUnstarted(),
     // ScSymbol('in-progress'): ScFnInProgress(),
@@ -510,7 +512,7 @@ class ScEnv {
     final prelude = '''
 ;; Accessors
 def first   value %(get % 0)
-def second  value %(get % 1)
+;; `second` is custom to handle both coll and date-time values
 def third   value %(get % 2)
 def fourth  value %(get % 3)
 def fifth   value %(get % 4)
@@ -1694,15 +1696,11 @@ def add identity +""";
 
 class ScFnType extends ScBaseInvocable {
   @override
-  // TODO: implement help
-  String get help => "Return the type of this value.";
+  String get help => "Return the name of the type of the value as a string.";
 
   @override
-  // TODO: implement helpFull
   String get helpFull =>
-      r"""The language provided by this program is a rudimentary Lisp. The "type" of a value is informational; you cannot program with the types, so they are returned as strings.
-
-  The data types are:
+      r"""The language provided by this program is a rudimentary Lisp called "Piped Lisp". Its data types are:
 
   - number
   - string
@@ -1711,17 +1709,22 @@ class ScFnType extends ScBaseInvocable {
   - function
   - entity
 
-  The "entity" type has the following sub-types:
+  The `entity` type has the following sub-types:
 
-  - story
-  - task
+  - comment
   - epic
-  - milestone
-  - iteration
-  - workflow
-  - workflow state
+  - epic comment
   - epic workflow
   - epic workflow state
+  - iteration
+  - label
+  - member
+  - milestone
+  - story
+  - team
+  - task
+  - workflow
+  - workflow state
 
   While the Shortcut API and data model support other entities, they are not represented as first-class entities in this tool at this time. Consult the JSON structure of Shortcut API endpoints that include them for further information.
   """;
@@ -1743,7 +1746,6 @@ class ScFnUndef extends ScBaseInvocable {
       "Remove the symbol with the given string or dotted symbol name from the environment's bindings.";
 
   @override
-  // TODO: implement helpFull
   String get helpFull => help;
 
   @override
@@ -1775,7 +1777,6 @@ class ScFnDateTime extends ScBaseInvocable {
   String get help => 'Return a date-time value for the given string.';
 
   @override
-  // TODO: implement helpFull
   String get helpFull =>
       help +
       "\n\n" +
@@ -1831,10 +1832,9 @@ class ScFnDateTimeNow extends ScBaseInvocable {
   factory ScFnDateTimeNow() => _instance;
 
   @override
-  String get help => 'Return the current date-time.';
+  String get help => 'Return the current date-time in your local timezone.';
 
   @override
-  // TODO: implement helpFull
   String get helpFull => help;
 
   @override
@@ -1844,6 +1844,80 @@ class ScFnDateTimeNow extends ScBaseInvocable {
     } else {
       throw BadArgumentsException(
           "The `now` function expects 0 arguments, but received ${args.length} arguments.");
+    }
+  }
+}
+
+class ScFnDateTimeToUtc extends ScBaseInvocable {
+  static final ScFnDateTimeToUtc _instance = ScFnDateTimeToUtc._internal();
+  ScFnDateTimeToUtc._internal();
+  factory ScFnDateTimeToUtc() => _instance;
+
+  @override
+  String get help => "Convert the date-time to be in the UTC time zone.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final dateTime = args[0];
+      if (dateTime is ScDateTime) {
+        final dt = dateTime.value;
+        if (dt.isUtc) {
+          env.err
+              .writeln("The date-time value is already in the UTC time zone.");
+          return dateTime;
+        } else {
+          final utcDt = dt.toUtc();
+          return ScDateTime(utcDt);
+        }
+      } else {
+        throw BadArgumentsException(
+            "The `to-utc` function expects a date-time argument, but received a ${dateTime.informalTypeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `to-utc` function expects 1 argument, but received ${args.length} arguments.");
+    }
+  }
+}
+
+class ScFnDateTimeToLocal extends ScBaseInvocable {
+  static final ScFnDateTimeToLocal _instance = ScFnDateTimeToLocal._internal();
+  ScFnDateTimeToLocal._internal();
+  factory ScFnDateTimeToLocal() => _instance;
+
+  @override
+  String get help => "Convert the date-time to be in the local time zone.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final dateTime = args[0];
+      if (dateTime is ScDateTime) {
+        final dt = dateTime.value;
+        if (dt.isUtc) {
+          final localDt = dt.toLocal();
+          return ScDateTime(localDt);
+        } else {
+          env.err.writeln(
+              "The date-time value is already in the local time zone.");
+          return dateTime;
+        }
+      } else {
+        throw BadArgumentsException(
+            "The `to-local` function expects a date-time argument, but received a ${dateTime.informalTypeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `to-local` function expects 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -2104,6 +2178,95 @@ class ScFnDateTimeSince extends ScBaseInvocable {
     } else {
       throw BadArgumentsException(
           "The `*-since` functions expect 1 or 2 date-time arguments, but received ${args.length} arguments.");
+    }
+  }
+}
+
+class ScFnDateTimeField extends ScBaseInvocable {
+  ScDateTimeFormat format;
+
+  static final Map<ScDateTimeFormat, ScFnDateTimeField> _instances = {
+    ScDateTimeFormat.year: ScFnDateTimeField._internalYear(),
+    ScDateTimeFormat.month: ScFnDateTimeField._internalMonth(),
+    ScDateTimeFormat.weekOfYear: ScFnDateTimeField._internalWeekOfYear(),
+    ScDateTimeFormat.dateOfMonth: ScFnDateTimeField._internalDateOfMonth(),
+    ScDateTimeFormat.dayOfWeek: ScFnDateTimeField._internalDayOfWeek(),
+    ScDateTimeFormat.hour: ScFnDateTimeField._internalHour(),
+    ScDateTimeFormat.minute: ScFnDateTimeField._internalMinute(),
+    ScDateTimeFormat.second: ScFnDateTimeField._internalSecond(),
+    ScDateTimeFormat.millisecond: ScFnDateTimeField._internalMillisecond(),
+    ScDateTimeFormat.microsecond: ScFnDateTimeField._internalMicrosecond(),
+  };
+
+  ScFnDateTimeField._internalYear() : format = ScDateTimeFormat.year;
+  ScFnDateTimeField._internalMonth() : format = ScDateTimeFormat.month;
+  ScFnDateTimeField._internalWeekOfYear()
+      : format = ScDateTimeFormat.weekOfYear;
+  ScFnDateTimeField._internalDateOfMonth()
+      : format = ScDateTimeFormat.dateOfMonth;
+  ScFnDateTimeField._internalDayOfWeek() : format = ScDateTimeFormat.dayOfWeek;
+  ScFnDateTimeField._internalHour() : format = ScDateTimeFormat.hour;
+  ScFnDateTimeField._internalMinute() : format = ScDateTimeFormat.minute;
+  ScFnDateTimeField._internalSecond() : format = ScDateTimeFormat.second;
+  ScFnDateTimeField._internalMillisecond()
+      : format = ScDateTimeFormat.millisecond;
+  ScFnDateTimeField._internalMicrosecond()
+      : format = ScDateTimeFormat.microsecond;
+
+  factory ScFnDateTimeField(ScDateTimeFormat format) => _instances[format]!;
+
+  static final weekdays = {
+    1: ScString('Monday'),
+    2: ScString('Tuesday'),
+    3: ScString('Wednesday'),
+    4: ScString('Thursday'),
+    5: ScString('Friday'),
+    6: ScString('Saturday'),
+    7: ScString('Sunday'),
+  };
+
+  @override
+  String get help => "Return given part of the date-time value.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final dateTime = args[0];
+      if (dateTime is ScDateTime) {
+        final dt = dateTime.value;
+        switch (format) {
+          case ScDateTimeFormat.year:
+            return ScNumber(dt.year);
+          case ScDateTimeFormat.month:
+            return ScNumber(dt.month);
+          case ScDateTimeFormat.weekOfYear:
+            return ScNumber(calculateWeekOfYear(dt));
+          case ScDateTimeFormat.dateOfMonth:
+            return ScNumber(dt.day);
+          case ScDateTimeFormat.dayOfWeek:
+            return ScFnDateTimeField.weekdays[dt.weekday]!;
+          case ScDateTimeFormat.hour:
+            return ScNumber(dt.hour);
+          case ScDateTimeFormat.minute:
+            return ScNumber(dt.minute);
+          case ScDateTimeFormat.second:
+            return ScNumber(dt.second);
+          case ScDateTimeFormat.millisecond:
+            return ScNumber(dt.millisecond);
+          case ScDateTimeFormat.microsecond:
+            return ScNumber(dt.microsecond);
+        }
+      } else {
+        throw BadArgumentsException(
+            "The date-time field functions expect a date-time argument, but received a ${dateTime.informalTypeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The date-time field functions expect only 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -2519,7 +2682,6 @@ class ScFnHelp extends ScBaseInvocable {
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
-      // TODO Make this more a table of contents/concepts
       env.out.writeln('Available commands:');
       ScMap m = ScMap({});
       env.bindings.forEach((key, value) {
@@ -3668,6 +3830,37 @@ class ScFnGet extends ScBaseInvocable {
     }
     // Not sure where null can be returned above, but this solves it.
     return missingDefault;
+  }
+}
+
+class ScFnSecond extends ScBaseInvocable {
+  static final ScFnSecond _instance = ScFnSecond._internal();
+  ScFnSecond._internal();
+  factory ScFnSecond() => _instance;
+
+  @override
+  String get help =>
+      "Return either the second item in a collection, or the second value of a date-time value.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final target = args[0];
+      if (target is ScDateTime) {
+        final dateTimeSecondFn = ScFnDateTimeField(ScDateTimeFormat.second);
+        return dateTimeSecondFn.invoke(env, ScList([target]));
+      } else {
+        final getFn = ScFnGet();
+        return getFn.invoke(env, ScList([target, ScNumber(1)]));
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `second` function expects 1 argument, but received ${args.length} arguments.");
+    }
   }
 }
 
@@ -6868,7 +7061,6 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
         // NB: For now, just printing id's. Fetch would be costly and risks cyclic resolution, which is handled already elsewhere.
         return id.printToString(env);
       } else {
-        // TODO Consider whether the same is necessary for ScTeam
         if (this is ScMember) {
           final dm = Map<ScExpr, ScExpr>.from(data.innerMap);
           final teams = dm[ScString('group_ids')] as ScList;
@@ -7186,7 +7378,6 @@ class ScMember extends ScEntity {
 
     final lp = lParen(env);
     final rp = rParen(env);
-    final cmt = comment(env);
     final memberFnName = env.styleWith('mb', [entityColor]);
     sb.write(" $lp$memberFnName $id$rp");
 
@@ -7229,15 +7420,14 @@ class ScTeam extends ScEntity {
 
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) async {
-    // TODO Use this for stories within team as parent
-    // return env.client.getStoriesInTeam(env, id.value);
     return data[ScString('member_ids')] as ScList;
   }
 
   @override
-  Future<ScEntity> update(ScEnv env, Map<String, dynamic> updateMap) {
-    // TODO: implement update for ScTeam
-    throw UnimplementedError();
+  Future<ScEntity> update(ScEnv env, Map<String, dynamic> updateMap) async {
+    final team = await env.client.updateTeam(env, idString, updateMap);
+    data = team.data;
+    return this;
   }
 
   @override
@@ -7324,7 +7514,6 @@ class ScTeam extends ScEntity {
 
     final lp = lParen(env);
     final rp = rParen(env);
-    final cmt = comment(env);
     final teamFnName = env.styleWith('tm', [entityColor]);
     sb.write(" $lp$teamFnName $id$rp");
 
@@ -7414,42 +7603,48 @@ class ScMilestone extends ScEntity {
 
   @override
   ScExpr printSummary(ScEnv env) {
-    // TODO calculate
-    final labelWidth = 12;
+    final lblMilestone = 'Milestone ';
+    final lblId = 'Id ';
+    final lblStarted = 'Started ';
+    final lblCompleted = 'Completed ';
+    final lblState = 'State ';
+    final labelWidth = maxPaddedLabelWidth(
+        [lblMilestone, lblId, lblStarted, lblCompleted, lblState]);
+
     if (!data.containsKey(ScString('description'))) {
       waitOn(fetch(env));
     }
     final sb = StringBuffer('\n');
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(env.styleWith('Milestone '.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith(lblMilestone.padLeft(labelWidth), [entityColor]));
     sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
     final milestoneId = idString;
-    sb.write(env.styleWith('Id '.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
     sb.writeln(milestoneId);
 
     final startedAt = data[ScString('started_at')];
     if (startedAt is ScString) {
-      sb.write(env.styleWith('Started '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblStarted.padLeft(labelWidth), [entityColor]));
       sb.writeln(startedAt.value);
     } else if (startedAt == ScNil()) {
-      sb.write(env.styleWith('Started '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblStarted.padLeft(labelWidth), [entityColor]));
       sb.writeln('N/A');
     }
 
     final completedAt = data[ScString('completed_at')];
     if (completedAt is ScString) {
-      sb.write(env.styleWith('Completed '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblCompleted.padLeft(labelWidth), [entityColor]));
       sb.writeln(completedAt.value);
     } else if (completedAt == ScNil()) {
-      sb.write(env.styleWith('Completed '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblCompleted.padLeft(labelWidth), [entityColor]));
       sb.writeln('N/A');
     }
 
     final state = data[ScString('state')];
     if (state is ScString) {
-      sb.write(env.styleWith('State '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblState.padLeft(labelWidth), [entityColor]));
       sb.writeln(state.value);
     }
 
@@ -7586,8 +7781,24 @@ class ScEpic extends ScEntity {
 
   @override
   ScExpr printSummary(ScEnv env) {
-    // TODO calculate
-    final labelWidth = 12;
+    final lblEpic = 'Epic ';
+    final lblId = 'Id ';
+    final lblState = 'State ';
+    final lblOwnedBy = 'Owned by ';
+    final lblTeam = 'Team ';
+    final lblMilestone = 'Milestone ';
+    final lblStories = 'Stories ';
+    final lblPoints = 'Points ';
+    final labelWidth = maxPaddedLabelWidth([
+      lblEpic,
+      lblId,
+      lblState,
+      lblOwnedBy,
+      lblTeam,
+      lblMilestone,
+      lblStories,
+      lblPoints,
+    ]);
     if (!data.containsKey(ScString('description'))) {
       waitOn(fetch(env));
     }
@@ -7599,22 +7810,22 @@ class ScEpic extends ScEntity {
     }
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(env.styleWith('Epic '.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith(lblEpic.padLeft(labelWidth), [entityColor]));
     sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
     final epicId = idString;
-    sb.write(env.styleWith('Id '.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
     sb.writeln(epicId);
 
     final state = data[ScString('epic_state_id')];
     if (state is ScEpicWorkflowState) {
-      sb.write(env.styleWith('State '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblState.padLeft(labelWidth), [entityColor]));
       sb.write(state.inlineSummary(env));
     }
     sb.writeln();
 
     final owners = data[ScString('owner_ids')] as ScList;
-    sb.write(env.styleWith('Owned by '.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith(lblOwnedBy.padLeft(labelWidth), [entityColor]));
     if (owners.isEmpty) {
       sb.writeln('<No one>');
     } else {
@@ -7641,7 +7852,7 @@ class ScEpic extends ScEntity {
 
     final team = data[ScString('group_id')];
     if (team is ScTeam) {
-      sb.write(env.styleWith('Team '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblTeam.padLeft(labelWidth), [entityColor]));
       sb.write(team.inlineSummary(env));
       sb.writeln();
     }
@@ -7655,7 +7866,7 @@ class ScEpic extends ScEntity {
       milestone = milestoneId;
     }
     if (milestone != null) {
-      sb.write(env.styleWith('Milestone '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblMilestone.padLeft(labelWidth), [entityColor]));
       sb.write(milestone.inlineSummary(env));
       sb.writeln();
     }
@@ -7671,7 +7882,7 @@ class ScEpic extends ScEntity {
           // final numStoriesStr = numStories.toString().padRight(2);
           final numStoriesStr = numStories.toString();
           sb.write(
-              env.styleWith('Stories '.padLeft(labelWidth), [entityColor]));
+              env.styleWith(lblStories.padLeft(labelWidth), [entityColor]));
           sb.write("$numStoriesDoneStr/$numStoriesStr stories done");
           sb.writeln();
         }
@@ -7681,7 +7892,7 @@ class ScEpic extends ScEntity {
       final numPointsDone = stats[ScString('num_points_done')];
       if (numPoints is ScNumber) {
         if (numPointsDone is ScNumber) {
-          sb.write(env.styleWith('Points '.padLeft(labelWidth), [entityColor]));
+          sb.write(env.styleWith(lblPoints.padLeft(labelWidth), [entityColor]));
           sb.write("$numPointsDone/$numPoints points done");
           sb.writeln();
         }
@@ -7865,12 +8076,13 @@ class ScStory extends ScEntity {
 
   @override
   ScExpr printSummary(ScEnv env) {
-    // TODO Calculate dynamically based on widest label
-    final labelWidth = 12;
     if (!data.containsKey(ScString('description'))) {
       // This is either a StorySlim from the API, or a story stub from parentEntity
       waitOn(fetch(env));
     }
+
+    // NB: Label width calculated after story type determined.
+
     final sb = StringBuffer('\n');
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
@@ -7883,23 +8095,49 @@ class ScStory extends ScEntity {
     if (storyType is ScString) {
       storyLabel = storyType.value.capitalize();
     }
-    sb.write(env.styleWith('$storyLabel '.padLeft(labelWidth), [entityColor]));
+
+    final lblStoryType = '$storyLabel ';
+    final lblId = 'Id ';
+    final lblState = 'State ';
+    final lblEpic = 'Epic ';
+    final lblIteration = 'Iteration ';
+    final lblOwnedBy = 'Owned by ';
+    final lblTeam = 'Team ';
+    final lblEstimate = 'Estimate ';
+    final lblDeadline = 'Deadline ';
+    final lblLabels = 'Labels ';
+    final lblTasks = 'Tasks ';
+    final labelWidth = maxPaddedLabelWidth([
+      lblStoryType,
+      lblId,
+      lblState,
+      lblEpic,
+      lblIteration,
+      lblOwnedBy,
+      lblTeam,
+      lblEstimate,
+      lblDeadline,
+      lblLabels,
+      lblTasks,
+    ]);
+
+    sb.write(env.styleWith(lblStoryType.padLeft(labelWidth), [entityColor]));
     sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
     final storyId = idString;
-    sb.write(env.styleWith('Id '.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
     sb.writeln(storyId);
 
     final state = data[ScString('workflow_state_id')];
     if (state is ScWorkflowState) {
-      sb.write(env.styleWith('State '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblState.padLeft(labelWidth), [entityColor]));
       sb.write(state.inlineSummary(env));
     }
     sb.writeln();
 
     final epic = data[ScString('epic_id')];
     if (epic != ScNil()) {
-      sb.write(env.styleWith('Epic '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblEpic.padLeft(labelWidth), [entityColor]));
       if (epic is ScEpic) {
         sb.write(epic.inlineSummary(env));
       } else if (epic is ScNumber) {
@@ -7912,7 +8150,7 @@ class ScStory extends ScEntity {
 
     final iteration = data[ScString('iteration_id')];
     if (iteration != ScNil()) {
-      sb.write(env.styleWith('Iteration '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblIteration.padLeft(labelWidth), [entityColor]));
       if (iteration is ScIteration) {
         sb.write(iteration.inlineSummary(env));
       } else if (iteration is ScNumber) {
@@ -7926,7 +8164,7 @@ class ScStory extends ScEntity {
 
     final owners = data[ScString('owner_ids')] as ScList;
     if (owners.isNotEmpty) {
-      sb.write(env.styleWith('Owned by '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblOwnedBy.padLeft(labelWidth), [entityColor]));
       if (owners.length == 1) {
         final owner = owners[0];
         if (owner is ScMember) {
@@ -7950,7 +8188,7 @@ class ScStory extends ScEntity {
 
     final team = data[ScString('group_id')];
     if (team != ScNil()) {
-      sb.write(env.styleWith('Team '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblTeam.padLeft(labelWidth), [entityColor]));
       if (team is ScTeam) {
         sb.write(team.inlineSummary(env));
       } else if (team is ScString) {
@@ -7963,7 +8201,7 @@ class ScStory extends ScEntity {
 
     final estimate = data[ScString('estimate')];
     if (estimate is ScNumber) {
-      sb.write(env.styleWith('Estimate '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblEstimate.padLeft(labelWidth), [entityColor]));
       if (estimate == ScNumber(1)) {
         sb.write("$estimate point");
       } else {
@@ -7974,14 +8212,14 @@ class ScStory extends ScEntity {
 
     final deadline = data[ScString('deadline')];
     if (deadline is ScString) {
-      sb.write(env.styleWith('Deadline '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblDeadline.padLeft(labelWidth), [entityColor]));
       sb.write(deadline);
       sb.writeln();
     }
 
     final labels = data[ScString('labels')];
     if (labels is ScList && labels.isNotEmpty) {
-      sb.write(env.styleWith('Labels '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblLabels.padLeft(labelWidth), [entityColor]));
       for (var i = 0; i < labels.length; i++) {
         final label = labels[i];
         if (label is ScMap) {
@@ -8009,7 +8247,7 @@ class ScStory extends ScEntity {
         }
       }
       if (ts.length > 0) {
-        sb.write(env.styleWith('Tasks '.padLeft(labelWidth), [entityColor]));
+        sb.write(env.styleWith(lblTasks.padLeft(labelWidth), [entityColor]));
         sb.writeln('$numComplete/${ts.length} complete:');
         for (final task in ts.innerList) {
           final t = task as ScTask;
@@ -8079,8 +8317,6 @@ class ScTask extends ScEntity {
     if (env.isPrintJson) {
       return super.printToString(env);
     } else {
-      // TODO Consider config of which fields users want printed
-      // TODO Consider prefab minimal, medium, full printings
       final description = dataFieldOr<ScString?>(data, 'description', title) ??
           ScString("<No description: run fetch>");
       final shortDescription = truncate(description.value, env.displayWidth);
@@ -8442,15 +8678,29 @@ class ScIteration extends ScEntity {
 
   @override
   ScExpr printSummary(ScEnv env) {
-    // TODO calculate
-    final labelWidth = 12;
     if (!data.containsKey(ScString('description'))) {
       waitOn(fetch(env));
     }
+
+    final lblIteration = 'Iteration ';
+    final lblTeams = 'Teams ';
+    final lblStart = 'Start ';
+    final lblEnd = 'End ';
+    final lblStatus = 'Status ';
+    final lblPoints = 'Points ';
+    final labelWidth = maxPaddedLabelWidth([
+      lblIteration,
+      lblTeams,
+      lblStart,
+      lblEnd,
+      lblStatus,
+      lblPoints,
+    ]);
+
     final sb = StringBuffer('\n');
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(env.styleWith('Iteration '.padLeft(labelWidth), [entityColor]));
+    sb.write(env.styleWith(lblIteration.padLeft(labelWidth), [entityColor]));
     sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
 
     final epicId = idString;
@@ -8459,7 +8709,7 @@ class ScIteration extends ScEntity {
 
     final teams = data[ScString('group_ids')] as ScList;
     if (teams.isNotEmpty) {
-      sb.write(env.styleWith('Teams '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblTeams.padLeft(labelWidth), [entityColor]));
       if (teams.length == 1) {
         final team = teams[0];
         if (team is ScTeam) {
@@ -8482,19 +8732,19 @@ class ScIteration extends ScEntity {
 
     final startDate = data[ScString('start_date')];
     if (startDate is ScString) {
-      sb.write(env.styleWith('Start '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblStart.padLeft(labelWidth), [entityColor]));
       sb.writeln(startDate.value);
     }
 
     final endDate = data[ScString('end_date')];
     if (endDate is ScString) {
-      sb.write(env.styleWith('End '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblEnd.padLeft(labelWidth), [entityColor]));
       sb.writeln(endDate.value);
     }
 
     final status = data[ScString('status')];
     if (status is ScString) {
-      sb.write(env.styleWith('Status '.padLeft(labelWidth), [entityColor]));
+      sb.write(env.styleWith(lblStatus.padLeft(labelWidth), [entityColor]));
       sb.writeln(status.value);
     }
 
@@ -8504,7 +8754,7 @@ class ScIteration extends ScEntity {
       final numPointsDone = stats[ScString('num_points_done')];
       if (numPoints is ScNumber) {
         if (numPointsDone is ScNumber) {
-          sb.write(env.styleWith('Points '.padLeft(labelWidth), [entityColor]));
+          sb.write(env.styleWith(lblPoints.padLeft(labelWidth), [entityColor]));
           sb.write("$numPointsDone/$numPoints points done");
         }
       }
@@ -9114,6 +9364,29 @@ void bindAllTheThings(ScEnv env) {
       }
     }
   }
+}
+
+/// Functions
+
+/// Calculates number of weeks for a given year as per https://en.wikipedia.org/wiki/ISO_week_date#Weeks_per_year
+/// Copied from: https://stackoverflow.com/a/54129275
+int numOfWeeks(int year) {
+  DateTime dec28 = DateTime(year, 12, 28);
+  int dayOfDec28 = int.parse(DateFormat("D").format(dec28));
+  return ((dayOfDec28 - dec28.weekday + 10) / 7).floor();
+}
+
+/// Calculates week number from a date-time as per https://en.wikipedia.org/wiki/ISO_week_date#Calculation
+/// Copied from: https://stackoverflow.com/a/54129275
+int calculateWeekOfYear(DateTime dt) {
+  int dayOfYear = int.parse(DateFormat("D").format(dt));
+  int woy = ((dayOfYear - dt.weekday + 10) / 7).floor();
+  if (woy < 1) {
+    woy = numOfWeeks(dt.year - 1);
+  } else if (woy > numOfWeeks(dt.year)) {
+    woy = 1;
+  }
+  return woy;
 }
 
 String mungeToLegalSymbolName(String s) {
@@ -9862,6 +10135,19 @@ enum ScDateTimeUnit {
   hours,
   days,
   weeks,
+}
+
+enum ScDateTimeFormat {
+  year,
+  month,
+  weekOfYear,
+  dateOfMonth,
+  dayOfWeek,
+  hour,
+  minute,
+  second,
+  millisecond,
+  microsecond,
 }
 
 /// Shortcut's API expects [get], [put], [post], [delete] for API requests.

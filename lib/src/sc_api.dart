@@ -50,6 +50,8 @@ abstract class ScApiContract {
 
   // ## Teams, a.k.a. Groups
   Future<ScTeam> getTeam(ScEnv env, String teamPublicId);
+  Future<ScTeam> updateTeam(
+      ScEnv env, String teamPublicId, Map<String, dynamic> updateMap);
   Future<ScList> getTeams(ScEnv env);
 
   // ## Workflows
@@ -327,6 +329,14 @@ class ScLiveClient extends ScClient {
   @override
   Future<ScTeam> getTeam(ScEnv env, String teamPublicId) async {
     final taba = await authedCall(env, "/groups/$teamPublicId");
+    return taba.team(env, teamPublicId);
+  }
+
+  @override
+  Future<ScTeam> updateTeam(
+      ScEnv env, String teamPublicId, Map<String, dynamic> updateMap) async {
+    final taba = await authedCall(env, "/groups/$teamPublicId",
+        httpVerb: HttpVerb.put, body: updateMap);
     return taba.team(env, teamPublicId);
   }
 

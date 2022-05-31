@@ -138,6 +138,43 @@ void main() {
       expect(env.interpret('dt "2022-01-01" | days-until (dt "2022-01-15")'),
           ScNumber(14));
     });
+    test('Field Functions', () {
+      expect(env.interpret('dt "2023-06-16T14:34:43.042Z" | year'),
+          ScNumber(2023));
+      expect(
+          env.interpret('dt "2023-06-16T14:34:43.042Z" | month'), ScNumber(6));
+      expect(env.interpret('dt "2023-06-16T14:34:43.042Z" | date-of-month'),
+          ScNumber(16));
+      expect(env.interpret('dt "2023-06-16T14:34:43.042Z" | day-of-week'),
+          ScString('Friday'));
+      expect(
+          env.interpret('dt "2023-06-16T14:34:43.042Z" | hour'), ScNumber(14));
+      expect(env.interpret('dt "2023-06-16T14:34:43.042Z" | minute'),
+          ScNumber(34));
+      expect(env.interpret('dt "2023-06-16T14:34:43.042Z" | second'),
+          ScNumber(43));
+      expect(env.interpret('dt "2023-06-16T14:34:43.042Z" | millisecond'),
+          ScNumber(42));
+      expect(env.interpret('dt "2023-06-16T14:34:43.042998Z" | microsecond'),
+          ScNumber(998));
+    });
+    test('calculateWeekOfYear', () {
+      expect(calculateWeekOfYear(DateTime.parse('2022-01-03')), 1); // Monday
+      expect(calculateWeekOfYear(DateTime.parse('2022-01-04')), 1);
+      expect(calculateWeekOfYear(DateTime.parse('2022-01-05')), 1);
+      expect(calculateWeekOfYear(DateTime.parse('2022-01-06')), 1);
+      expect(calculateWeekOfYear(DateTime.parse('2022-01-07')), 1);
+      expect(calculateWeekOfYear(DateTime.parse('2022-01-08')), 1); // Saturday
+      expect(calculateWeekOfYear(DateTime.parse('2022-01-10')), 2); // Monday
+      expect(calculateWeekOfYear(DateTime.parse('2022-01-11')), 2);
+      expect(calculateWeekOfYear(DateTime.parse('2022-01-12')), 2);
+      expect(calculateWeekOfYear(DateTime.parse('2022-01-13')), 2);
+      expect(calculateWeekOfYear(DateTime.parse('2022-01-14')), 2);
+      expect(calculateWeekOfYear(DateTime.parse('2022-01-15')), 2); // Saturday
+      expect(calculateWeekOfYear(DateTime.parse('2022-01-17')), 3); // Monday
+      expect(calculateWeekOfYear(DateTime.parse('2022-12-31')), 52);
+      expect(calculateWeekOfYear(DateTime.parse('2010-01-01')), 53);
+    });
   });
   group('Collections', () {
     final env = e();
