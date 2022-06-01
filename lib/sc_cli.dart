@@ -85,7 +85,6 @@ void interpretProgram(Options options) {
       isReplMode: false,
       isPrintJson: options.isPrintJson,
       isAnsiEnabled: options.isAnsiEnabled ?? false);
-  env.loadPrelude();
   maybeLoadFiles(env, options);
   final expr = env.interpret(program);
   final str = expr.printToString(env);
@@ -139,7 +138,6 @@ Function startProdReplServerIsolateFn(Options options) {
         isReplMode: true,
         isPrintJson: options.isPrintJson,
         isAnsiEnabled: options.isAnsiEnabled ?? true);
-    env.loadPrelude();
     maybeLoadFiles(env, options);
     final repl = Repl(
         prompt: formatPrompt(env),

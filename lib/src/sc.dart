@@ -4821,6 +4821,17 @@ class ScFnEdit extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
       return execOpenInEditor(env);
+    } else if (args.length == 1) {
+      final content = args[0];
+      String contentStr;
+      if (content is ScString) {
+        contentStr = content.value;
+      } else {
+        contentStr = content.printToString(env);
+      }
+      final tempFile = newTempFile();
+      tempFile.writeAsStringSync(contentStr);
+      return execOpenInEditor(env, existingFile: tempFile);
     } else {
       throw BadArgumentsException(
           "The `edit` function does not take any arguments, but received ${args.length} arguments.");
