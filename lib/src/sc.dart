@@ -22,6 +22,7 @@ class ScEnv {
   ScEpicWorkflow? epicWorkflow;
   late final String baseConfigDirPath;
 
+  /// Prefer [ScEnv.fromMap] or [ScEnv.readFromDisk]
   ScEnv(this.client)
       : isReplMode = false,
         isAnsiEnabled = true,
@@ -93,6 +94,18 @@ class ScEnv {
     ScSymbol('now'): ScFnDateTimeNow(),
     ScSymbol('to-utc'): ScFnDateTimeToUtc(),
     ScSymbol('to-local'): ScFnDateTimeToLocal(),
+    ScSymbol('before?'): ScFnDateTimeIsBefore(),
+    ScSymbol('after?'): ScFnDateTimeIsAfter(),
+    ScSymbol('year'): ScFnDateTimeField(ScDateTimeFormat.year),
+    ScSymbol('month'): ScFnDateTimeField(ScDateTimeFormat.month),
+    ScSymbol('week-of-year'): ScFnDateTimeField(ScDateTimeFormat.weekOfYear),
+    ScSymbol('date-of-month'): ScFnDateTimeField(ScDateTimeFormat.dateOfMonth),
+    ScSymbol('day-of-week'): ScFnDateTimeField(ScDateTimeFormat.dayOfWeek),
+    ScSymbol('hour'): ScFnDateTimeField(ScDateTimeFormat.hour),
+    ScSymbol('minute'): ScFnDateTimeField(ScDateTimeFormat.minute),
+    ScSymbol('second'): ScFnSecond(),
+    ScSymbol('millisecond'): ScFnDateTimeField(ScDateTimeFormat.millisecond),
+    ScSymbol('microsecond'): ScFnDateTimeField(ScDateTimeFormat.microsecond),
     ScSymbol('plus-microseconds'):
         ScFnDateTimePlus(ScDateTimeUnit.microseconds),
     ScSymbol('plus-milliseconds'):
@@ -129,17 +142,6 @@ class ScEnv {
     ScSymbol('hours-since'): ScFnDateTimeSince(ScDateTimeUnit.hours),
     ScSymbol('days-since'): ScFnDateTimeSince(ScDateTimeUnit.days),
     ScSymbol('weeks-since'): ScFnDateTimeSince(ScDateTimeUnit.weeks),
-
-    ScSymbol('year'): ScFnDateTimeField(ScDateTimeFormat.year),
-    ScSymbol('month'): ScFnDateTimeField(ScDateTimeFormat.month),
-    ScSymbol('week-of-year'): ScFnDateTimeField(ScDateTimeFormat.weekOfYear),
-    ScSymbol('date-of-month'): ScFnDateTimeField(ScDateTimeFormat.dateOfMonth),
-    ScSymbol('day-of-week'): ScFnDateTimeField(ScDateTimeFormat.dayOfWeek),
-    ScSymbol('hour'): ScFnDateTimeField(ScDateTimeFormat.hour),
-    ScSymbol('minute'): ScFnDateTimeField(ScDateTimeFormat.minute),
-    ScSymbol('second'): ScFnSecond(),
-    ScSymbol('millisecond'): ScFnDateTimeField(ScDateTimeFormat.millisecond),
-    ScSymbol('microsecond'): ScFnDateTimeField(ScDateTimeFormat.microsecond),
 
     // REPL Helpers
 
@@ -183,6 +185,7 @@ class ScEnv {
     ScSymbol('uniq'): ScFnDistinct(),
 
     ScSymbol('search'): ScFnSearch(),
+    ScSymbol('grep'): ScFnSearch(),
     ScSymbol('me'): ScFnMe(),
     ScSymbol('whoami'): ScFnMe(),
     ScSymbol('find-stories'): ScFnFindStories(),
@@ -345,8 +348,10 @@ class ScEnv {
 
   /// Used in tests.
   factory ScEnv.fromMap(ScClient client, Map<String, dynamic> data) {
-    final env = ScEnv(client);
-    return ScEnv.extendEnvfromMap(env, data);
+    var env = ScEnv(client);
+    env = ScEnv.extendEnvfromMap(env, data);
+    env.loadPrelude();
+    return env;
   }
 
   static ScEnv extendEnvfromMap(ScEnv env, Map<String, dynamic> data) {
@@ -519,7 +524,8 @@ class ScEnv {
   /// have been implemented directly in Dart. These will have markedly worse
   /// error messages compared to those built-in ones.
   void loadPrelude() {
-    final prelude = '''
+    // TODO Don't make users pay the cost of interpretation. At present, it's pretty fast.
+    final prelude = r'''
 ;; Accessors
 def first   value %(get % 0)
 ;; `second` is custom to handle both coll and date-time values
@@ -546,10 +552,257 @@ def avg value (fn [coll] (/ (reduce coll +) (count coll)))
 ;; Collections
 def mapcat value (fn [coll f] (apply (map coll f) concat))
 
-;; Entities
+;; Query Builders
+def query-archived     {.archived true}
+def query-not-archived {.archived false}
+
+def query-completed-at-start value (fn [dt]
+ (assert (= "date-time" (type dt))
+         (concat "query-completed-at-start expects a date-time, but received a " (type dt)))
+ {.completed_at_start dt})
+def query-completed-at-after value query-completed-at-start
+
+def query-completed-at-end value (fn [dt]
+ (assert (= "date-time" (type dt))
+         (concat "query-completed-at-start expects a date-time, but received a " (type dt)))
+ {.completed_at_end dt})
+def query-completed-at-before value query-completed-at-end
+
+def query-created-at-start value (fn [dt]
+ (assert (= "date-time" (type dt))
+         (concat "query-created-at-start expects a date-time, but received a " (type dt)))
+ {.created_at_start dt})
+def query-created-at-after value query-created-at-start
+
+def query-created-at-end value (fn [dt]
+ (assert (= "date-time" (type dt))
+         (concat "query-created-at-start expects a date-time, but received a " (type dt)))
+ {.created_at_end dt})
+def query-created-at-before value query-created-at-end
+
+def query-deadline-at-start value (fn [dt]
+ (assert (= "date-time" (type dt))
+         (concat "query-deadline-at-start expects a date-time, but received a " (type dt)))
+ {.deadline_at_start dt})
+def query-deadline-at-after value query-deadline-at-start
+
+def query-deadline-at-end value (fn [dt]
+ (assert (= "date-time" (type dt))
+         (concat "query-deadline-at-start expects a date-time, but received a " (type dt)))
+ {.deadline_at_end dt})
+def query-deadline-at-before value query-deadline-at-end
+
+def query-epic  value (fn [epic] {.epic_id epic})
+def query-epics value (fn [epics] {.epic_ids epics})
+
+def query-estimate value (fn [estimate] {.estimate estimate})
+def query-external-id value (fn [external-id] {.external_id external-id})
+
+def query-group value (fn [group] {.group_id group})
+def query-team value (fn [team] {.team_id team})
+def query-groups value (fn [groups] {.group_ids groups})
+def query-teams value (fn [teams] {.team_ids teams})
+
+def query-includes-description {.includes_description true}
+def query-not-include-description {.includes_description true}
+def query-has-description {.includes_description true}
+def query-not-have-description {.includes_description true}
+
+def query-iteration  value (fn [iteration] {.iteration_id iteration})
+def query-iterations value (fn [iterations] {.iteration_ids iterations})
+
+def query-label-name value (fn [label-name] {.label_name label-name})
+def query-labels value (fn [labels] {.label_ids labels})
+
+
+def query-owner value (fn [member]
+ (assert (subset? [(type member)] ["member" "string"])
+         (concat "query-owned-by expects a member (or its ID), but received a " (type member)))
+ {.owner_id member})
+
+def query-owners value (fn [members]
+  (assert (= "list" (type members))
+          (concat "query-owners expects a list, but received a " (type members)))
+  (assert (subset? (distinct (map members %(type %))) ["member" "string"])
+          (concat "query-owners expects a list of members, but received a list with types " (map members type)))
+  {.owner_ids members})
+
+def query-requested-by value (fn [member]
+ (assert (subset? [(type member)] ["member" "string"])
+         (concat "query-requested-by expects a member, but received a " (type member)))
+ {.requested_by_id member})
+
+def query-bug                {.story_type "bug"}
+def query-story-type-bug     {.story_type "bug"}
+def query-chore              {.story_type "chore"}
+def query-story-type-chore   {.story_type "chore"}
+def query-feature            {.story_type "feature"}
+def query-story-type-feature {.story_type "feature"}
+
+def query-updated-at-start value (fn [dt]
+ (assert (= "date-time" (type dt))
+         (concat "query-updated-at-start expects a date-time, but received a " (type dt)))
+ {.updated_at_start dt})
+def query-updated-at-after value query-updated-at-start
+
+def query-updated-at-end value (fn [dt]
+ (assert (= "date-time" (type dt))
+         (concat "query-updated-at-start expects a date-time, but received a " (type dt)))
+ {.updated_at_at_end dt})
+def query-updated-at-before value query-updated-at-end
+
+def query-workflow-state value (fn [workflow-state] {.workflow_state_id workflow-state})
+def query-state value (fn [workflow-state] {.workflow_state_id workflow-state})
+
+def query-workflow-state-types value (fn [wf-state-types] {.workflow_state_types wf-state-types})
+def query-state-types          value (fn [wf-state-types] {.workflow_state_types wf-state-types})
+
+def query-unfinished   {.workflow_state_types ["unstarted" "started"]}
+def query-incomplete   query-unfinished
+def query-not-done     query-unfinished
+def query-not-finished query-unfinished
+
+def epic-is-unstarted   {.state "to do"}
+def epic-is-todo        {.state "to do"}
+def epic-is-in-progress {.state "in progress"}
+def epic-is-started     {.state "in progress"}
+def epic-is-done        {.state "done"}
+def epic-is-finished    {.state "done"}
+def epic-is-completed   {.state "done"}
+
+def story-is-unstarted   {[.workflow_state_id .type] "unstarted"}
+def story-is-todo        {[.workflow_state_id .type] "unstarted"}
+def story-is-in-progress {[.workflow_state_id .type] "started"}
+def story-is-started     {[.workflow_state_id .type] "started"}
+def story-is-done        {[.workflow_state_id .type] "done"}
+def story-is-finished    {[.workflow_state_id .type] "done"}
+def story-is-completed   {[.workflow_state_id .type] "done"}
+
+def story-is-archived {.archived true}
+def story-is-blocked {.blocked true}
+def story-is-blocker {.blocker true}
+
+def story-is-completed-at value (fn [completed-at] {.completed_at completed-at})
+def story-was-completed-at value (fn [completed-at] {.completed_at completed-at})
+
+def story-is-completed-at-override value (fn [completed-at] {.completed_at_override completed-at})
+def story-was-completed-at-override value (fn [completed-at] {.completed_at_override completed-at})
+
+def story-is-created-at value (fn [created-at] {.created_at created-at})
+def story-was-created-at value (fn [created-at] {.created_at created-at})
+
+;; TODO Custom fields
+
+def story-is-cycle-time-greater-than value (fn [cycle-time] {.cycle_time (fn [t] (> t cycle-time))})
+def story-has-cycle-time-greater-than value (fn [cycle-time] {.cycle_time (fn [t] (> t cycle-time))})
+def story-is-cycle-time-less-than value (fn [cycle-time] {.cycle_time (fn [t] (< t cycle-time))})
+def story-has-cycle-time-less-than value (fn [cycle-time] {.cycle_time (fn [t] (< t cycle-time))})
+def story-is-cycle-time-of value (fn [cycle-time] {.cycle_time cycle-time})
+def story-has-cycle-time-of value (fn [cycle-time] {.cycle_time cycle-time})
+
+def story-is-deadline-of value (fn [deadline] {.deadline deadline})
+def story-has-deadline-of value (fn [deadline] {.deadline deadline})
+def story-is-deadline-after value (fn [deadline] {.deadline (fn [dt] (after? dt deadline))})
+def story-has-deadline-after value (fn [deadline] {.deadline (fn [dt] (after? dt deadline))})
+def story-is-deadline-before value (fn [deadline] {.deadline (fn [dt] (before? dt deadline))})
+def story-has-deadline-before value (fn [deadline] {.deadline (fn [dt] (before? dt deadline))})
+
+def story-is-description-includes value (fn [desc] {.description (fn [s] (contains? s desc))})
+def story-is-description-contains value (fn [desc] {.description (fn [s] (contains? s desc))})
+def story-has-description-including value (fn [desc] {.description (fn [s] (contains? s desc))})
+def story-has-description-containing value (fn [desc] {.description (fn [s] (contains? s desc))})
+
+def story-is-in-epic value (fn [epic] {.epic_id epic})
+def story-is-epic-id value (fn [epic] {.epic_id epic})
+def story-has-epic-id value (fn [epic] {.epic_id epic})
+
+def story-is-estimate value (fn [est] {.estimate est})
+def story-has-estimate value (fn [est] {.estimate est})
+def story-is-estimate-greater-than value (fn [est] {.estimate (fn [e] (> (when-nil e 0) est))})
+def story-has-estimate-greater-than value (fn [est] {.estimate (fn [e] (> (when-nil e 0) est))})
+def story-is-estimate-less-than value (fn [est] {.estimate (fn [e] (< (when-nil e 0) est))})
+def story-has-estimate-less-than value (fn [est] {.estimate (fn [e] (< (when-nil e 0) est))})
+
+def story-is-external-id value (fn [ext-id] {.external_id ext-id})
+def story-has-external-id value (fn [ext-id] {.external_id ext-id})
+
+def story-is-external-links value (fn [links]
+                                      (if (= "list" (type links))
+                                        %(just {.external_links (fn [lnks] (subset? links lnks))})
+                                        %(just {.external_links (fn [lnks] (contains? lnks links))})))
+def story-has-external-links value (fn [links]
+                                       (if (= "list" (type links))
+                                         %(just {.external_links (fn [lnks] (subset? links lnks))})
+                                         %(just {.external_links (fn [lnks] (contains? lnks links))})))
+
+def story-is-followers value (fn [followers] {.follower_ids (fn [flwrs] (subset? followers flwrs))})
+def story-has-followers value (fn [followers] {.follower_ids (fn [flwrs] (subset? followers flwrs))})
+def story-is-follower-ids value (fn [followers] {.follower_ids (fn [flwrs] (subset? followers flwrs))})
+def story-has-follower-ids value (fn [followers] {.follower_ids (fn [flwrs] (subset? followers flwrs))})
+
+def story-is-group value (fn [group] {.group_id group})
+def story-is-team value (fn [group] {.group_id group})
+def story-is-owned-by-group value (fn [group] {.group_id group})
+def story-is-owned-by-team value (fn [group] {.group_id group})
+
+def story-is-group-mentions value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-is-group-mention-ids value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-has-group-mentions value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-has-group-mention-ids value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-is-team-mentions value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-is-team-mention-ids value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-has-team-mentions value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-has-team-mention-ids value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+
+def story-is-iteration value (fn [iteration] {.iteration_id iteration})
+def story-has-iteration value (fn [iteration] {.iteration_id iteration})
+def story-is-in-iteration value (fn [iteration] {.iteration_id iteration})
+
+def story-is-labels value (fn [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
+def story-has-labels value (fn [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
+def story-is-label-ids value (fn [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
+def story-has-label-ids value (fn [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
+
+;; TODO Investigate why higher-order function not working for story-is-label-names
+
+def iteration-is-unstarted   {.status "unstarted"}
+def iteration-is-todo        {.status "unstarted"}
+def iteration-is-in-progress {.status "started"}
+def iteration-is-started     {.status "started"}
+def iteration-is-done        {.status "done"}
+def iteration-is-finished    {.status "done"}
+def iteration-is-completed   {.status "done"}
+
+def type-is-story     value (fn [x] (= "story" (type x)))
+def type-is-epic      value (fn [x] (= "epic" (type x)))
+def type-is-milestone value (fn [x] (= "milestone" (type x)))
+def type-is-iteration value (fn [x] (= "iteration" (type x)))
+
+;; Entity States
+
 def story-states         value (fn [entity] (ls (.workflow_id (fetch entity))))
 def epic-states          value (fn [entity] (ls (epic-workflow)))
 def workflow-state-types ["unstarted" "started" "done"]
+
+;; Entity Creation
+
+def add-label value (fn [story label-name] (! story .labels [{.name label-name}]))
+def add-labels value (fn [story label-names] (! story .labels (map label-names %(just {.name %}))))
+
+; def my-stories               value (fn [] (find-stories {.owner_ids [me] .workflow_state_types ["unstarted" "started"]}))
+; def my-iterations            value (fn [] (interpret "my-stories | map .iteration_id | where identity | map fetch "))
+; def my-current-iterations    value (fn [] (interpret "my-iterations | where {.status \"started\"} "))
+; def my-unfinished-iterations value (fn [] (interpret "my-iterations | where {.status \"done\"} "))
+; def my-epics                 value (fn [] (interpret "my-stories | map .epic_id | where identity | map epic | where {.state %(not (= % \"done\"))}"))
+; def team-current-iterations  value (fn [team] (interpret "team | iterations | where {.status \"started\"}"))
+
+;; TODO Consider best way to prompt folks to setup defaults. Printing here does it in all the tests.
+; def -priv-defaults defaults
+; when (= nil (.team -priv-defaults)) %(println "[INFO] Don't forget to set a default team with `default .team <your team>`")
+; when (= nil (.workflow -priv-defaults)) %(println "[INFO] Don't forget to set a default workflow with `default .workflow <your workflow>`")
+; when (= nil (.workflow-state -priv-defaults)) %(println "[INFO] Don't forget to set a default workflow state with `default .workflow-state <your workflow state>`")
+
+"[INFO] Prelude loaded!"
 ''';
     interpretAll("<built-in prelude source>", prelude.split('\n'));
   }
@@ -1685,11 +1938,11 @@ class ScFnIdentity extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.length > 1) {
-      throw BadArgumentsException(
-          "identity expects 1 arg, found ${args.length} args.");
-    } else {
+    if (args.length == 1) {
       return args.first;
+    } else {
+      throw BadArgumentsException(
+          "The `identity` functions expects 1 argument, but received ${args.length} arguments.");
     }
   }
 
@@ -1929,6 +2182,81 @@ class ScFnDateTimeToLocal extends ScBaseInvocable {
     } else {
       throw BadArgumentsException(
           "The `to-local` function expects 1 argument, but received ${args.length} arguments.");
+    }
+  }
+}
+
+class ScFnDateTimeIsBefore extends ScBaseInvocable {
+  static final ScFnDateTimeIsBefore _instance =
+      ScFnDateTimeIsBefore._internal();
+  ScFnDateTimeIsBefore._internal();
+  factory ScFnDateTimeIsBefore() => _instance;
+
+  @override
+  String get help => "Return true if the first date is before the second.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 2) {
+      final dateTime1 = args[0];
+      final dateTime2 = args[1];
+      if (dateTime1 is ScDateTime) {
+        if (dateTime2 is ScDateTime) {
+          final dt1 = dateTime1.value;
+          final dt2 = dateTime2.value;
+          return ScBoolean.fromBool(dt1.isBefore(dt2));
+        } else {
+          throw BadArgumentsException(
+              "The `before?` function's second argument must be a date-time, but received a ${dateTime1.informalTypeName()}");
+        }
+      } else {
+        throw BadArgumentsException(
+            "The `before?` function's first argument must be a date-time, but received a ${dateTime1.informalTypeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `before?` function expects 2 arguments, but received ${args.length} arguments.");
+    }
+  }
+}
+
+class ScFnDateTimeIsAfter extends ScBaseInvocable {
+  static final ScFnDateTimeIsAfter _instance = ScFnDateTimeIsAfter._internal();
+  ScFnDateTimeIsAfter._internal();
+  factory ScFnDateTimeIsAfter() => _instance;
+
+  @override
+  String get help => "Return true if the first date is after the second.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 2) {
+      final dateTime1 = args[0];
+      final dateTime2 = args[1];
+      if (dateTime1 is ScDateTime) {
+        if (dateTime2 is ScDateTime) {
+          final dt1 = dateTime1.value;
+          final dt2 = dateTime2.value;
+          return ScBoolean.fromBool(dt1.isAfter(dt2));
+        } else {
+          throw BadArgumentsException(
+              "The `after?` function's second argument must be a date-time, but received a ${dateTime1.informalTypeName()}");
+        }
+      } else {
+        throw BadArgumentsException(
+            "The `after?` function's first argument must be a date-time, but received a ${dateTime1.informalTypeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `after?` function expects 2 arguments, but received ${args.length} arguments.");
     }
   }
 }
@@ -3496,7 +3824,8 @@ class ScFnForEach extends ScBaseInvocable {
   factory ScFnForEach() => _instance;
 
   @override
-  String get help => "Execute a function for each item in a list.";
+  String get help =>
+      "Invoke a function for each item in a list, returning the list of return values.";
 
   @override
   // TODO: implement helpFull
@@ -3506,17 +3835,17 @@ class ScFnForEach extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length != 2) {
       throw BadArgumentsException(
-          "The `for-each` function expects 2 arguments: a list and a function.");
+          "The `for-each` or `map` function expects 2 arguments: a list and a function.");
     } else {
       final list = args[0];
       final invocable = args[1];
       if (list is! ScList) {
         throw BadArgumentsException(
-            "The first argument to `for-each` must be a list, but received ${list.informalTypeName()}");
+            "The first argument to `for-each` or `map` must be a list, but received ${list.informalTypeName()}");
       }
       if (invocable is! ScBaseInvocable) {
         throw BadArgumentsException(
-            "The second argument to `for-each` must be a function, but received ${invocable.informalTypeName()}");
+            "The second argument to `for-each` or `map` must be a function, but received ${invocable.informalTypeName()}");
       }
       List<ScExpr> ret = [];
       for (final item in list.innerList) {

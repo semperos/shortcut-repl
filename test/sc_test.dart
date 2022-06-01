@@ -267,7 +267,6 @@ void main() {
   });
   group('Prelude', () {
     final env = e();
-    env.loadPrelude();
     group('Boolean logic', () {
       test('not', () {
         expect(env.interpret('not true'), ScBoolean.falsitas());
