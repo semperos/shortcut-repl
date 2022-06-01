@@ -1839,14 +1839,16 @@ A future extension to the language either for help or arbitrary metadata may be 
       env.addFnBindings(params, args);
       final theseExprs = getExprs;
       final evaledItems = theseExprs.mapMutable((e) => e.eval(env));
+      ScExpr result;
       if (evaledItems.first is ScBaseInvocable) {
         final invocable = evaledItems.first as ScBaseInvocable;
         final returnValue = invocable.invoke(env, theseExprs.skip(1));
-        env.removeFnBindings(params, args);
-        return returnValue;
+        result = returnValue;
       } else {
-        return evaledItems[evaledItems.length - 1];
+        result = evaledItems[evaledItems.length - 1];
       }
+      env.removeFnBindings(params, args);
+      return result;
     }
   }
 }
