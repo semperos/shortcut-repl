@@ -361,7 +361,12 @@ class ReplAdapter {
               final prefixLength =
                   autoCompletePrefix.length + sharedFurtherPrefix.length;
               for (final autoCompletion in autoCompletions) {
-                final s = autoCompletion.substring(prefixLength);
+                String s;
+                if (autoCompletePrefix.startsWith('.')) {
+                  s = autoCompletion.substring(prefixLength - 1);
+                } else {
+                  s = autoCompletion.substring(prefixLength);
+                }
                 write(repl.env.styleWith(
                     autoCompletePrefix + sharedFurtherPrefix, [darkGray])!);
                 write(s);

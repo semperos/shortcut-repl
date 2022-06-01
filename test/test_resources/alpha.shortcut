@@ -122,6 +122,10 @@ def story-is-done        {[.workflow_state_id .type] "done"}
 def story-is-finished    {[.workflow_state_id .type] "done"}
 def story-is-completed   {[.workflow_state_id .type] "done"}
 
+;; TODO All Story fields as `story-is-*` functions.
+
+def story-is-archived {.archived true}
+
 def iteration-is-unstarted   {.status "unstarted"}
 def iteration-is-todo        {.status "unstarted"}
 def iteration-is-in-progress {.status "started"}
