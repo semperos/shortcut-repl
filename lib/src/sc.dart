@@ -1836,6 +1836,7 @@ A future extension to the language either for help or arbitrary metadata may be 
     if (bodyExprs.isEmpty) {
       return ScNil();
     } else {
+      final originalBindings = Map<ScSymbol, dynamic>.from(env.bindings);
       env.addFnBindings(params, args);
       final theseExprs = getExprs;
       final evaledItems = theseExprs.mapMutable((e) => e.eval(env));
@@ -1847,7 +1848,10 @@ A future extension to the language either for help or arbitrary metadata may be 
       } else {
         result = evaledItems[evaledItems.length - 1];
       }
-      env.removeFnBindings(params, args);
+      // NB: Without proper nested environments, this can remove things bound
+      //     before this function was ever invoked, and so is buggy at this time.
+      // env.removeFnBindings(params, args);
+      env.bindings = originalBindings;
       return result;
     }
   }
