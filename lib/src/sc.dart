@@ -5488,7 +5488,7 @@ class ScFnCreateStory extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
       final tempFile = newTempFile();
-      final fields = ScStory.exposedFields.toList();
+      final fields = ScStory.fieldsForCreate.toList();
       fields.sort();
       final formatted = fields.join(', ');
       tempFile.writeAsStringSync(';; Fields: $formatted\n{.name "STORY_NAME"}');
@@ -5535,7 +5535,18 @@ class ScFnCreateEpic extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.length == 1) {
+    if (args.isEmpty) {
+      final tempFile = newTempFile();
+      final fields = ScEpic.fieldsForCreate.toList();
+      fields.sort();
+      final formatted = fields.join(', ');
+      tempFile.writeAsStringSync(';; Fields: $formatted\n{.name "EPIC_NAME"}');
+      execOpenInEditor(env, existingFile: tempFile);
+      env.out.writeln(env.styleWith(
+          "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Epic:\n\n    load *1 | create-epic\n",
+          [green]));
+      return ScFile(tempFile);
+    } else if (args.length == 1) {
       final dataMap = args[0];
       if (dataMap is ScMap) {
         final createFn = ScFnCreate();
@@ -8094,6 +8105,26 @@ class ScEpic extends ScEntity {
     return 'epic';
   }
 
+  static Set<String> fieldsForCreate = {
+    'completed_at_override',
+    'created_at',
+    'deadline',
+    'description',
+    'epic_state_id',
+    'external_id',
+    'follower_ids',
+    'group_id',
+    'labels',
+    'milestone_id',
+    'name',
+    'owner_ids',
+    'planned_start_date',
+    'requested_by_id',
+    'started_at_override',
+    'state',
+    'updated_at',
+  };
+
   factory ScEpic.fromMap(ScEnv env, Map<String, dynamic> data) {
     var epicCommentsData = data['comments'] ?? [];
     ScList epicComments = ScList([]);
@@ -8337,18 +8368,17 @@ class ScStory extends ScEntity {
   @override
   String get shortFnName => 'st';
 
-  static Set<String> exposedFields = {
-    'after_id',
+  static Set<String> fieldsForCreate = {
     'archived',
-    'before_id',
-    'branch_ids',
-    'commit_ids',
+    'comments',
     'completed_at_override',
+    'created_at',
     'custom_fields',
     'deadline',
     'description',
     'epic_id',
     'estimate',
+    'external_id',
     'external_links',
     'file_ids',
     'follower_ids',
@@ -8356,14 +8386,16 @@ class ScStory extends ScEntity {
     'iteration_id',
     'labels',
     'linked_file_ids',
-    'move_to',
     'name',
     'owner_ids',
     'project_id',
-    'pull_request_ids',
     'requested_by_id',
     'started_at_override',
+    'story_links',
+    'story_template_id',
     'story_type',
+    'tasks',
+    'updated_at',
     'workflow_state_id',
   };
 
