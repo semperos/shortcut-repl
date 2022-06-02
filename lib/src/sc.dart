@@ -9222,6 +9222,29 @@ class ScLabel extends ScEntity {
     data = label.data;
     return this;
   }
+
+  @override
+  String printToString(ScEnv env) {
+    final sb = StringBuffer();
+    sb.write(readableString(env));
+
+    final cmt = comment(env);
+    sb.write(' $cmt');
+
+    final name = data[ScString('name')];
+    if (name is ScString) {
+      sb.write(env.styleWith(' ${name.value}', [yellow]));
+    }
+
+    return sb.toString();
+  }
+
+  @override
+  ScExpr printSummary(ScEnv env) {
+    // TODO: implement printSummary
+    env.out.writeln(printToString(env));
+    return ScNil();
+  }
 }
 
 class ScWorkflow extends ScEntity {
