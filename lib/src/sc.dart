@@ -874,15 +874,14 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
 
   String style(String s, Object o, {List<String>? styles}) {
     if (isAnsiEnabled) {
-      // TODO Make palette configurable
       var palette = defaultDarkPalette;
       if (isAccessibleColors) {
         palette = colorBlindDarkPalette;
       }
       if (o is ScExpr) {
-        return styleStringForScExpr(palette, o, s);
+        return styleStringForScExpr(palette, o, s, styles: styles);
       } else {
-        return styleString(palette, o.toString(), s);
+        return styleString(palette, o.toString(), s, styles: styles);
       }
     } else {
       return s;
