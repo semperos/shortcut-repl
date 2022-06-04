@@ -16,6 +16,13 @@ class Options {
   bool? isAnsiEnabled;
 
   @CliOption(
+      name: 'accessible-colors',
+      help: 'Use a color palette optimized for color blindness.',
+      negatable: false,
+      defaultsTo: false)
+  final bool isAccessibleColors;
+
+  @CliOption(
       abbr: 'c',
       name: 'config-directory',
       help:
@@ -53,5 +60,6 @@ class Options {
       defaultsTo: false)
   final bool isReplMode;
 
-  Options(this.help, this.isReplMode, this.isPrintJson);
+  Options(
+      this.help, this.isReplMode, this.isPrintJson, this.isAccessibleColors);
 }

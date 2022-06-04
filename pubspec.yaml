@@ -11,9 +11,9 @@ environment:
 dependencies:
   args: ^2.0.0
   build_cli_annotations: ^2.0.0
+  chalkdart: ^2.0.8
   characters: ^1.2.0
   intl: ^0.17.0
-  io: ^1.0.3
   petitparser: ^4.4.0
 
 dev_dependencies:

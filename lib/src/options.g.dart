@@ -10,6 +10,7 @@ Options _$parseOptionsResult(ArgResults result) => Options(
       result['help'] as bool,
       result['repl'] as bool,
       result['json'] as bool,
+      result['accessible-colors'] as bool,
     )
       ..isAnsiEnabled = result['ansi-color'] as bool?
       ..baseConfigDir = result['config-directory'] as String?
@@ -22,6 +23,11 @@ ArgParser _$populateOptionsParser(ArgParser parser) => parser
     abbr: 'a',
     help: 'Whether or not to use ANSI codes for colored output.',
     defaultsTo: null,
+  )
+  ..addFlag(
+    'accessible-colors',
+    help: 'Use a color palette optimized for color blindness.',
+    negatable: false,
   )
   ..addOption(
     'config-directory',

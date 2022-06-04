@@ -3,14 +3,16 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:chalkdart/chalk.dart';
+import 'package:chalkdart/colorutils.dart';
 import 'package:intl/intl.dart';
-import 'package:io/ansi.dart';
 import 'package:petitparser/petitparser.dart';
 import 'package:sc_cli/sc_static.dart';
 import 'package:sc_cli/src/sc_api.dart' show ScClient, handleJsonNonEncodable;
 import 'package:sc_cli/src/sc_async.dart';
 import 'package:sc_cli/src/sc_config.dart';
 import 'package:sc_cli/src/sc_lang.dart';
+import 'package:sc_cli/src/sc_style.dart';
 
 class ScEnv {
   ScInteractivityState interactivityState;
@@ -26,6 +28,7 @@ class ScEnv {
   ScEnv(this.client)
       : isReplMode = false,
         isAnsiEnabled = true,
+        isAccessibleColors = false,
         isPrintJson = false,
         interactivityState = ScInteractivityState.normal,
         out = stdout,
@@ -55,6 +58,8 @@ class ScEnv {
 
   /// Should strings be printed using ANSI color codes?
   bool isAnsiEnabled;
+
+  bool isAccessibleColors;
 
   bool isPrintJson;
 
@@ -320,6 +325,7 @@ class ScEnv {
     required ScClient client,
     isReplMode = false,
     isAnsiEnabled = false,
+    isAccessibleColors = false,
     isPrintJson = false,
     required IOSink out,
     required IOSink err,
@@ -340,6 +346,7 @@ class ScEnv {
     env.history = history;
     env.historyFile = historyFile;
     env.isAnsiEnabled = isAnsiEnabled;
+    env.isAccessibleColors = isAccessibleColors;
     env.isPrintJson = isPrintJson;
     env.isReplMode = isReplMode;
     env = ScEnv.extendEnvfromMap(env, json);
@@ -350,7 +357,6 @@ class ScEnv {
   factory ScEnv.fromMap(ScClient client, Map<String, dynamic> data) {
     var env = ScEnv(client);
     env = ScEnv.extendEnvfromMap(env, data);
-    env.loadPrelude();
     return env;
   }
 
@@ -410,6 +416,8 @@ class ScEnv {
         setParentEntity(env, parentEntity);
       }
     }
+
+    env.loadPrelude();
 
     return env;
   }
@@ -801,8 +809,6 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
 ; when (= nil (.team -priv-defaults)) %(println "[INFO] Don't forget to set a default team with `default .team <your team>`")
 ; when (= nil (.workflow -priv-defaults)) %(println "[INFO] Don't forget to set a default workflow with `default .workflow <your workflow>`")
 ; when (= nil (.workflow-state -priv-defaults)) %(println "[INFO] Don't forget to set a default workflow state with `default .workflow-state <your workflow state>`")
-
-"[INFO] Prelude loaded!"
 ''';
     interpretAll("<built-in prelude source>", prelude.split('\n'));
   }
@@ -866,9 +872,18 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
     return indentString() + s;
   }
 
-  String? styleWith(String s, Iterable<AnsiCode> codes) {
+  String style(String s, Object o, {List<String>? styles}) {
     if (isAnsiEnabled) {
-      return wrapWith(s, codes);
+      // TODO Make palette configurable
+      var palette = defaultDarkPalette;
+      if (isAccessibleColors) {
+        palette = colorBlindDarkPalette;
+      }
+      if (o is ScExpr) {
+        return styleStringForScExpr(palette, o, s);
+      } else {
+        return styleString(palette, o.toString(), s);
+      }
     } else {
       return s;
     }
@@ -911,7 +926,7 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
         }
       }
       m['parent'] = {
-        'entityType': pe.informalTypeName(),
+        'entityType': pe.typeName(),
         'entityId': pe.idString,
         'entityTitle': title,
       };
@@ -948,7 +963,7 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
     for (final entity in parentEntityHistory) {
       final title = entity.calculateTitle();
       pH.add({
-        'entityType': entity.informalTypeName(),
+        'entityType': entity.typeName(),
         'entityId': entity.idString,
         'entityTitle': title,
       });
@@ -1257,7 +1272,7 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
         args.innerList.removeAt(0);
       } else {
         throw BadArgumentsException(
-            "The `$fnName` function's $nthArg argument must be an entity or its ID, but received a ${maybeEntity.informalTypeName()}");
+            "The `$fnName` function's $nthArg argument must be an entity or its ID, but received a ${maybeEntity.typeName()}");
       }
     }
     return entity;
@@ -1281,7 +1296,7 @@ abstract class AbstractScExpr {
   void print(ScEnv env);
   String printToString(ScEnv env);
   String toJson();
-  String informalTypeName();
+  String typeName();
 }
 
 class ScExpr extends AbstractScExpr {
@@ -1311,7 +1326,7 @@ class ScExpr extends AbstractScExpr {
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'expression';
   }
 }
@@ -1357,7 +1372,7 @@ class ScNil extends ScExpr {
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'nil';
   }
 }
@@ -1404,11 +1419,11 @@ class ScBoolean extends ScExpr {
 
   @override
   String printToString(ScEnv env) {
-    return env.styleWith(super.printToString(env), [red])!;
+    return env.style(super.printToString(env), this);
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'boolean';
   }
 }
@@ -1424,11 +1439,11 @@ class ScNumber extends ScExpr implements Comparable {
 
   @override
   String printToString(ScEnv env) {
-    return env.styleWith(super.printToString(env), [green])!;
+    return env.style(super.printToString(env), this);
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'number';
   }
 
@@ -1462,7 +1477,7 @@ class ScNumber extends ScExpr implements Comparable {
       return value.compareTo(other.value);
     } else if (other is ScExpr) {
       throw BadArgumentsException(
-          "You cannot sort a number with a ${other.informalTypeName()}");
+          "You cannot sort a number with a ${other.typeName()}");
     } else {
       throw BadArgumentsException(
           "You cannot sort a number with a ${other.runtimeType}");
@@ -1497,11 +1512,11 @@ class ScString extends ScExpr implements Comparable {
 
   @override
   String printToString(ScEnv env) {
-    return env.styleWith(toString(), [yellow])!;
+    return env.style(toString(), this);
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'string';
   }
 
@@ -1524,7 +1539,7 @@ class ScString extends ScExpr implements Comparable {
       return value.compareTo(other);
     } else if (other is ScExpr) {
       throw UnsupportedError(
-          "You cannot sort a string with a ${other.informalTypeName()}");
+          "You cannot sort a string with a ${other.typeName()}");
     } else {
       throw UnsupportedError(
           "You cannot sort a string with a ${other.runtimeType}");
@@ -1551,13 +1566,13 @@ class ScDateTime extends ScExpr implements Comparable {
     final sb = StringBuffer();
     sb.write(lParen(env));
     sb.write("dt ");
-    sb.write(env.styleWith('"${toString()}"', [cyan]));
+    sb.write(env.style('"${toString()}"', this));
     sb.write(rParen(env));
     return sb.toString();
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'date-time';
   }
 
@@ -1575,7 +1590,7 @@ class ScDateTime extends ScExpr implements Comparable {
       return value.compareTo(other);
     } else if (other is ScExpr) {
       throw UnsupportedError(
-          "You cannot sort a string with a ${other.informalTypeName()}");
+          "You cannot sort a string with a ${other.typeName()}");
     } else {
       throw UnsupportedError(
           "You cannot sort a string with a ${other.runtimeType}");
@@ -1608,11 +1623,11 @@ class ScSymbol extends ScExpr implements Comparable {
     if (env.isPrintJson) {
       str = '"$str"';
     }
-    return env.styleWith(str, [magenta])!;
+    return env.style(str, this);
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'symbol';
   }
 
@@ -1639,7 +1654,7 @@ class ScSymbol extends ScExpr implements Comparable {
       return _name.compareTo(other);
     } else if (other is ScExpr) {
       throw UnsupportedError(
-          "You cannot sort a symbol with a ${other.informalTypeName()}");
+          "You cannot sort a symbol with a ${other.typeName()}");
     } else {
       throw UnsupportedError(
           "You cannot sort a symbol with a ${other.runtimeType}");
@@ -1673,11 +1688,11 @@ class ScDottedSymbol extends ScExpr implements ScBaseInvocable {
     if (env.isPrintJson) {
       str = '"$_name"';
     }
-    return env.styleWith(str, [magenta])!;
+    return env.style(str, this);
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'dotted symbol';
   }
 
@@ -1726,7 +1741,7 @@ When used within a structure that gets serialized to JSON and sent to Shortcut, 
           return getFn.invoke(env, ScList([env.parentEntity!, this, arg]));
         } else {
           throw BadArgumentsException(
-              "If you pass only 1 argument to a dotted symbol, it must either be a map/entity you expect to contain your symbol, or you must be in a parent entity and the argument is considered the default-if-not-found value. Your parent entity is `nil` and you passed this dotted symbol an argument of type ${arg.informalTypeName()}");
+              "If you pass only 1 argument to a dotted symbol, it must either be a map/entity you expect to contain your symbol, or you must be in a parent entity and the argument is considered the default-if-not-found value. Your parent entity is `nil` and you passed this dotted symbol an argument of type ${arg.typeName()}");
         }
       }
     } else if (args.length == 2) {
@@ -1751,7 +1766,7 @@ class ScFile extends ScExpr {
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'file';
   }
 
@@ -1760,7 +1775,7 @@ class ScFile extends ScExpr {
     final sb = StringBuffer();
     sb.write(lParen(env));
     sb.write("file ");
-    sb.write(env.styleWith('"${file.path}"', [magenta]));
+    sb.write(env.style('"${file.path}"', this));
     sb.write(rParen(env));
     return sb.toString();
   }
@@ -1777,7 +1792,7 @@ abstract class ScBaseInvocable extends ScExpr {
   // final String name;
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'built-in function';
   }
 
@@ -1801,7 +1816,7 @@ class ScFunction extends ScBaseInvocable {
   ScList get getExprs => ScList(List<ScExpr>.from(bodyExprs.innerList));
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'function';
   }
 
@@ -1867,7 +1882,7 @@ class ScAnonymousFunction extends ScBaseInvocable {
   ScList get getExprs => ScList(List<ScExpr>.from(exprs.innerList));
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'anonymous function';
   }
 
@@ -2002,7 +2017,7 @@ class ScFnType extends ScBaseInvocable {
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length == 1) {
-      return ScString(args[0].informalTypeName());
+      return ScString(args[0].typeName());
     } else {
       throw BadArgumentsException(
           "The `type` function expects one argument, but received ${args.length}");
@@ -2028,7 +2043,7 @@ class ScFnUndef extends ScBaseInvocable {
         env.removeBinding(ScSymbol(toUnbind._name));
       } else {
         throw BadArgumentsException(
-            "The `undef` function expects either a string or dotted symbol, but received a ${toUnbind.informalTypeName()}");
+            "The `undef` function expects either a string or dotted symbol, but received a ${toUnbind.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -2087,7 +2102,7 @@ https://api.dart.dev/stable/dart-core/DateTime/parse.html""";
         }
       } else {
         throw BadArgumentsException(
-            "The `dt` function's argument must be a string, but received a ${dateTimeStr.informalTypeName()}");
+            "The `dt` function's argument must be a string, but received a ${dateTimeStr.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -2146,7 +2161,7 @@ class ScFnDateTimeToUtc extends ScBaseInvocable {
         }
       } else {
         throw BadArgumentsException(
-            "The `to-utc` function expects a date-time argument, but received a ${dateTime.informalTypeName()}");
+            "The `to-utc` function expects a date-time argument, but received a ${dateTime.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -2183,7 +2198,7 @@ class ScFnDateTimeToLocal extends ScBaseInvocable {
         }
       } else {
         throw BadArgumentsException(
-            "The `to-local` function expects a date-time argument, but received a ${dateTime.informalTypeName()}");
+            "The `to-local` function expects a date-time argument, but received a ${dateTime.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -2217,11 +2232,11 @@ class ScFnDateTimeIsBefore extends ScBaseInvocable {
           return ScBoolean.fromBool(dt1.isBefore(dt2));
         } else {
           throw BadArgumentsException(
-              "The `before?` function's second argument must be a date-time, but received a ${dateTime1.informalTypeName()}");
+              "The `before?` function's second argument must be a date-time, but received a ${dateTime1.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `before?` function's first argument must be a date-time, but received a ${dateTime1.informalTypeName()}");
+            "The `before?` function's first argument must be a date-time, but received a ${dateTime1.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -2254,11 +2269,11 @@ class ScFnDateTimeIsAfter extends ScBaseInvocable {
           return ScBoolean.fromBool(dt1.isAfter(dt2));
         } else {
           throw BadArgumentsException(
-              "The `after?` function's second argument must be a date-time, but received a ${dateTime1.informalTypeName()}");
+              "The `after?` function's second argument must be a date-time, but received a ${dateTime1.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `after?` function's first argument must be a date-time, but received a ${dateTime1.informalTypeName()}");
+            "The `after?` function's first argument must be a date-time, but received a ${dateTime1.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -2324,7 +2339,7 @@ NB: The `-weeks` variants are implemented using a Dart `Duration` of 7 days.""";
         }
       } else {
         throw BadArgumentsException(
-            "The `plus-*` date-time functions expect their first argument to be a date-time value, but received a ${dt.informalTypeName()}");
+            "The `plus-*` date-time functions expect their first argument to be a date-time value, but received a ${dt.typeName()}");
       }
     }
   }
@@ -2389,7 +2404,7 @@ NB: The `-weeks` variants are implemented using a Dart `Duration` of 7 days.""";
         }
       } else {
         throw BadArgumentsException(
-            "The `minus-*` date-time functions expect their first argument to be a date-time value, but received a ${dt.informalTypeName()}");
+            "The `minus-*` date-time functions expect their first argument to be a date-time value, but received a ${dt.typeName()}");
       }
     }
   }
@@ -2438,7 +2453,7 @@ class ScFnDateTimeUntil extends ScBaseInvocable {
         return dateTimeDifference(dtA, dtB, unit, mustNegate: true);
       } else {
         throw BadArgumentsException(
-            "The `*-until` functions expect only date-time values, but received a first argument of type ${dtB.informalTypeName()}");
+            "The `*-until` functions expect only date-time values, but received a first argument of type ${dtB.typeName()}");
       }
     } else if (args.length == 2) {
       final dtA = args[0];
@@ -2448,11 +2463,11 @@ class ScFnDateTimeUntil extends ScBaseInvocable {
           return dateTimeDifference(dtA, dtB, unit, mustNegate: true);
         } else {
           throw BadArgumentsException(
-              "The `*-until` functions expect only date-time values, but received a second argument of type ${dtB.informalTypeName()}");
+              "The `*-until` functions expect only date-time values, but received a second argument of type ${dtB.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `*-until` functions expect only date-time values, but received a first argument of type ${dtB.informalTypeName()}");
+            "The `*-until` functions expect only date-time values, but received a first argument of type ${dtB.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -2504,7 +2519,7 @@ class ScFnDateTimeSince extends ScBaseInvocable {
         return dateTimeDifference(dtA, dtB, unit);
       } else {
         throw BadArgumentsException(
-            "The `*-since` functions expect only date-time values, but received a first argument of type ${dtB.informalTypeName()}");
+            "The `*-since` functions expect only date-time values, but received a first argument of type ${dtB.typeName()}");
       }
     } else if (args.length == 2) {
       final dtA = args[0];
@@ -2514,11 +2529,11 @@ class ScFnDateTimeSince extends ScBaseInvocable {
           return dateTimeDifference(dtA, dtB, unit);
         } else {
           throw BadArgumentsException(
-              "The `*-since` functions expect only date-time values, but received a second argument of type ${dtB.informalTypeName()}");
+              "The `*-since` functions expect only date-time values, but received a second argument of type ${dtB.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `*-since` functions expect only date-time values, but received a first argument of type ${dtB.informalTypeName()}");
+            "The `*-since` functions expect only date-time values, but received a first argument of type ${dtB.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -2607,7 +2622,7 @@ class ScFnDateTimeField extends ScBaseInvocable {
         }
       } else {
         throw BadArgumentsException(
-            "The date-time field functions expect a date-time argument, but received a ${dateTime.informalTypeName()}");
+            "The date-time field functions expect a date-time argument, but received a ${dateTime.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -2642,11 +2657,11 @@ class ScFnIf extends ScBaseInvocable {
       final ScExpr elseInv = args[2];
       if (thenInv is! ScBaseInvocable) {
         throw BadArgumentsException(
-            "The `if` function expects its second argument to be a function, but received a ${thenInv.informalTypeName()}");
+            "The `if` function expects its second argument to be a function, but received a ${thenInv.typeName()}");
       }
       if (elseInv is! ScBaseInvocable) {
         throw BadArgumentsException(
-            "The `if` function expects its third argument to be a function, but received a ${thenInv.informalTypeName()}");
+            "The `if` function expects its third argument to be a function, but received a ${thenInv.typeName()}");
       }
       if (truthy == ScBoolean.falsitas() || truthy == ScNil()) {
         // Else
@@ -2848,7 +2863,7 @@ The second argument is expected to be a function that takes two arguments: a key
             return ScBoolean.fromBool(allMatch);
           } else {
             throw BadArgumentsException(
-                "The `where` function using a map spec requires that each item in your list be a map, but found ${expr.informalTypeName()}");
+                "The `where` function using a map spec requires that each item in your list be a map, but found ${expr.typeName()}");
           }
         });
       } else {
@@ -2873,7 +2888,7 @@ The second argument is expected to be a function that takes two arguments: a key
       }
     } else {
       throw BadArgumentsException(
-          "The `where` function's first argument must be either a list or map, but received ${coll.informalTypeName()}");
+          "The `where` function's first argument must be either a list or map, but received ${coll.typeName()}");
     }
   }
 }
@@ -2926,7 +2941,7 @@ If provided a function, this behaves as a "take while", returning as many items 
       }
     } else {
       throw BadArgumentsException(
-          "The `limit` or `take` function's first argument must be either a list, but received ${coll.informalTypeName()}");
+          "The `limit` or `take` function's first argument must be either a list, but received ${coll.typeName()}");
     }
   }
 }
@@ -2978,7 +2993,7 @@ If provided a function, this behaves as a "skip while", skipping as many items a
       }
     } else {
       throw BadArgumentsException(
-          "The `skip` or `drop` function's first argument must be either a list, but received ${coll.informalTypeName()}");
+          "The `skip` or `drop` function's first argument must be either a list, but received ${coll.typeName()}");
     }
   }
 }
@@ -3010,7 +3025,7 @@ class ScFnDistinct extends ScBaseInvocable {
         return l;
       } else {
         throw BadArgumentsException(
-            "The `distinct` or `uniq` function expects a list argument, but received a ${coll.informalTypeName()}");
+            "The `distinct` or `uniq` function expects a list argument, but received a ${coll.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -3033,19 +3048,19 @@ class ScFnHelp extends ScBaseInvocable {
         if (value is ScBaseInvocable) {
           m[key] = ScString(value.help);
         } else if (value is ScExpr) {
-          m[key] = ScString("a ${value.informalTypeName()} value");
+          m[key] = ScString("a ${value.typeName()} value");
         }
       });
       final ks = m.keys.toList();
       ks.sort();
       printTable(env, ks, m);
-      env.out.writeln(env.styleWith(
+      env.out.writeln(env.style(
           'Try `? "example"` to search through all function names and help strings.',
-          [yellow]));
+          styleInfo));
     } else {
       final query = args[0];
       if (query is ScBaseInvocable) {
-        env.out.writeln(env.styleWith(query.helpFull, [yellow]));
+        env.out.writeln(env.style(query.helpFull, 'title'));
       } else if (query is ScString) {
         final searchFn = ScFnSearch();
         final bindingsWithHelp = ScMap({});
@@ -3482,9 +3497,9 @@ class ScFnBackward extends ScBaseInvocable {
         env.parentEntityHistoryCursor++;
         return previousParentEntity;
       } else {
-        env.err.writeln(env.styleWith(
+        env.err.writeln(env.style(
             ";; [WARN] No previous parent found in history; you've reached the beginning of time.",
-            [yellow]));
+            'warn'));
         return ScNil();
       }
     } else {
@@ -3507,9 +3522,9 @@ class ScFnForward extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
       if (env.parentEntityHistoryCursor == 0) {
-        env.err.writeln(env.styleWith(
+        env.err.writeln(env.style(
             ";; [WARN] No subsequent parent found in history; you're back to the latest.",
-            [yellow]));
+            'warn'));
         return ScNil();
       } else {
         env.parentEntityHistoryCursor--;
@@ -3562,7 +3577,7 @@ class ScFnCwd extends ScBaseInvocable {
         }
         return pe;
       } else {
-        env.out.writeln(env.styleWith(cwdHelp, [green]));
+        env.out.writeln(env.style(cwdHelp, styleInfo));
         return ScNil();
       }
     } else {
@@ -3592,7 +3607,7 @@ class ScFnPwd extends ScBaseInvocable {
         pe.printSummary(env);
         return ScNil();
       } else {
-        env.out.writeln(env.styleWith(ScFnCwd.cwdHelp, [green]));
+        env.out.writeln(env.style(ScFnCwd.cwdHelp, 'warn'));
         return ScNil();
       }
     } else {
@@ -3634,7 +3649,7 @@ class ScFnMv extends ScBaseInvocable {
               env, childEntity.idString, {'group_id': parentEntity.idString}));
         } else {
           throw BadArgumentsException(
-              "A story can only be moved to an epic, iteration, or team, but you tried to move it to a ${parentEntity.informalTypeName()}");
+              "A story can only be moved to an epic, iteration, or team, but you tried to move it to a ${parentEntity.typeName()}");
         }
       } else if (childEntity is ScEpic) {
         if (parentEntity is ScMilestone) {
@@ -3645,11 +3660,11 @@ class ScFnMv extends ScBaseInvocable {
               env, childEntity.idString, {'group_id': parentEntity.idString}));
         } else {
           throw BadArgumentsException(
-              "An epic can only be moved to a milestone or team, but you tried to move it to a ${parentEntity.informalTypeName()}");
+              "An epic can only be moved to a milestone or team, but you tried to move it to a ${parentEntity.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "You tried to mv a ${childEntity.informalTypeName()} to a ${parentEntity.informalTypeName()}, but that is unsupported.");
+            "You tried to mv a ${childEntity.typeName()} to a ${parentEntity.typeName()}, but that is unsupported.");
       }
     }
   }
@@ -3685,7 +3700,7 @@ class ScFnData extends ScBaseInvocable {
         return entity.data;
       } else {
         throw BadArgumentsException(
-            "If provided, the argument to `data` must be an entity, but received ${entity.informalTypeName()}");
+            "If provided, the argument to `data` must be an entity, but received ${entity.typeName()}");
       }
     }
   }
@@ -3721,7 +3736,7 @@ class ScFnDetails extends ScBaseInvocable {
         return details(entity);
       } else {
         throw BadArgumentsException(
-            "If provided, the argument to `details` must be an entity, but received ${entity.informalTypeName()}");
+            "If provided, the argument to `details` must be an entity, but received ${entity.typeName()}");
       }
     }
   }
@@ -3784,7 +3799,7 @@ If you find yourself needing to invoke a function in a position it's otherwise t
       return invocable.invoke(env, argsForInvocable);
     } else {
       throw BadArgumentsException(
-          "The `invoke` function expects its first argument to be a function, but received a ${invocable.informalTypeName()}");
+          "The `invoke` function expects its first argument to be a function, but received a ${invocable.typeName()}");
     }
   }
 }
@@ -3811,11 +3826,11 @@ class ScFnApply extends ScBaseInvocable {
           return invocable.invoke(env, itsArgs);
         } else {
           throw BadArgumentsException(
-              "The `apply` function expects its second argument to be a function, but received a ${invocable.informalTypeName()}");
+              "The `apply` function expects its second argument to be a function, but received a ${invocable.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `apply` function expects its first argument to be a list, but received a ${itsArgs.informalTypeName()}");
+            "The `apply` function expects its first argument to be a list, but received a ${itsArgs.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -3847,11 +3862,11 @@ class ScFnForEach extends ScBaseInvocable {
       final invocable = args[1];
       if (list is! ScList) {
         throw BadArgumentsException(
-            "The first argument to `for-each` or `map` must be a list, but received ${list.informalTypeName()}");
+            "The first argument to `for-each` or `map` must be a list, but received ${list.typeName()}");
       }
       if (invocable is! ScBaseInvocable) {
         throw BadArgumentsException(
-            "The second argument to `for-each` or `map` must be a function, but received ${invocable.informalTypeName()}");
+            "The second argument to `for-each` or `map` must be a function, but received ${invocable.typeName()}");
       }
       List<ScExpr> ret = [];
       for (final item in list.innerList) {
@@ -3917,7 +3932,7 @@ NB: Although Piped Lisp does not support implementing your own multi-arity funct
                 (acc, item) => invocable.invoke(env, ScList([acc, item])));
           } else {
             throw BadArgumentsException(
-                "When passing two arguments to `reduce`, the second argument must be a function, but received ${invocable.informalTypeName()}");
+                "When passing two arguments to `reduce`, the second argument must be a function, but received ${invocable.typeName()}");
           }
         } else {
           // list + acc + fn
@@ -3933,13 +3948,13 @@ NB: Although Piped Lisp does not support implementing your own multi-arity funct
                   (acc, item) => invocable.invoke(env, ScList([acc, item])));
             } else {
               throw BadArgumentsException(
-                  "When passing three arguments to `reduce`, the third argument must be a function, but received ${invocable.informalTypeName()}");
+                  "When passing three arguments to `reduce`, the third argument must be a function, but received ${invocable.typeName()}");
             }
           }
         }
       } else {
         throw BadArgumentsException(
-            "The first argument to `reduce` must be a list, but received ${list.informalTypeName()}");
+            "The first argument to `reduce` must be a list, but received ${list.typeName()}");
       }
     }
   }
@@ -3980,7 +3995,7 @@ class ScFnConcat extends ScBaseInvocable {
             l.addAll(coll.innerList);
           } else {
             throw BadArgumentsException(
-                "The `concat` function can concatenate lists, but all arguments must then be lists; received a ${coll.informalTypeName()}");
+                "The `concat` function can concatenate lists, but all arguments must then be lists; received a ${coll.typeName()}");
           }
         }
         return ScList(l);
@@ -3991,13 +4006,13 @@ class ScFnConcat extends ScBaseInvocable {
             m.addMapMutable(coll);
           } else {
             throw BadArgumentsException(
-                "The `concat` function can concatenate maps, but all arguments must then be maps; received a ${coll.informalTypeName()}");
+                "The `concat` function can concatenate maps, but all arguments must then be maps; received a ${coll.typeName()}");
           }
         }
         return m;
       } else {
         throw BadArgumentsException(
-            "The `concat` function can concatenate strings, lists, and maps, but received a ${sample.informalTypeName()}");
+            "The `concat` function can concatenate strings, lists, and maps, but received a ${sample.typeName()}");
       }
     }
   }
@@ -4051,13 +4066,13 @@ concat {.a [1 2]} {.a [3 4]} => {.a [3 4]}
             }
           } else {
             throw BadArgumentsException(
-                "The `extend` function can extend maps, but received a ${coll.informalTypeName()}");
+                "The `extend` function can extend maps, but received a ${coll.typeName()}");
           }
         }
         return m;
       } else {
         throw BadArgumentsException(
-            "The `extend` function can extend maps, but received a ${sample.informalTypeName()}");
+            "The `extend` function can extend maps, but received a ${sample.typeName()}");
       }
     }
   }
@@ -4093,7 +4108,7 @@ class ScFnKeys extends ScBaseInvocable {
         return ScList(arg.data.innerMap.keys.toList());
       } else {
         throw BadArgumentsException(
-            "The `keys` function expects a map or entity argument, but received ${arg.informalTypeName()}");
+            "The `keys` function expects a map or entity argument, but received ${arg.typeName()}");
       }
     }
   }
@@ -4232,7 +4247,7 @@ class ScFnGetIn extends ScBaseInvocable {
     final selector = args[1];
     if (selector is! ScList) {
       throw BadArgumentsException(
-          "The `get-in` function's second argument must be a list of keys to get out of the map, but received a ${selector.informalTypeName()}");
+          "The `get-in` function's second argument must be a list of keys to get out of the map, but received a ${selector.typeName()}");
     }
     final missingDefault = args.length > 2 ? args[2] : ScNil();
     if (source is ScEntity) {
@@ -4286,7 +4301,7 @@ class ScFnContains extends ScBaseInvocable {
       return ScBoolean.fromBool(source.value.contains(strKey.value));
     } else {
       throw BadArgumentsException(
-          "The `contains?` function's first argument must be a collection or string, but received ${source.informalTypeName()}");
+          "The `contains?` function's first argument must be a collection or string, but received ${source.typeName()}");
     }
   }
 }
@@ -4319,14 +4334,14 @@ class ScFnIsSubset extends ScBaseInvocable {
           return ScBoolean.veritas();
         } else {
           throw BadArgumentsException(
-              "The `subset?` function expects both arguments to be of the same type, received one list and one ${superset.informalTypeName()}");
+              "The `subset?` function expects both arguments to be of the same type, received one list and one ${superset.typeName()}");
         }
       } else if (subset is ScString) {
         if (superset is ScString) {
           return ScBoolean.fromBool(superset.value.contains(subset.value));
         } else {
           throw BadArgumentsException(
-              "The `subset?` function expects both arguments to be of the same type, received one string and one ${superset.informalTypeName()}");
+              "The `subset?` function expects both arguments to be of the same type, received one string and one ${superset.typeName()}");
         }
       } else if (subset is ScMap) {
         if (superset is ScMap) {
@@ -4338,11 +4353,11 @@ class ScFnIsSubset extends ScBaseInvocable {
           return ScBoolean.veritas();
         } else {
           throw BadArgumentsException(
-              "The `subset?` function expects both arguments to be of the same type, received one map and one ${superset.informalTypeName()}");
+              "The `subset?` function expects both arguments to be of the same type, received one map and one ${superset.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `subset?` function does not support values of type ${subset.informalTypeName()}");
+            "The `subset?` function does not support values of type ${subset.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -4378,7 +4393,7 @@ class ScFnCount extends ScBaseInvocable {
         return ScNumber(coll.value.length);
       } else {
         throw BadArgumentsException(
-            'The `count` or `length` function expects its argument to be a collection, but received a ${coll.informalTypeName()}');
+            'The `count` or `length` function expects its argument to be a collection, but received a ${coll.typeName()}');
       }
     }
   }
@@ -4423,7 +4438,7 @@ If you need to sort by a derivative value of each item, try `sort-by`.""";
             "Sorting a string is not supported at this time.");
       } else {
         throw BadArgumentsException(
-            "The `sort` function's first argument must be a collection, but received a ${coll.informalTypeName()}");
+            "The `sort` function's first argument must be a collection, but received a ${coll.typeName()}");
       }
     } else if (args.length == 2) {
       final coll = args[0];
@@ -4456,11 +4471,11 @@ If you need to sort by a derivative value of each item, try `sort-by`.""";
               "Sorting a string is not supported at this time.");
         } else {
           throw BadArgumentsException(
-              "The `sort` function's first argument must be a collection, but received a ${coll.informalTypeName()}");
+              "The `sort` function's first argument must be a collection, but received a ${coll.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `sort` function's second argument must be a function, but received a ${fn.informalTypeName()}");
+            "The `sort` function's second argument must be a function, but received a ${fn.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -4495,7 +4510,7 @@ class ScFnSplit extends ScBaseInvocable {
           sep = argSep;
         } else {
           throw BadArgumentsException(
-              'The `split` function expects its second argument to be a string, but received a ${argSep.informalTypeName()}');
+              'The `split` function expects its second argument to be a string, but received a ${argSep.typeName()}');
         }
       } else {
         sep = ScString('\n');
@@ -4505,7 +4520,7 @@ class ScFnSplit extends ScBaseInvocable {
         return coll.split(separator: sep);
       } else {
         throw BadArgumentsException(
-            'The `split` function currently only supports splitting strings, received a ${coll.informalTypeName()}');
+            'The `split` function currently only supports splitting strings, received a ${coll.typeName()}');
       }
     }
   }
@@ -4538,7 +4553,7 @@ class ScFnJoin extends ScBaseInvocable {
           sep = argSep;
         } else {
           throw BadArgumentsException(
-              'The `join` function expects its second argument to be a string, but received a ${argSep.informalTypeName()}');
+              'The `join` function expects its second argument to be a string, but received a ${argSep.typeName()}');
         }
       } else {
         sep = ScString('\n');
@@ -4548,7 +4563,7 @@ class ScFnJoin extends ScBaseInvocable {
         return coll.join(separator: sep);
       } else {
         throw BadArgumentsException(
-            'The `join` function currently only supports joining lists, received a ${coll.informalTypeName()}');
+            'The `join` function currently only supports joining lists, received a ${coll.typeName()}');
       }
     }
   }
@@ -4579,7 +4594,7 @@ class ScFnFile extends ScBaseInvocable {
         return ScFile(file);
       } else {
         throw BadArgumentsException(
-            'The argument to `file` must be a string, but received a ${path.informalTypeName()}');
+            'The argument to `file` must be a string, but received a ${path.typeName()}');
       }
     }
   }
@@ -4608,7 +4623,7 @@ class ScFnReadFile extends ScBaseInvocable {
         return ScFile(fileFile).readAsStringSync();
       } else {
         throw BadArgumentsException(
-            'The `read-file` function expects a file argument, but received a ${file.informalTypeName()}');
+            'The `read-file` function expects a file argument, but received a ${file.typeName()}');
       }
     } else {
       throw BadArgumentsException(
@@ -4640,7 +4655,7 @@ class ScFnWriteFile extends ScBaseInvocable {
         file = resolveFile(env, maybeFile.value);
       } else {
         throw BadArgumentsException(
-            'The `write-file` function expects its first argument to be a file, but received a ${maybeFile.informalTypeName()}');
+            'The `write-file` function expects its first argument to be a file, but received a ${maybeFile.typeName()}');
       }
       final content = args[1];
       String contentStr;
@@ -4704,7 +4719,7 @@ class ScFnClipboard extends ScBaseInvocable {
       proc.stdin.write(contentStr);
       proc.stdin.close();
       env.out.writeln(
-          env.styleWith('[INFO] Content copied to system clipboard.', [green]));
+          env.style('[INFO] Content copied to system clipboard.', styleInfo));
       return ScString(contentStr);
     } else {
       throw BadArgumentsException(
@@ -4731,7 +4746,7 @@ class ScFnInterpret extends ScBaseInvocable {
             '<string from console>', sourceString.value.split('\n'));
       } else {
         throw BadArgumentsException(
-            "The `interpret` function only accepts a string argument, but received a ${sourceString.informalTypeName()}");
+            "The `interpret` function only accepts a string argument, but received a ${sourceString.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -4763,7 +4778,7 @@ class ScFnLoad extends ScBaseInvocable {
         sourceFile = resolveFile(env, (args.first as ScString).value);
       } else {
         throw BadArgumentsException(
-            "The `load` function expects a string argument, but received a ${sourceFilePath.informalTypeName()}");
+            "The `load` function expects a string argument, but received a ${sourceFilePath.typeName()}");
       }
       final sourceLines = sourceFile.readAsLinesSync();
       return env.interpretAll(sourceFile.absolute.path, sourceLines);
@@ -4792,13 +4807,27 @@ Caveat: Only Linux and macOS supported, this function shells out to `xdg-open` o
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    ScEntity entity = env.resolveArgEntity(args, 'open');
-    final appUrl = entity.data[ScString('app_url')];
-    if (appUrl is ScString) {
-      execOpenInBrowser(appUrl.value);
+    if (args.length == 1 && args[0] is ScMap) {
+      final m = args[0] as ScMap;
+      final appUrl = m[ScString('app_url')];
+      final url = m[ScString('url')];
+      if (appUrl is ScString) {
+        execOpenInBrowser(appUrl.value);
+      } else if (url is ScString) {
+        execOpenInBrowser(url.value);
+      } else {
+        throw BadArgumentsException(
+            'Could not find a URL at "app_url" or "url" to open in the map passed to the `open` function.');
+      }
     } else {
-      throw MissingEntityDataException(
-          "The app_url of this ${entity.informalTypeName()} could not be accessed.");
+      ScEntity entity = env.resolveArgEntity(args, 'open');
+      final appUrl = entity.data[ScString('app_url')];
+      if (appUrl is ScString) {
+        execOpenInBrowser(appUrl.value);
+      } else {
+        throw MissingEntityDataException(
+            "The app_url of this ${entity.typeName()} could not be accessed.");
+      }
     }
     return ScNil();
   }
@@ -4886,7 +4915,7 @@ is:archived  project:
         return res;
       } else {
         throw BadArgumentsException(
-            "The argument to `search` must be a search string, but received a ${query.informalTypeName()}");
+            "The argument to `search` must be a search string, but received a ${query.typeName()}");
       }
     } else if (args.length == 2) {
       final coll = args[0];
@@ -4896,7 +4925,7 @@ is:archived  project:
         queryStr = query.value;
       } else {
         throw BadArgumentsException(
-            "The `search` function when passed 2 arguments expects its second to be a string (for now), but received a ${query.informalTypeName()}");
+            "The `search` function when passed 2 arguments expects its second to be a string (for now), but received a ${query.typeName()}");
       }
       final jsonEncoder = JsonEncoder();
       if (coll is ScList) {
@@ -4916,7 +4945,7 @@ is:archived  project:
         });
       } else {
         throw BadArgumentsException(
-            "The `search` function when passed 2 arguments expects its first to be a list, but received a ${coll.informalTypeName()}");
+            "The `search` function when passed 2 arguments expects its first to be a list, but received a ${coll.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -4964,7 +4993,7 @@ Visit API docs for more details: https://shortcut.com/api/rest/v3#Search-Stories
             env, scExprToValue(findMap, forJson: true, onlyEntityIds: true)));
       } else {
         throw BadArgumentsException(
-            "The `find-stories` function's first argument must be a map, but recevied a ${findMap.informalTypeName()}");
+            "The `find-stories` function's first argument must be a map, but recevied a ${findMap.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -5008,9 +5037,9 @@ class ScFnFetchAll extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
       // NB: Fetch things that change infrequently but will make everything else here faster.
-      env.out.writeln(env.styleWith(
+      env.out.writeln(env.style(
           ";; [Please Wait] Caching of all workflows, workflow states, members, and teams for this session. Run `fetch-all` to refresh.",
-          [yellow]));
+          'warn'));
       fetchAllTheThings(env);
       return ScNil();
     } else {
@@ -5072,7 +5101,7 @@ Both of these signatures support a first argument that is an entity, so that you
         }
       } else {
         throw BadArgumentsException(
-            "The `update!` function expects either a map or separate string/symbol key value pairs to update the entity, but received ${maybeUpdateMap.informalTypeName()}");
+            "The `update!` function expects either a map or separate string/symbol key value pairs to update the entity, but received ${maybeUpdateMap.typeName()}");
       }
       return waitOn(entity.update(
           env, scExprToValue(updateMap, forJson: true, onlyEntityIds: true)));
@@ -5131,9 +5160,10 @@ NB: Iterations are not included in this list, because their "state" is based sol
             entity.idString,
             {"workflow_state_id": int.tryParse(nextWorkflowState.idString)}));
         entity.data = updatedEntity.data;
-        env.out.writeln(env.styleWith(
-            ";; [INFO] Moved from ${currentWorkflowState.inlineSummary(env)} to ${nextWorkflowState.inlineSummary(env)}",
-            [green]));
+        env.out.write(env.style(";; [INFO] Moved from ", styleInfo));
+        env.out.write(currentWorkflowState.inlineSummary(env));
+        env.out.write(env.style(" to ", styleInfo));
+        env.out.writeln(nextWorkflowState.inlineSummary(env));
         return entity;
       }
     } else if (entity is ScEpic) {
@@ -5158,9 +5188,11 @@ NB: Iterations are not included in this list, because their "state" is based sol
         final updatedEntity = waitOn(env.client.updateEpic(env, entity.idString,
             {"epic_state_id": int.tryParse(nextEpicWorkflowState.idString)}));
         entity.data = updatedEntity.data;
-        env.out.writeln(env.styleWith(
-            ";; [INFO] Moved from ${currentEpicWorkflowState.inlineSummary(env)} to ${nextEpicWorkflowState.inlineSummary(env)}",
-            [green]));
+        env.out.write(env.style(";; [INFO] Moved from ", styleInfo));
+        env.out.write(currentEpicWorkflowState.inlineSummary(env));
+        env.out.write(env.style(' to ', styleInfo));
+        env.out.writeln(
+            env.style(nextEpicWorkflowState.inlineSummary(env), styleInfo));
         return entity;
       }
     } else if (entity is ScMilestone) {
@@ -5176,8 +5208,10 @@ NB: Iterations are not included in this list, because their "state" is based sol
         final nextState = ScMilestone.states[idx + 1];
         final updatedEntity = waitOn(env.client
             .updateMilestone(env, entity.idString, {'state': nextState}));
-        env.out.writeln(env.styleWith(
-            ';; [INFO] Moved from "$currentState" to "$nextState"', [green]));
+        env.out.write(env.style(';; [INFO] Moved from ', styleInfo));
+        env.out.write(currentState);
+        env.out.write(env.style(' to ', styleInfo));
+        env.out.writeln(nextState);
         entity.data = updatedEntity.data;
         return entity;
       }
@@ -5248,9 +5282,10 @@ NB: Iterations are not included in this list, because their "state" is based sol
             entity.idString,
             {"workflow_state_id": int.tryParse(nextWorkflowState.idString)}));
         entity.data = updatedEntity.data;
-        env.out.writeln(env.styleWith(
-            ";; [INFO] Moved from ${currentWorkflowState.inlineSummary(env)} to ${nextWorkflowState.inlineSummary(env)}",
-            [green]));
+        env.out.write(env.style(";; [INFO] Moved from ", styleInfo));
+        env.out.write(currentWorkflowState.inlineSummary(env));
+        env.out.write(env.style(' to ', styleInfo));
+        env.out.writeln(nextWorkflowState.inlineSummary(env));
         return entity;
       }
     } else if (entity is ScEpic) {
@@ -5275,9 +5310,10 @@ NB: Iterations are not included in this list, because their "state" is based sol
         final updatedEntity = waitOn(env.client.updateEpic(env, entity.idString,
             {"epic_state_id": int.tryParse(nextEpicWorkflowState.idString)}));
         entity.data = updatedEntity.data;
-        env.out.writeln(env.styleWith(
-            ";; [INFO] Moved from ${currentEpicWorkflowState.inlineSummary(env)} to ${nextEpicWorkflowState.inlineSummary(env)}",
-            [green]));
+        env.out.write(env.style(";; [INFO] Moved from ", styleInfo));
+        env.out.write(currentEpicWorkflowState.inlineSummary(env));
+        env.out.write(env.style(' to ', styleInfo));
+        env.out.writeln(nextEpicWorkflowState.inlineSummary(env));
         return entity;
       }
     } else if (entity is ScMilestone) {
@@ -5294,8 +5330,10 @@ NB: Iterations are not included in this list, because their "state" is based sol
         final nextState = ScMilestone.states[idx - 1];
         final updatedEntity = waitOn(env.client
             .updateMilestone(env, entity.idString, {'state': nextState}));
-        env.out.writeln(env.styleWith(
-            ';; [INFO] Moved from "$currentState" to "$nextState"', [green]));
+        env.out.write(env.style(';; [INFO] Moved from ', styleInfo));
+        env.out.write(currentState);
+        env.out.write(env.style(' to ', styleInfo));
+        env.out.writeln(nextState);
         entity.data = updatedEntity.data;
         return entity;
       }
@@ -5451,7 +5489,7 @@ class ScFnCreate extends ScBaseInvocable {
                   storyPublicId = rawStoryId.toString();
                 } else {
                   throw BadArgumentsException(
-                      "The \"story_id\" field must be a string or number, but received a ${rawStoryId.informalTypeName()}");
+                      "The \"story_id\" field must be a string or number, but received a ${rawStoryId.typeName()}");
                 }
                 dataMap = dataMap.remove(ScString('story_id'));
                 dataMap = dataMap.remove(ScDottedSymbol('story_id'));
@@ -5493,9 +5531,9 @@ class ScFnCreateStory extends ScBaseInvocable {
       final formatted = fields.join(', ');
       tempFile.writeAsStringSync(';; Fields: $formatted\n{.name "STORY_NAME"}');
       execOpenInEditor(env, existingFile: tempFile);
-      env.out.writeln(env.styleWith(
+      env.out.writeln(env.style(
           "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-story\n",
-          [green]));
+          styleInfo));
       return ScFile(tempFile);
     } else if (args.length == 1) {
       final rawDataMap = args[0];
@@ -5508,7 +5546,7 @@ class ScFnCreateStory extends ScBaseInvocable {
         dataMap = rawDataMap;
       } else {
         throw BadArgumentsException(
-            "The `create-story` function expects its argument to be a map, but received ${dataMap.informalTypeName()}");
+            "The `create-story` function expects its argument to be a map, but received ${dataMap.typeName()}");
       }
 
       dataMap[ScString('type')] = ScString('story');
@@ -5542,9 +5580,9 @@ class ScFnCreateEpic extends ScBaseInvocable {
       final formatted = fields.join(', ');
       tempFile.writeAsStringSync(';; Fields: $formatted\n{.name "EPIC_NAME"}');
       execOpenInEditor(env, existingFile: tempFile);
-      env.out.writeln(env.styleWith(
+      env.out.writeln(env.style(
           "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Epic:\n\n    load *1 | create-epic\n",
-          [green]));
+          styleInfo));
       return ScFile(tempFile);
     } else if (args.length == 1) {
       final dataMap = args[0];
@@ -5554,7 +5592,7 @@ class ScFnCreateEpic extends ScBaseInvocable {
         return createFn.invoke(env, ScList([dataMap]));
       } else {
         throw BadArgumentsException(
-            "The `create-epic` function expects its argument to be a map, but received ${dataMap.informalTypeName()}");
+            "The `create-epic` function expects its argument to be a map, but received ${dataMap.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -5585,7 +5623,7 @@ class ScFnCreateMilestone extends ScBaseInvocable {
         return createFn.invoke(env, ScList([dataMap]));
       } else {
         throw BadArgumentsException(
-            "The `create-milestone` function expects its argument to be a map, but received ${dataMap.informalTypeName()}");
+            "The `create-milestone` function expects its argument to be a map, but received ${dataMap.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -5616,7 +5654,7 @@ class ScFnCreateIteration extends ScBaseInvocable {
         return createFn.invoke(env, ScList([dataMap]));
       } else {
         throw BadArgumentsException(
-            "The `create-iteration` function expects its argument to be a map, but received ${dataMap.informalTypeName()}");
+            "The `create-iteration` function expects its argument to be a map, but received ${dataMap.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -5658,7 +5696,7 @@ class ScFnCreateTask extends ScBaseInvocable {
           return createFn.invoke(env, ScList([dataMap]));
         } else {
           throw BadArgumentsException(
-              "The `create-task` function expects its second argument to be a map, but received ${dataMap.informalTypeName()}");
+              "The `create-task` function expects its second argument to be a map, but received ${dataMap.typeName()}");
         }
       } else {
         throw BadArgumentsException(
@@ -5715,7 +5753,7 @@ class ScFnMember extends ScBaseInvocable {
         return waitOn(env.client.getMember(env, memberId.value));
       } else {
         throw BadArgumentsException(
-            "The `member` function's argument must be a string, but received a ${memberId.informalTypeName()}");
+            "The `member` function's argument must be a string, but received a ${memberId.typeName()}");
       }
     }
   }
@@ -5790,7 +5828,7 @@ A workspace can have multiple workflows defined, but a given story falls only wi
         return waitOn(env.client.getWorkflow(env, workflowId.toString()));
       } else {
         throw BadArgumentsException(
-            "The `workflow` function's first argument must be the workflow's ID, but received a ${workflowId.informalTypeName()}.");
+            "The `workflow` function's first argument must be the workflow's ID, but received a ${workflowId.typeName()}.");
       }
     }
   }
@@ -5874,7 +5912,7 @@ class ScFnTeam extends ScBaseInvocable {
         return waitOn(env.client.getTeam(env, teamId.value));
       } else {
         throw BadArgumentsException(
-            "The `team` function's first argument must be a string of the team's ID, but received a ${teamId.informalTypeName()}");
+            "The `team` function's first argument must be a string of the team's ID, but received a ${teamId.typeName()}");
       }
     }
   }
@@ -5911,7 +5949,7 @@ class ScFnTeams extends ScBaseInvocable {
         return teamsOfMember(env, member);
       } else {
         throw BadArgumentsException(
-            "The `teams` function expects either 0 arguments or 1 member argument, but received a ${member.informalTypeName()}");
+            "The `teams` function expects either 0 arguments or 1 member argument, but received a ${member.typeName()}");
       }
     } else {
       return waitOn(env.client.getTeams(env));
@@ -5972,7 +6010,7 @@ class ScFnTask extends ScBaseInvocable {
           taskId = ScString(taskId.value.toString());
         } else if (taskId is! ScString) {
           throw BadArgumentsException(
-              "The `task` function expects a task ID that is a number or string, but received a ${taskId.informalTypeName()}");
+              "The `task` function expects a task ID that is a number or string, but received a ${taskId.typeName()}");
         }
         // TODO Clean up places like this ^ and this v that can now be simplified by ScExpr id type.
         final task = ScTask(ScString(story.idString), taskId as ScString);
@@ -5990,13 +6028,13 @@ class ScFnTask extends ScBaseInvocable {
         storyId = storyId.id;
       } else if (storyId is! ScString) {
         throw BadArgumentsException(
-            "The story ID must be a number, a string, or the story itself, but received a ${storyId.informalTypeName()}");
+            "The story ID must be a number, a string, or the story itself, but received a ${storyId.typeName()}");
       }
       if (taskId is ScNumber) {
         taskId = ScString(taskId.toString());
       } else if (taskId is! ScString) {
         throw BadArgumentsException(
-            "The task ID must be a a number or string, but received a ${storyId.informalTypeName()}");
+            "The task ID must be a a number or string, but received a ${storyId.typeName()}");
       }
       final task = ScTask(storyId as ScString, taskId as ScString);
       return waitOn(task.fetch(env));
@@ -6031,7 +6069,7 @@ class ScFnComment extends ScBaseInvocable {
           commentId = ScString(commentId.value.toString());
         } else if (commentId is! ScString) {
           throw BadArgumentsException(
-              "The `comment` function expects a comment ID that is a number or string, but received a ${commentId.informalTypeName()}");
+              "The `comment` function expects a comment ID that is a number or string, but received a ${commentId.typeName()}");
         }
         final comment =
             ScComment(ScString(story.idString), commentId as ScString);
@@ -6049,13 +6087,13 @@ class ScFnComment extends ScBaseInvocable {
         storyId = storyId.id;
       } else if (storyId is! ScString) {
         throw BadArgumentsException(
-            "The story ID must be a number, a string, or the story itself, but received a ${storyId.informalTypeName()}");
+            "The story ID must be a number, a string, or the story itself, but received a ${storyId.typeName()}");
       }
       if (commentId is ScNumber) {
         commentId = ScString(commentId.toString());
       } else if (commentId is! ScString) {
         throw BadArgumentsException(
-            "The comment ID must be a a number or string, but received a ${storyId.informalTypeName()}");
+            "The comment ID must be a a number or string, but received a ${storyId.typeName()}");
       }
       final comment = ScComment(storyId as ScString, commentId as ScString);
       return waitOn(comment.fetch(env));
@@ -6146,7 +6184,7 @@ Use the `find-stories` function to use more fine-grained criteria for retrieving
         return findStoriesFn.invoke(env, ScList([findMap]));
       } else {
         throw BadArgumentsException(
-            "The `stories` function expects an epic, iteration, team, or milestone argument, but received a ${entity.informalTypeName()}");
+            "The `stories` function expects an epic, iteration, team, or milestone argument, but received a ${entity.typeName()}");
       }
     }
   }
@@ -6251,7 +6289,7 @@ class ScFnMilestones extends ScBaseInvocable {
         return milestonesInTeam(env, entity);
       } else {
         throw BadArgumentsException(
-            "The `milestones` function doesn't know how to find milestones in a ${entity.informalTypeName()}.");
+            "The `milestones` function doesn't know how to find milestones in a ${entity.typeName()}.");
       }
     } else {
       throw BadArgumentsException(
@@ -6321,7 +6359,7 @@ class ScFnIterations extends ScBaseInvocable {
         return iterationsOfTeam(env, entity);
       } else {
         throw BadArgumentsException(
-            "The `iterations` function expects no arguments, or a team, but received a ${entity.informalTypeName()}");
+            "The `iterations` function expects no arguments, or a team, but received a ${entity.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -6349,7 +6387,7 @@ class ScFnLabel extends ScBaseInvocable {
         label = ScLabel(labelId);
       } else {
         throw BadArgumentsException(
-            "The `label` function expects a string or number for the label ID, but received a ${labelId.informalTypeName()}");
+            "The `label` function expects a string or number for the label ID, but received a ${labelId.typeName()}");
       }
       return waitOn(label.fetch(env));
     } else {
@@ -6408,7 +6446,7 @@ class ScFnMax extends ScBaseInvocable {
           return value > a ? value : a;
         } else {
           throw BadArgumentsException(
-              "The `max` function only works with numbers, but received a ${value.informalTypeName()}");
+              "The `max` function only works with numbers, but received a ${value.typeName()}");
         }
       });
     }
@@ -6446,7 +6484,7 @@ class ScFnMin extends ScBaseInvocable {
           return value < a ? value : a;
         } else {
           throw BadArgumentsException(
-              "The `max` function only works with numbers, but received a ${value.informalTypeName()}");
+              "The `max` function only works with numbers, but received a ${value.typeName()}");
         }
       });
     }
@@ -6633,7 +6671,7 @@ class ScFnAdd extends ScBaseInvocable {
           return addableAcc.add(addableItem);
         } else {
           throw BadArgumentsException(
-              "Addition is only supported for numbers, but received a ${item.informalTypeName()}");
+              "Addition is only supported for numbers, but received a ${item.typeName()}");
         }
       });
     }
@@ -6664,7 +6702,7 @@ class ScFnSubtract extends ScBaseInvocable {
           return subtractableAcc.subtract(subtractableItem);
         } else {
           throw BadArgumentsException(
-              "Subtraction is only supported for numbers, but received a ${item.informalTypeName()}");
+              "Subtraction is only supported for numbers, but received a ${item.typeName()}");
         }
       });
     }
@@ -6695,7 +6733,7 @@ class ScFnMultiply extends ScBaseInvocable {
           return multipliableAcc.multiply(multipliableItem);
         } else {
           throw BadArgumentsException(
-              "Multiplication is only supported for numbers, but received a ${item.informalTypeName()}");
+              "Multiplication is only supported for numbers, but received a ${item.typeName()}");
         }
       });
     }
@@ -6725,7 +6763,7 @@ class ScFnDivide extends ScBaseInvocable {
         return ScNumber(1).divide(divisor);
       } else {
         throw BadArgumentsException(
-            "Division is only supported for numbers, but received a ${divisor.informalTypeName()}");
+            "Division is only supported for numbers, but received a ${divisor.typeName()}");
       }
     } else {
       return args.reduce((acc, item) {
@@ -6735,7 +6773,7 @@ class ScFnDivide extends ScBaseInvocable {
           return divisibleAcc.divide(divisibleItem);
         } else {
           throw BadArgumentsException(
-              "Division is only supported for numbers, but received a ${item.informalTypeName()}");
+              "Division is only supported for numbers, but received a ${item.typeName()}");
         }
       });
     }
@@ -6763,11 +6801,11 @@ class ScFnModulo extends ScBaseInvocable {
           return ScNumber(a.value % b.value);
         } else {
           throw BadArgumentsException(
-              "The `mod` function's second argument must be a number, but received a ${b.informalTypeName()}");
+              "The `mod` function's second argument must be a number, but received a ${b.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `mod` function's first argument must be a number, but received a ${b.informalTypeName()}");
+            "The `mod` function's first argument must be a number, but received a ${b.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -6899,7 +6937,7 @@ class ScList extends ScExpr {
   get length => innerList.length;
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return "list";
   }
 
@@ -7071,7 +7109,7 @@ class ScMap extends ScExpr {
   bool get isNotEmpty => innerMap.isNotEmpty;
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return "map";
   }
 
@@ -7244,7 +7282,6 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
 
   ScMap data = ScMap({});
   ScString? title;
-  AnsiCode entityColor = white;
 
   /// Designed to be overridden. The value "fetch" is the default because all entities are constructable via that function.
   String get shortFnName => 'fetch';
@@ -7517,7 +7554,7 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
       }
     } else {
       final sb = StringBuffer('');
-      sb.writeln("${informalTypeName().capitalize()} $id");
+      sb.writeln("${typeName().capitalize()} $id");
       env.indentIndex += 1;
       sb.write(env.indentString());
       sb.write(data.printToString(env));
@@ -7533,7 +7570,7 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'entity';
   }
 
@@ -7563,12 +7600,13 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
     final lp = lParen(env);
     final rp = rParen(env);
 
+    String fnName;
     if (shortFnName.isEmpty) {
-      return "${lp}id $idString$rp";
+      fnName = env.style('id', this);
     } else {
-      final fnName = env.styleWith(shortFnName, [entityColor])!;
-      return "$lp$fnName $idString$rp";
+      fnName = env.style(shortFnName, this);
     }
+    return "$lp$fnName $idString$rp";
   }
 
   String calculateTitle() {
@@ -7617,10 +7655,7 @@ class ScMember extends ScEntity {
   String get shortFnName => 'mb';
 
   @override
-  AnsiCode get entityColor => green;
-
-  @override
-  String informalTypeName() {
+  String typeName() {
     return 'member';
   }
 
@@ -7682,7 +7717,7 @@ class ScMember extends ScEntity {
       final shortName = truncate(name, env.displayWidth);
 
       final cmt = comment(env);
-      final memberFnName = env.styleWith('mb', [entityColor]);
+      final memberFnName = env.style('mb', this);
       final memberId = id;
 
       final lp = lParen(env);
@@ -7692,29 +7727,24 @@ class ScMember extends ScEntity {
         String roleStr = role.value.capitalize();
         switch (roleStr) {
           case 'Admin':
-            // roleStr = env.styleWith("[${roleStr.padRight(6)}]", [magenta])!;
-            roleStr = env.styleWith("[$roleStr]", [magenta])!;
+            roleStr = env.style("[$roleStr]", styleRoleAdmin);
             break;
           case 'Member':
-            // roleStr = env.styleWith("[${roleStr.padRight(6)}]", [cyan])!;
-            roleStr = env.styleWith("[$roleStr]", [cyan])!;
+            roleStr = env.style("[$roleStr]", styleRoleMember);
             break;
           case 'Observer':
-            // roleStr = env.styleWith("[${roleStr.padRight(6)}]", [darkGray])!;
-            roleStr = env.styleWith("[$roleStr]", [darkGray])!;
+            roleStr = env.style("[$roleStr]", styleRoleObserver);
             break;
           case 'Owner':
-            // roleStr = env.styleWith("[${roleStr.padRight(6)}]", [red])!;
-            roleStr = env.styleWith("[$roleStr]", [red])!;
+            roleStr = env.style("[$roleStr]", styleRoleOwner);
             break;
         }
         prefix = roleStr;
       }
-      final memberMentionName =
-          env.styleWith("[@$mentionName]", [entityColor])!;
+      final memberMentionName = env.style("[@$mentionName]", this);
       prefix = prefix + memberMentionName;
       // prefix = prefix.padRight(39); // some alignment better than none; was 48
-      final memberName = env.styleWith(shortName, [yellow])!;
+      final memberName = env.style(shortName, styleTitle);
       final readable =
           "$lp$memberFnName $memberId$rp"; // No padding, IDs are UUIDS...
       final memberStr = "$readable $cmt $prefix $memberName";
@@ -7738,34 +7768,33 @@ class ScMember extends ScEntity {
 
     final isArchived = data[ScString('disabled')];
     if (isArchived == ScBoolean.veritas()) {
-      sb.writeln(env.styleWith('   !! DISABLED !!', [red]));
+      sb.writeln(env.style('   !! DISABLED !!', styleError));
     }
 
     final profile = data[ScString('profile')];
     if (profile is ScMap) {
       final name = profile[ScString('name')];
       if (name is ScString) {
-        sb.write(env.styleWith(lblName.padLeft(labelWidth), [entityColor]));
+        sb.write(env.style(lblName.padLeft(labelWidth), this));
         sb.writeln(name.value);
       }
 
       final id = data[ScString('id')];
       if (id is ScString) {
-        sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
+        sb.write(env.style(lblId.padLeft(labelWidth), this));
         sb.writeln(id.value);
       }
 
       final mentionName = profile[ScString('mention_name')];
       if (mentionName is ScString) {
-        sb.write(
-            env.styleWith(lblMentionName.padLeft(labelWidth), [entityColor]));
+        sb.write(env.style(lblMentionName.padLeft(labelWidth), this));
         sb.writeln("@${mentionName.value}");
       }
     }
 
     final teams = data[ScString('group_ids')] as ScList;
     if (teams.isNotEmpty) {
-      sb.write(env.styleWith(lblTeams.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblTeams.padLeft(labelWidth), this));
       if (teams.length == 1) {
         final team = teams[0];
         if (team is ScTeam) {
@@ -7810,13 +7839,13 @@ class ScMember extends ScEntity {
     if (profile is ScMap) {
       final mentionName = profile[ScString('mention_name')];
       if (mentionName is ScString) {
-        sb.write(env.styleWith(" @${mentionName.value}", [green]));
+        sb.write(env.style(" @${mentionName.value}", styleMemberMention));
       }
     }
 
     final lp = lParen(env);
     final rp = rParen(env);
-    final memberFnName = env.styleWith('mb', [entityColor]);
+    final memberFnName = env.style('mb', this);
     sb.write(" $lp$memberFnName $id$rp");
 
     return sb.toString();
@@ -7829,15 +7858,12 @@ class ScTeam extends ScEntity {
   @override
   String get shortFnName => 'tm';
 
-  @override
-  AnsiCode get entityColor => lightRed;
-
   factory ScTeam.fromMap(ScEnv env, Map<String, dynamic> data) {
     return ScTeam(ScString(data['id'].toString())).addAll(env, data) as ScTeam;
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'team';
   }
 
@@ -7880,20 +7906,20 @@ class ScTeam extends ScEntity {
           ScString("<No mention name>");
       final shortName = truncate(name.value, env.displayWidth);
       final teamMentionName =
-          env.styleWith("[@${mentionName.value}]", [green])!;
-      final teamName = env.styleWith(shortName, [yellow])!;
+          env.style("[@${mentionName.value}]", styleTeamMention);
+      final teamName = env.style(shortName, styleTitle);
       final teamId = id;
 
       final lp = lParen(env);
       final rp = rParen(env);
       final cmt = comment(env);
-      final teamFnName = env.styleWith('tm', [entityColor]);
+      final teamFnName = env.style('tm', this);
       final readable = "$lp$teamFnName $teamId$rp";
 
       String numMembersStr = '';
       final memberIds = data[ScString('member_ids')];
       if (memberIds is ScList) {
-        numMembersStr = env.styleWith("[${memberIds.length}M]", [cyan])!;
+        numMembersStr = env.style("[${memberIds.length}M]", styleMemberMention);
       }
       String prefix = numMembersStr + teamMentionName;
       // prefix = prefix.padRight(39); // some alignment better than none; was 48
@@ -7915,24 +7941,23 @@ class ScTeam extends ScEntity {
 
     final isArchived = data[ScString('archived')];
     if (isArchived == ScBoolean.veritas()) {
-      sb.writeln(env.styleWith('   !! ARCHIVED !!', [red]));
+      sb.writeln(env.style('   !! ARCHIVED !!', styleError));
     }
 
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(env.styleWith(lblTeam.padLeft(labelWidth), [entityColor]));
-    sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
+    sb.write(env.style(lblTeam.padLeft(labelWidth), this));
+    sb.writeln(env.style(name.value, styleTitle, styles: [styleUnderline]));
 
     final id = data[ScString('id')];
     if (id is ScString) {
-      sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblId.padLeft(labelWidth), this));
       sb.writeln(id);
     }
 
     final mentionName = data[ScString('mention_name')];
     if (mentionName is ScString) {
-      sb.write(
-          env.styleWith(lblMentionName.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblMentionName.padLeft(labelWidth), this));
       sb.writeln("@${mentionName.value}");
     }
 
@@ -7947,12 +7972,12 @@ class ScTeam extends ScEntity {
 
     final mentionName = data[ScString('mention_name')];
     if (mentionName is ScString) {
-      sb.write(env.styleWith(" @${mentionName.value}", [green]));
+      sb.write(env.style(" @${mentionName.value}", styleTeamMention));
     }
 
     final lp = lParen(env);
     final rp = rParen(env);
-    final teamFnName = env.styleWith('tm', [entityColor]);
+    final teamFnName = env.style('tm', this);
     sb.write(" $lp$teamFnName $id$rp");
 
     return sb.toString();
@@ -7965,13 +7990,10 @@ class ScMilestone extends ScEntity {
   @override
   String get shortFnName => 'mi';
 
-  @override
-  AnsiCode get entityColor => red;
-
   static final states = ["to do", "in progress", "done"];
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'milestone';
   }
 
@@ -8009,8 +8031,8 @@ class ScMilestone extends ScEntity {
           ScString("<No name: run fetch>");
       final shortName = truncate(name.value, env.displayWidth);
       final cmt = comment(env);
-      final milestoneName = env.styleWith(shortName, [yellow]);
-      final milestoneFnName = env.styleWith('mi', [entityColor]);
+      final milestoneName = env.style(shortName, styleTitle);
+      final milestoneFnName = env.style('mi', this);
       final milestoneId = idString;
       final milestoneState = data[ScString('state')];
       String milestoneStateStr = '';
@@ -8018,13 +8040,13 @@ class ScMilestone extends ScEntity {
         final state = milestoneState.value;
         switch (state) {
           case 'to do':
-            milestoneStateStr = env.styleWith('[U]', [lightRed])!;
+            milestoneStateStr = env.style('[U]', styleUnstarted);
             break;
           case 'in progress':
-            milestoneStateStr = env.styleWith('[S]', [lightMagenta])!;
+            milestoneStateStr = env.style('[S]', styleStarted);
             break;
           case 'done':
-            milestoneStateStr = env.styleWith('[D]', [lightGreen])!;
+            milestoneStateStr = env.style('[D]', styleDone);
             break;
         }
       }
@@ -8055,34 +8077,34 @@ class ScMilestone extends ScEntity {
     final sb = StringBuffer('\n');
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(env.styleWith(lblMilestone.padLeft(labelWidth), [entityColor]));
-    sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
+    sb.write(env.style(lblMilestone.padLeft(labelWidth), this));
+    sb.writeln(env.style(name.value, styleTitle, styles: [styleUnderline]));
 
     final milestoneId = idString;
-    sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
+    sb.write(env.style(lblId.padLeft(labelWidth), this));
     sb.writeln(milestoneId);
 
     final startedAt = data[ScString('started_at')];
     if (startedAt is ScString) {
-      sb.write(env.styleWith(lblStarted.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblStarted.padLeft(labelWidth), this));
       sb.writeln(startedAt.value);
     } else if (startedAt == ScNil()) {
-      sb.write(env.styleWith(lblStarted.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblStarted.padLeft(labelWidth), this));
       sb.writeln('N/A');
     }
 
     final completedAt = data[ScString('completed_at')];
     if (completedAt is ScString) {
-      sb.write(env.styleWith(lblCompleted.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblCompleted.padLeft(labelWidth), this));
       sb.writeln(completedAt.value);
     } else if (completedAt == ScNil()) {
-      sb.write(env.styleWith(lblCompleted.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblCompleted.padLeft(labelWidth), this));
       sb.writeln('N/A');
     }
 
     final state = data[ScString('state')];
     if (state is ScString) {
-      sb.write(env.styleWith(lblState.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblState.padLeft(labelWidth), this));
       sb.writeln(state.value);
     }
 
@@ -8098,10 +8120,7 @@ class ScEpic extends ScEntity {
   String get shortFnName => 'ep';
 
   @override
-  AnsiCode get entityColor => green;
-
-  @override
-  String informalTypeName() {
+  String typeName() {
     return 'epic';
   }
 
@@ -8171,8 +8190,8 @@ class ScEpic extends ScEntity {
           ScString("<No name: run fetch>");
       final shortName = truncate(name.value, env.displayWidth);
       final cmt = comment(env);
-      final epicName = env.styleWith(shortName, [yellow]);
-      final epicFnName = env.styleWith('ep', [entityColor]);
+      final epicName = env.style(shortName, styleTitle);
+      final epicFnName = env.style('ep', this);
       final epicId = idString;
       final epicState = data[ScString('state')];
       String epicStateStr = '';
@@ -8180,13 +8199,13 @@ class ScEpic extends ScEntity {
         final state = epicState.value;
         switch (state) {
           case 'to do':
-            epicStateStr = env.styleWith('[U]', [lightRed])!;
+            epicStateStr = env.style('[U]', styleUnstarted);
             break;
           case 'in progress':
-            epicStateStr = env.styleWith('[S]', [lightMagenta])!;
+            epicStateStr = env.style('[S]', styleStarted);
             break;
           case 'done':
-            epicStateStr = env.styleWith('[D]', [lightGreen])!;
+            epicStateStr = env.style('[D]', styleDone);
             break;
         }
       }
@@ -8203,8 +8222,8 @@ class ScEpic extends ScEntity {
             final numStoriesDoneStr = numStoriesDone.toString();
             // final numStoriesStr = numStories.toString().padRight(2);
             final numStoriesStr = numStories.toString();
-            storiesStr = env
-                .styleWith("[$numStoriesDoneStr/${numStoriesStr}S]", [cyan])!;
+            storiesStr =
+                env.style("[$numStoriesDoneStr/${numStoriesStr}S]", styleStory);
           }
         }
 
@@ -8212,12 +8231,10 @@ class ScEpic extends ScEntity {
         final numPointsDone = stats[ScString('num_points_done')];
         if (numPoints is ScNumber) {
           if (numPointsDone is ScNumber) {
-            // final numPointsDoneStr = numPointsDone.toString().padLeft(2);
             final numPointsDoneStr = numPointsDone.toString();
-            // final numPointsStr = numPoints.toString().padRight(2);
             final numPointsStr = numPoints.toString();
             pointsStr =
-                env.styleWith("[$numPointsDoneStr/${numPointsStr}P]", [green])!;
+                env.style("[$numPointsDoneStr/${numPointsStr}P]", styleInfo);
           }
         }
       }
@@ -8230,7 +8247,7 @@ class ScEpic extends ScEntity {
       final epicStr = "$readable $cmt $prefix $epicName";
       // TODO Use chalkdart instead
       if (isArchived.toBool()) {
-        return env.styleWith(epicStr, [darkGray])!;
+        return env.style(epicStr, styleSubdued);
       } else {
         return epicStr;
       }
@@ -8264,26 +8281,26 @@ class ScEpic extends ScEntity {
 
     final isArchived = data[ScString('archived')];
     if (isArchived == ScBoolean.veritas()) {
-      sb.writeln(env.styleWith('   !! ARCHIVED !!', [red]));
+      sb.writeln(env.style('   !! ARCHIVED !!', styleError));
     }
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(env.styleWith(lblEpic.padLeft(labelWidth), [entityColor]));
-    sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
+    sb.write(env.style(lblEpic.padLeft(labelWidth), this));
+    sb.writeln(env.style(name.value, styleTitle, styles: [styleUnderline]));
 
     final epicId = idString;
-    sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
+    sb.write(env.style(lblId.padLeft(labelWidth), this));
     sb.writeln(epicId);
 
     final state = data[ScString('epic_state_id')];
     if (state is ScEpicWorkflowState) {
-      sb.write(env.styleWith(lblState.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblState.padLeft(labelWidth), this));
       sb.write(state.inlineSummary(env));
     }
     sb.writeln();
 
     final owners = data[ScString('owner_ids')] as ScList;
-    sb.write(env.styleWith(lblOwnedBy.padLeft(labelWidth), [entityColor]));
+    sb.write(env.style(lblOwnedBy.padLeft(labelWidth), this));
     if (owners.isEmpty) {
       sb.writeln('<No one>');
     } else {
@@ -8310,7 +8327,7 @@ class ScEpic extends ScEntity {
 
     final team = data[ScString('group_id')];
     if (team is ScTeam) {
-      sb.write(env.styleWith(lblTeam.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblTeam.padLeft(labelWidth), this));
       sb.write(team.inlineSummary(env));
       sb.writeln();
     }
@@ -8324,7 +8341,7 @@ class ScEpic extends ScEntity {
       milestone = milestoneId;
     }
     if (milestone != null) {
-      sb.write(env.styleWith(lblMilestone.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblMilestone.padLeft(labelWidth), this));
       sb.write(milestone.inlineSummary(env));
       sb.writeln();
     }
@@ -8339,8 +8356,7 @@ class ScEpic extends ScEntity {
           final numStoriesDoneStr = numStoriesDone.toString();
           // final numStoriesStr = numStories.toString().padRight(2);
           final numStoriesStr = numStories.toString();
-          sb.write(
-              env.styleWith(lblStories.padLeft(labelWidth), [entityColor]));
+          sb.write(env.style(lblStories.padLeft(labelWidth), this));
           sb.write("$numStoriesDoneStr/$numStoriesStr stories done");
           sb.writeln();
         }
@@ -8350,7 +8366,7 @@ class ScEpic extends ScEntity {
       final numPointsDone = stats[ScString('num_points_done')];
       if (numPoints is ScNumber) {
         if (numPointsDone is ScNumber) {
-          sb.write(env.styleWith(lblPoints.padLeft(labelWidth), [entityColor]));
+          sb.write(env.style(lblPoints.padLeft(labelWidth), this));
           sb.write("$numPointsDone/$numPoints points done");
           sb.writeln();
         }
@@ -8400,10 +8416,7 @@ class ScStory extends ScEntity {
   };
 
   @override
-  AnsiCode get entityColor => magenta;
-
-  @override
-  String informalTypeName() {
+  String typeName() {
     return 'story';
   }
 
@@ -8474,13 +8487,13 @@ class ScStory extends ScEntity {
         if (stateType is ScString) {
           switch (stateType.value) {
             case 'unstarted':
-              storyStateType = env.styleWith('[U]', [lightRed])!;
+              storyStateType = env.style('[U]', styleUnstarted);
               break;
             case 'started':
-              storyStateType = env.styleWith('[S]', [lightMagenta])!;
+              storyStateType = env.style('[S]', styleStarted);
               break;
             case 'done':
-              storyStateType = env.styleWith('[D]', [lightGreen])!;
+              storyStateType = env.style('[D]', styleDone);
               break;
           }
         }
@@ -8489,35 +8502,35 @@ class ScStory extends ScEntity {
       final type = data[ScString('story_type')];
       String storyType = '';
       if (type is ScString) {
-        var color = entityColor;
+        String? color;
         var ts = type.value;
         switch (ts) {
           case 'bug':
-            color = lightRed;
+            color = styleError;
             break;
           case 'chore':
-            color = lightGray;
+            color = styleSubdued;
             break;
           case 'feature':
-            color = lightYellow;
+            color = styleTitle;
             break;
         }
         final typeAbbrev = ts[0].toUpperCase();
-        storyType = env.styleWith("[$typeAbbrev]", [color])!;
+        storyType = env.style("[$typeAbbrev]", color ?? styleSubdued);
       }
 
       final estimate = data[ScString('estimate')];
       var estimateStr = '';
       if (estimate != null) {
-        estimateStr = env.styleWith('[_]', [lightGreen])!;
+        estimateStr = env.style('[_]', styleDone);
         if (estimate is ScNumber) {
-          estimateStr = env.styleWith("[${estimate.value}]", [lightGreen])!;
+          estimateStr = env.style("[${estimate.value}]", styleDone);
         }
       }
 
       final prefix = "$storyStateType$estimateStr$storyType";
-      final storyName = env.styleWith(shortName, [yellow])!;
-      final storyFnName = env.styleWith('st', [entityColor])!;
+      final storyName = env.style(shortName, styleTitle);
+      final storyFnName = env.style('st', this);
       final storyId = idString;
       final lp = lParen(env);
       final rp = rParen(env);
@@ -8526,7 +8539,7 @@ class ScStory extends ScEntity {
       //.padRight(39); // adjusted for ANSI codes
       final storyStr = "$readable $cmt $prefix $storyName";
       if (isArchived.toBool()) {
-        return env.styleWith(storyStr, [darkGray])!;
+        return env.style(storyStr, styleSubdued);
       } else {
         return storyStr;
       }
@@ -8547,7 +8560,7 @@ class ScStory extends ScEntity {
         ScString("<No name: run fetch>");
     final isArchived = data[ScString('archived')];
     if (isArchived == ScBoolean.veritas()) {
-      sb.writeln(env.styleWith('   !! ARCHIVED !!', [red]));
+      sb.writeln(env.style('   !! ARCHIVED !!', styleError));
     }
     final storyType = data[ScString('story_type')];
     var storyLabel = 'Story';
@@ -8580,23 +8593,23 @@ class ScStory extends ScEntity {
       lblTasks,
     ]);
 
-    sb.write(env.styleWith(lblStoryType.padLeft(labelWidth), [entityColor]));
-    sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
+    sb.write(env.style(lblStoryType.padLeft(labelWidth), this));
+    sb.writeln(env.style(name.value, styleTitle, styles: [styleUnderline]));
 
     final storyId = idString;
-    sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
+    sb.write(env.style(lblId.padLeft(labelWidth), this));
     sb.writeln(storyId);
 
     final state = data[ScString('workflow_state_id')];
     if (state is ScWorkflowState) {
-      sb.write(env.styleWith(lblState.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblState.padLeft(labelWidth), this));
       sb.write(state.inlineSummary(env));
     }
     sb.writeln();
 
     final epic = data[ScString('epic_id')];
     if (epic != ScNil()) {
-      sb.write(env.styleWith(lblEpic.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblEpic.padLeft(labelWidth), this));
       if (epic is ScEpic) {
         sb.write(epic.inlineSummary(env));
       } else if (epic is ScNumber) {
@@ -8609,7 +8622,7 @@ class ScStory extends ScEntity {
 
     final iteration = data[ScString('iteration_id')];
     if (iteration != ScNil()) {
-      sb.write(env.styleWith(lblIteration.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblIteration.padLeft(labelWidth), this));
       if (iteration is ScIteration) {
         sb.write(iteration.inlineSummary(env));
       } else if (iteration is ScNumber) {
@@ -8623,7 +8636,7 @@ class ScStory extends ScEntity {
 
     final owners = data[ScString('owner_ids')] as ScList;
     if (owners.isNotEmpty) {
-      sb.write(env.styleWith(lblOwnedBy.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblOwnedBy.padLeft(labelWidth), this));
       if (owners.length == 1) {
         final owner = owners[0];
         if (owner is ScMember) {
@@ -8647,7 +8660,7 @@ class ScStory extends ScEntity {
 
     final team = data[ScString('group_id')];
     if (team != ScNil()) {
-      sb.write(env.styleWith(lblTeam.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblTeam.padLeft(labelWidth), this));
       if (team is ScTeam) {
         sb.write(team.inlineSummary(env));
       } else if (team is ScString) {
@@ -8660,7 +8673,7 @@ class ScStory extends ScEntity {
 
     final estimate = data[ScString('estimate')];
     if (estimate is ScNumber) {
-      sb.write(env.styleWith(lblEstimate.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblEstimate.padLeft(labelWidth), this));
       if (estimate == ScNumber(1)) {
         sb.write("$estimate point");
       } else {
@@ -8671,14 +8684,14 @@ class ScStory extends ScEntity {
 
     final deadline = data[ScString('deadline')];
     if (deadline is ScString) {
-      sb.write(env.styleWith(lblDeadline.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblDeadline.padLeft(labelWidth), this));
       sb.write(deadline);
       sb.writeln();
     }
 
     final labels = data[ScString('labels')];
     if (labels is ScList && labels.isNotEmpty) {
-      sb.write(env.styleWith(lblLabels.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblLabels.padLeft(labelWidth), this));
       for (var i = 0; i < labels.length; i++) {
         final label = labels[i];
         if (label is ScMap) {
@@ -8706,7 +8719,7 @@ class ScStory extends ScEntity {
         }
       }
       if (ts.length > 0) {
-        sb.write(env.styleWith(lblTasks.padLeft(labelWidth), [entityColor]));
+        sb.write(env.style(lblTasks.padLeft(labelWidth), this));
         sb.writeln('$numComplete/${ts.length} complete:');
         for (final task in ts.innerList) {
           final t = task as ScTask;
@@ -8714,9 +8727,9 @@ class ScStory extends ScEntity {
           var prefix = '';
           if (isComplete is ScBoolean) {
             if (isComplete == ScBoolean.veritas()) {
-              prefix = env.styleWith("[DONE]", [green])!;
+              prefix = env.style("[DONE]", styleDone);
             } else if (isComplete == ScBoolean.falsitas()) {
-              prefix = env.styleWith("[TODO]", [red, styleUnderlined])!;
+              prefix = env.style("[TODO]", styleUnstarted);
             }
           }
           sb.writeln("            $prefix ${t.inlineSummary(env)}");
@@ -8734,13 +8747,10 @@ class ScTask extends ScEntity {
   final ScString storyId;
 
   @override
-  AnsiCode get entityColor => lightMagenta;
-
-  @override
   String get shortFnName => 'tk';
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'task';
   }
 
@@ -8783,9 +8793,9 @@ class ScTask extends ScEntity {
           dataFieldOr<ScBoolean>(data, 'complete', ScBoolean.falsitas());
       String? status;
       if (complete == ScBoolean.veritas()) {
-        status = env.styleWith("[DONE]", [green])!;
+        status = env.style("[DONE]", styleDone);
       } else if (complete == ScBoolean.falsitas()) {
-        status = env.styleWith("[TODO]", [red, styleUnderlined])!;
+        status = env.style("[TODO]", styleUnstarted);
       }
 
       final sb = StringBuffer();
@@ -8798,7 +8808,7 @@ class ScTask extends ScEntity {
         sb.write(' $status');
       }
 
-      sb.write(' ' + env.styleWith(shortDescription, [yellow])!);
+      sb.write(' ' + env.style(shortDescription, styleTitle));
 
       return sb.toString();
     }
@@ -8810,13 +8820,10 @@ class ScComment extends ScEntity {
   final ScString storyId;
 
   @override
-  AnsiCode get entityColor => magenta;
-
-  @override
   String get shortFnName => 'cm';
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'comment';
   }
 
@@ -8852,7 +8859,7 @@ class ScComment extends ScEntity {
     final lp = lParen(env);
     final rp = rParen(env);
 
-    final fnName = env.styleWith(shortFnName, [entityColor])!;
+    final fnName = env.style(shortFnName, this);
     return "$lp$fnName ${storyId.value} $idString$rp";
   }
 
@@ -8879,16 +8886,16 @@ class ScComment extends ScEntity {
 
       final author = data[ScString('author_id')];
       if (author is ScMember) {
-        sb.write(env.styleWith(
+        sb.write(env.style(
             " @${author.mentionName?.value ?? '<No mention name: run fetch>'}",
-            [author.entityColor]));
+            styleMemberMention));
       }
 
       final createdAt = data[ScString('created_at')];
       if (createdAt is ScDateTime) {
         final dateTime = createdAt.value;
         final local = dateTime.toLocal();
-        sb.write(env.styleWith(" ${local.toString()}", [cyan]));
+        sb.write(env.style(" ${local.toString()}", styleDateTime));
       }
 
       var indent = '';
@@ -8908,13 +8915,10 @@ class ScEpicComment extends ScEntity {
   int level = 0;
 
   @override
-  AnsiCode get entityColor => green;
-
-  @override
   String get shortFnName => 'ec';
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'epic comment';
   }
 
@@ -8964,7 +8968,7 @@ class ScEpicComment extends ScEntity {
     final lp = lParen(env);
     final rp = rParen(env);
 
-    final fnName = env.styleWith(shortFnName, [entityColor])!;
+    final fnName = env.style(shortFnName, this);
     return "$lp$fnName ${epicId.value} $idString$rp";
   }
 
@@ -8992,16 +8996,16 @@ class ScEpicComment extends ScEntity {
 
       final author = data[ScString('author_id')];
       if (author is ScMember) {
-        sb.write(env.styleWith(
+        sb.write(env.style(
             " @${author.mentionName?.value ?? '<No mention name: run fetch>'}",
-            [author.entityColor]));
+            styleMemberMention));
       }
 
       final createdAt = data[ScString('created_at')];
       if (createdAt is ScDateTime) {
         final dateTime = createdAt.value;
         final local = dateTime.toLocal();
-        sb.write(env.styleWith(" ${local.toString()}", [cyan]));
+        sb.write(env.style(" ${local.toString()}", styleDateTime));
       }
 
       final formattedText = wrap(text.value, 100, "  ${'  ' * level}$cmt ");
@@ -9029,10 +9033,7 @@ class ScIteration extends ScEntity {
   String get shortFnName => 'it';
 
   @override
-  AnsiCode get entityColor => cyan;
-
-  @override
-  String informalTypeName() {
+  String typeName() {
     return 'iteration';
   }
 
@@ -9069,9 +9070,9 @@ class ScIteration extends ScEntity {
       final name = dataFieldOr<ScString?>(data, 'name', title) ??
           ScString("<No name: run fetch>");
       final shortName = truncate(name.value, env.displayWidth);
-      final iterationName = env.styleWith(shortName, [yellow])!;
+      final iterationName = env.style(shortName, styleTitle);
       final iterationId = idString;
-      final iterationFnName = env.styleWith('it', [entityColor]);
+      final iterationFnName = env.style('it', this);
 
       final iterationStatus = data[ScString('status')];
       String iterationStatusStr = '';
@@ -9079,13 +9080,13 @@ class ScIteration extends ScEntity {
         final state = iterationStatus.value;
         switch (state) {
           case 'unstarted':
-            iterationStatusStr = env.styleWith('[U]', [lightRed])!;
+            iterationStatusStr = env.style('[U]', styleUnstarted);
             break;
           case 'started':
-            iterationStatusStr = env.styleWith('[S]', [lightMagenta])!;
+            iterationStatusStr = env.style('[S]', styleStarted);
             break;
           case 'done':
-            iterationStatusStr = env.styleWith('[D]', [lightGreen])!;
+            iterationStatusStr = env.style('[D]', styleDone);
             break;
         }
       }
@@ -9107,7 +9108,7 @@ class ScIteration extends ScEntity {
           // final numStoriesStr = numStories.toString().padRight(2);
           final numStoriesStr = numStories.toString();
           storiesStr =
-              env.styleWith("[$numStoriesDoneStr/${numStoriesStr}S]", [cyan])!;
+              env.style("[$numStoriesDoneStr/${numStoriesStr}S]", styleStory);
         }
 
         final numPoints = stats[ScString('num_points')];
@@ -9119,7 +9120,7 @@ class ScIteration extends ScEntity {
             // final numPointsStr = numPoints.toString().padRight(2);
             final numPointsStr = numPoints.toString();
             pointsStr =
-                env.styleWith("[$numPointsDoneStr/${numPointsStr}P]", [green])!;
+                env.style("[$numPointsDoneStr/${numPointsStr}P]", styleNumber);
           }
         }
       }
@@ -9142,6 +9143,7 @@ class ScIteration extends ScEntity {
     }
 
     final lblIteration = 'Iteration ';
+    final lblId = 'Id ';
     final lblTeams = 'Teams ';
     final lblStart = 'Start ';
     final lblEnd = 'End ';
@@ -9149,6 +9151,7 @@ class ScIteration extends ScEntity {
     final lblPoints = 'Points ';
     final labelWidth = maxPaddedLabelWidth([
       lblIteration,
+      lblId,
       lblTeams,
       lblStart,
       lblEnd,
@@ -9159,16 +9162,16 @@ class ScIteration extends ScEntity {
     final sb = StringBuffer('\n');
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(env.styleWith(lblIteration.padLeft(labelWidth), [entityColor]));
-    sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
+    sb.write(env.style(lblIteration.padLeft(labelWidth), this));
+    sb.writeln(env.style(name.value, styleTitle, styles: [styleUnderline]));
 
     final epicId = idString;
-    sb.write(env.styleWith('Id '.padLeft(labelWidth), [entityColor]));
+    sb.write(env.style(lblId.padLeft(labelWidth), this));
     sb.writeln(epicId);
 
     final teams = data[ScString('group_ids')] as ScList;
     if (teams.isNotEmpty) {
-      sb.write(env.styleWith(lblTeams.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblTeams.padLeft(labelWidth), this));
       if (teams.length == 1) {
         final team = teams[0];
         if (team is ScTeam) {
@@ -9191,19 +9194,19 @@ class ScIteration extends ScEntity {
 
     final startDate = data[ScString('start_date')];
     if (startDate is ScString) {
-      sb.write(env.styleWith(lblStart.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblStart.padLeft(labelWidth), this));
       sb.writeln(startDate.value);
     }
 
     final endDate = data[ScString('end_date')];
     if (endDate is ScString) {
-      sb.write(env.styleWith(lblEnd.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblEnd.padLeft(labelWidth), this));
       sb.writeln(endDate.value);
     }
 
     final status = data[ScString('status')];
     if (status is ScString) {
-      sb.write(env.styleWith(lblStatus.padLeft(labelWidth), [entityColor]));
+      sb.write(env.style(lblStatus.padLeft(labelWidth), this));
       sb.writeln(status.value);
     }
 
@@ -9213,7 +9216,7 @@ class ScIteration extends ScEntity {
       final numPointsDone = stats[ScString('num_points_done')];
       if (numPoints is ScNumber) {
         if (numPointsDone is ScNumber) {
-          sb.write(env.styleWith(lblPoints.padLeft(labelWidth), [entityColor]));
+          sb.write(env.style(lblPoints.padLeft(labelWidth), this));
           sb.write("$numPointsDone/$numPoints points done");
         }
       }
@@ -9227,6 +9230,12 @@ class ScIteration extends ScEntity {
 
 class ScLabel extends ScEntity {
   ScLabel(ScString id) : super(id);
+
+  @override
+  String typeName() {
+    // TODO: implement informalTypeName
+    return 'label';
+  }
 
   @override
   String get shortFnName => 'lb';
@@ -9263,18 +9272,61 @@ class ScLabel extends ScEntity {
     final cmt = comment(env);
     sb.write(' $cmt');
 
-    final name = data[ScString('name')];
-    if (name is ScString) {
-      sb.write(env.styleWith(' ${name.value}', [yellow]));
-    }
+    final name = dataFieldOr<ScString?>(data, 'name', title) ??
+        ScString("<No name: run fetch>");
+    sb.write(env.style(' ${name.value}', 'title'));
 
     return sb.toString();
   }
 
   @override
   ScExpr printSummary(ScEnv env) {
-    // TODO: implement printSummary
-    env.out.writeln(printToString(env));
+    if (!data.containsKey(ScString('description'))) {
+      waitOn(fetch(env));
+    }
+
+    final lblLabel = 'Label ';
+    final lblId = 'Id ';
+    final lblColor = 'Color ';
+    final lblDescription = 'Description ';
+    final labelWidth = maxPaddedLabelWidth([
+      lblLabel,
+      lblId,
+      lblColor,
+      lblDescription,
+    ]);
+
+    final sb = StringBuffer('\n');
+
+    final name = data[ScString('name')];
+    if (name is ScString) {
+      sb.write(env.style(lblLabel.padLeft(labelWidth), this));
+      sb.write(name.value);
+      sb.writeln();
+    }
+
+    sb.write(env.style(lblId.padLeft(labelWidth), this));
+    if (id is ScString) {
+      final i = id as ScString;
+      sb.write(i.value);
+    } else {
+      sb.write(id.toString());
+    }
+    sb.writeln();
+
+    final color = data[ScString('color')];
+    if (color is ScString) {
+      sb.write(env.style(lblColor.padLeft(labelWidth), this));
+
+      final colorHex = color.value.substring(1); // has leading #
+      final rgb = ColorUtils.hex2rgb(colorHex);
+      sb.write(chalk.rgb(rgb[0], rgb[1], rgb[2])("⬛️"));
+      sb.write(' ${color.value}');
+      sb.writeln();
+    }
+
+    env.out.writeln(sb.toString());
+
     return ScNil();
   }
 }
@@ -9284,9 +9336,6 @@ class ScWorkflow extends ScEntity {
 
   @override
   String get shortFnName => 'wf';
-
-  @override
-  AnsiCode get entityColor => lightCyan;
 
   factory ScWorkflow.fromMap(ScEnv env, Map<String, dynamic> data) {
     final statesData = data['states'] as List;
@@ -9304,7 +9353,7 @@ class ScWorkflow extends ScEntity {
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'workflow';
   }
 
@@ -9346,11 +9395,11 @@ class ScWorkflow extends ScEntity {
 
       final cmt = comment(env);
       sb.write(' $cmt ');
-      sb.write(env.styleWith(shortName, [yellow]));
+      sb.write(env.style(shortName, styleTitle));
       final states = data[ScString('states')];
       if (states is ScList) {
         final numStates = states.length;
-        sb.write(env.styleWith(' [$numStates states]', [cyan]));
+        sb.write(env.style(' [$numStates states]', styleWorkflowState));
       }
       return sb.toString();
     }
@@ -9371,14 +9420,14 @@ class ScWorkflow extends ScEntity {
 
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(env.styleWith(lblWorkflow.padLeft(labelWidth), [entityColor]));
-    sb.writeln(env.styleWith(name.value, [yellow, styleUnderlined]));
+    sb.write(env.style(lblWorkflow.padLeft(labelWidth), this));
+    sb.writeln(env.style(name.value, styleTitle, styles: [styleUnderline]));
 
     final workflowId = idString;
-    sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
+    sb.write(env.style(lblId.padLeft(labelWidth), this));
     sb.writeln(workflowId);
 
-    sb.write(env.styleWith(lblDefaultState.padLeft(labelWidth), [entityColor]));
+    sb.write(env.style(lblDefaultState.padLeft(labelWidth), this));
     final defaultWorkflowStateId =
         data[ScString('default_state_id')] as ScNumber;
     final epicStates = data[ScString('states')] as ScList;
@@ -9391,7 +9440,7 @@ class ScWorkflow extends ScEntity {
     }
 
     final states = data[ScString('states')] as ScList;
-    sb.write(env.styleWith(lblStates.padLeft(labelWidth), [entityColor]));
+    sb.write(env.style(lblStates.padLeft(labelWidth), this));
     var isFirst = true;
     for (final state in states.innerList) {
       if (state is ScWorkflowState) {
@@ -9399,20 +9448,19 @@ class ScWorkflow extends ScEntity {
         String typeStr = '';
         if (type is ScString) {
           final ts = type.value;
-          var color = entityColor;
+          String color = styleUnstarted;
           switch (ts) {
             case 'unstarted':
-              color = lightRed;
+              color = styleUnstarted;
               break;
             case 'started':
-              color = lightMagenta;
+              color = styleStarted;
               break;
             case 'done':
-              color = lightGreen;
+              color = styleDone;
               break;
           }
-          typeStr =
-              env.styleWith('[${ts.substring(0, 1).toUpperCase()}]', [color])!;
+          typeStr = env.style('[${ts.substring(0, 1).toUpperCase()}]', color);
         }
 
         if (isFirst) {
@@ -9436,24 +9484,21 @@ class ScWorkflowState extends ScEntity {
   @override
   String get shortFnName => '';
 
-  @override
-  AnsiCode get entityColor => lightCyan;
-
   factory ScWorkflowState.fromMap(ScEnv env, Map<String, dynamic> data) {
     return ScWorkflowState(ScString(data['id'].toString())).addAll(env, data)
         as ScWorkflowState;
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'workflow state';
   }
 
   @override
   Future<ScEntity> fetch(ScEnv env) async {
-    env.err.writeln(env.styleWith(
+    env.err.writeln(env.style(
         ";; [WARN] To fetch a workflow state, fetch its workflow instead.",
-        [yellow]));
+        styleWarn));
     return this;
   }
 
@@ -9482,20 +9527,19 @@ class ScWorkflowState extends ScEntity {
       String typeStr = '';
       if (type is ScString) {
         final ts = type.value;
-        var color = entityColor;
+        String color = styleUnstarted;
         switch (ts) {
           case 'unstarted':
-            color = lightRed;
+            color = styleUnstarted;
             break;
           case 'started':
-            color = lightMagenta;
+            color = styleStarted;
             break;
           case 'done':
-            color = lightGreen;
+            color = styleDone;
             break;
         }
-        typeStr =
-            env.styleWith('[${ts.substring(0, 1).toUpperCase()}]', [color])!;
+        typeStr = env.style('[${ts.substring(0, 1).toUpperCase()}]', color);
       }
 
       final sb = StringBuffer();
@@ -9503,11 +9547,11 @@ class ScWorkflowState extends ScEntity {
 
       final cmt = comment(env);
       sb.write(' $cmt');
-      sb.write(env.styleWith(' [Workflow State]', [entityColor]));
+      sb.write(env.style(' [Workflow State]', this));
       if (typeStr.isNotEmpty) {
         sb.write(typeStr);
       }
-      sb.write(env.styleWith(' $shortName', [yellow]));
+      sb.write(env.style(' $shortName', styleTitle));
 
       return sb.toString();
     }
@@ -9519,9 +9563,6 @@ class ScEpicWorkflow extends ScEntity {
 
   @override
   String get shortFnName => 'ew';
-
-  @override
-  AnsiCode get entityColor => lightCyan;
 
   factory ScEpicWorkflow.fromMap(ScEnv env, Map<String, dynamic> data) {
     final statesData = data['epic_states'] as List;
@@ -9539,7 +9580,7 @@ class ScEpicWorkflow extends ScEntity {
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'epic workflow';
   }
 
@@ -9580,11 +9621,11 @@ class ScEpicWorkflow extends ScEntity {
 
       final cmt = comment(env);
       sb.write(' $cmt ');
-      sb.write(env.styleWith(shortName, [yellow]));
+      sb.write(env.style(shortName, styleTitle));
       final states = data[ScString('epic_states')];
       if (states is ScList) {
         final numStates = states.length;
-        sb.write(env.styleWith(' [$numStates states]', [cyan]));
+        sb.write(env.style(' [$numStates states]', styleEpicWorkflowState));
       }
       return sb.toString();
     }
@@ -9605,14 +9646,14 @@ class ScEpicWorkflow extends ScEntity {
     final sb = StringBuffer('\n');
 
     final name = 'Workspace-wide Epic Workflow';
-    sb.write(env.styleWith(lblWorkflow.padLeft(labelWidth), [entityColor]));
-    sb.writeln(env.styleWith(name, [yellow, styleUnderlined]));
+    sb.write(env.style(lblWorkflow.padLeft(labelWidth), this));
+    sb.writeln(env.style(name, styleTitle, styles: [styleUnderline]));
 
     final workflowId = idString;
-    sb.write(env.styleWith(lblId.padLeft(labelWidth), [entityColor]));
+    sb.write(env.style(lblId.padLeft(labelWidth), this));
     sb.writeln(workflowId);
 
-    sb.write(env.styleWith(lblDefaultState.padLeft(labelWidth), [entityColor]));
+    sb.write(env.style(lblDefaultState.padLeft(labelWidth), this));
     final defaultEpicWorkflowStateId =
         data[ScString('default_epic_state_id')] as ScNumber;
     final epicStates = data[ScString('epic_states')] as ScList;
@@ -9625,7 +9666,7 @@ class ScEpicWorkflow extends ScEntity {
     }
 
     final states = data[ScString('epic_states')] as ScList;
-    sb.write(env.styleWith(lblStates.padLeft(labelWidth), [entityColor]));
+    sb.write(env.style(lblStates.padLeft(labelWidth), this));
     var isFirst = true;
     for (final state in states.innerList) {
       if (state is ScEpicWorkflowState) {
@@ -9633,20 +9674,19 @@ class ScEpicWorkflow extends ScEntity {
         String typeStr = '';
         if (type is ScString) {
           final ts = type.value;
-          var color = entityColor;
+          String color = styleUnstarted;
           switch (ts) {
             case 'unstarted':
-              color = lightRed;
+              color = styleUnstarted;
               break;
             case 'started':
-              color = lightMagenta;
+              color = styleStarted;
               break;
             case 'done':
-              color = lightGreen;
+              color = styleDone;
               break;
           }
-          typeStr =
-              env.styleWith('[${ts.substring(0, 1).toUpperCase()}]', [color])!;
+          typeStr = env.style('[${ts.substring(0, 1).toUpperCase()}]', color);
         }
 
         if (isFirst) {
@@ -9670,32 +9710,29 @@ class ScEpicWorkflowState extends ScEntity {
   @override
   String get shortFnName => '';
 
-  @override
-  AnsiCode get entityColor => lightCyan;
-
   factory ScEpicWorkflowState.fromMap(ScEnv env, Map<String, dynamic> data) {
     return ScEpicWorkflowState(ScString(data['id'].toString()))
         .addAll(env, data) as ScEpicWorkflowState;
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     return 'epic workflow state';
   }
 
   @override
   Future<ScEntity> fetch(ScEnv env) async {
-    env.err.writeln(env.styleWith(
+    env.err.writeln(env.style(
         ";; [WARN] To fetch an epic workflow state, fetch its workflow instead.",
-        [yellow]));
+        styleWarn));
     return this;
   }
 
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) async {
-    env.err.writeln(env.styleWith(
+    env.err.writeln(env.style(
         "[WARN] The `ls` function is not supported within epic workflow states.",
-        [yellow]));
+        styleWarn));
     return ScList([]);
   }
 
@@ -9717,20 +9754,19 @@ class ScEpicWorkflowState extends ScEntity {
       String typeStr = '';
       if (type is ScString) {
         final ts = type.value;
-        var color = entityColor;
+        String color = styleUnstarted;
         switch (ts) {
           case 'unstarted':
-            color = lightRed;
+            color = styleUnstarted;
             break;
           case 'started':
-            color = lightMagenta;
+            color = styleStarted;
             break;
           case 'done':
-            color = lightGreen;
+            color = styleDone;
             break;
         }
-        typeStr =
-            env.styleWith('[${ts.substring(0, 1).toUpperCase()}]', [color])!;
+        typeStr = env.style('[${ts.substring(0, 1).toUpperCase()}]', color);
       }
 
       final sb = StringBuffer();
@@ -9738,11 +9774,11 @@ class ScEpicWorkflowState extends ScEntity {
 
       final cmt = comment(env);
       sb.write(' $cmt');
-      sb.write(env.styleWith(' [Epic Workflow State]', [entityColor]));
+      sb.write(env.style(' [Epic Workflow State]', this));
       if (typeStr.isNotEmpty) {
         sb.write(typeStr);
       }
-      sb.write(env.styleWith(' $shortName', [yellow]));
+      sb.write(env.style(' $shortName', styleTitle));
 
       return sb.toString();
     }
@@ -9954,7 +9990,7 @@ ScDateTime addAllToDateTime(ScDateTime dt, ScDateTimeUnit unit, ScList args,
       }
     } else {
       throw BadArgumentsException(
-          "A value of type ${amount.informalTypeName()} cannot be used as a duration to add to a date-time value.");
+          "A value of type ${amount.typeName()} cannot be used as a duration to add to a date-time value.");
     }
   }) as ScDateTime;
 }
@@ -9964,37 +10000,33 @@ String formatPrompt(ScEnv env) {
     final pe = env.parentEntity!;
     final sb = StringBuffer();
     sb.writeln();
-    sb.write(env.styleWith('sc ', [green]));
+    sb.write(env.style('sc ', stylePrompt));
     sb.write(pe.readableString(env));
-    sb.write(env.styleWith('> ', [green]));
+    sb.write(env.style('> ', stylePrompt));
     return sb.toString();
   } else {
-    return env.styleWith('\nsc> ', [green])!;
+    return env.style('\nsc> ', stylePrompt);
   }
 }
 
 String lParen(ScEnv env) {
-  return env.styleWith('(', [darkGray])!;
+  return env.style('(', styleSubdued);
 }
 
 String rParen(ScEnv env) {
-  return env.styleWith(')', [darkGray])!;
+  return env.style(')', styleSubdued);
 }
 
 String lSquare(ScEnv env) {
-  return env.styleWith('[', [lightGray])!;
+  return env.style('[', styleSubdued);
 }
 
 String rSquare(ScEnv env) {
-  return env.styleWith(']', [lightGray])!;
+  return env.style(']', styleSubdued);
 }
 
 String comment(ScEnv env) {
-  return env.styleWith(';', [darkGray])!;
-}
-
-String sep(ScEnv env) {
-  return env.styleWith(';', [darkGray])!;
+  return env.style(';', styleSubdued);
 }
 
 /// A function and not a method so its available from the [ScEnv] factory constructor.
@@ -10045,37 +10077,42 @@ ScEntity? entityFromEnvJson(Map<String, dynamic> json) {
   } else {
     final title = json['entityTitle'];
     switch (entityTypeString) {
-      case 'story':
-        entity = ScStory(ScString(entityId));
-        entity.title = ScString(title);
-        break;
       case 'epic':
         entity = ScEpic(ScString(entityId));
+        entity.title = ScString(title);
+        break;
+      case 'epic workflow':
+        entity = ScEpicWorkflow(ScString(entityId));
         entity.title = ScString(title);
         break;
       case 'iteration':
         entity = ScIteration(ScString(entityId));
         entity.title = ScString(title);
         break;
-      case 'milestone':
-        entity = ScMilestone(ScString(entityId));
+      case 'label':
+        entity = ScLabel(ScString(entityId));
         entity.title = ScString(title);
         break;
-      case 'team':
-        entity = ScTeam(ScString(entityId));
+      case 'milestone':
+        entity = ScMilestone(ScString(entityId));
         entity.title = ScString(title);
         break;
       case 'member':
         entity = ScMember(ScString(entityId));
         entity.title = ScString(title);
         break;
+      case 'story':
+        entity = ScStory(ScString(entityId));
+        entity.title = ScString(title);
+        break;
+      case 'team':
+        entity = ScTeam(ScString(entityId));
+        entity.title = ScString(title);
+        break;
       case 'workflow':
         entity = ScWorkflow(ScString(entityId));
         entity.title = ScString(title);
         break;
-      case 'epic workflow':
-        entity = ScEpicWorkflow(ScString(entityId));
-        entity.title = ScString(title);
     }
   }
   return entity;
@@ -10224,7 +10261,7 @@ ScExpr getIn(ScExpr m, ScList rawSelector, ScExpr missingDefault) {
       }
     } else {
       throw BadArgumentsException(
-          "Don't know how to `get-in` a $k from a value of type ${m.informalTypeName()}");
+          "Don't know how to `get-in` a $k from a value of type ${m.typeName()}");
     }
   }
 }
@@ -10285,7 +10322,7 @@ void printTable(ScEnv env, List<ScExpr> ks, ScMap data) {
       } else {
         valueStr = value.printToString(env);
       }
-      sb.write(env.styleWith(keyStr, [magenta]));
+      sb.write(env.style(keyStr, stylePrompt));
       sb.writeln(" $valueStr");
     }
   }
@@ -10391,7 +10428,7 @@ Map<String, dynamic> unwrapScMap(ScMap map,
         onlyEntityIds: onlyEntityIds);
     if (forJson && k is! String) {
       throw BadArgumentsException(
-          "The map targeting JSON must contain only symbol or string keys, but found the key $key of type ${key.informalTypeName()}");
+          "The map targeting JSON must contain only symbol or string keys, but found the key $key of type ${key.typeName()}");
     }
     var expr = map[key]!;
     m[k] = scExprToValue(expr,
@@ -10578,8 +10615,8 @@ File newTempFile() {
 
 void startAndPrintPid(ScEnv env, String program, List<String> args) {
   final proc = waitOn(Process.start(program, args));
-  env.out.writeln(env.styleWith(
-      ";; [INFO] Editor opened with process ID ${proc.pid}", [green]));
+  env.out.writeln(env.style(
+      ";; [INFO] Editor opened with process ID ${proc.pid}", styleInfo));
 }
 
 File resolveFile(ScEnv env, String filePath) {
@@ -10700,7 +10737,7 @@ class UninvocableException extends ExceptionWithMessage {
   final ScList args;
   UninvocableException(this.args)
       : super(
-            "Tried to invoke a ${args.first.informalTypeName()} that isn't invocable.");
+            "Tried to invoke a ${args.first.typeName()} that isn't invocable.");
 }
 
 class FileNotFound extends ExceptionWithMessage {

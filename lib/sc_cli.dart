@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:io/ansi.dart';
 import 'package:petitparser/matcher.dart';
 import 'package:sc_cli/cli_repl.dart';
 
@@ -12,6 +11,7 @@ import 'package:sc_cli/src/sc.dart';
 import 'package:sc_cli/src/sc_api.dart' show ScLiveClient;
 import 'package:sc_cli/src/sc_config.dart';
 import 'package:sc_cli/src/sc_lang.dart';
+import 'package:sc_cli/src/sc_style.dart';
 
 mainEntryPoint(List<String> args, Function(Options options) isolateFn) async {
   int numInterrupts = 0;
@@ -84,7 +84,8 @@ void interpretProgram(Options options) {
       err: stderr,
       isReplMode: false,
       isPrintJson: options.isPrintJson,
-      isAnsiEnabled: options.isAnsiEnabled ?? false);
+      isAnsiEnabled: options.isAnsiEnabled ?? false,
+      isAccessibleColors: options.isAccessibleColors);
   maybeLoadFiles(env, options);
   final expr = env.interpret(program);
   final str = expr.printToString(env);
@@ -137,16 +138,17 @@ Function startProdReplServerIsolateFn(Options options) {
         err: stderr,
         isReplMode: true,
         isPrintJson: options.isPrintJson,
-        isAnsiEnabled: options.isAnsiEnabled ?? true);
+        isAnsiEnabled: options.isAnsiEnabled ?? true,
+        isAccessibleColors: options.isAccessibleColors);
     maybeLoadFiles(env, options);
     final repl = Repl(
         prompt: formatPrompt(env),
         continuation: ',,,   ',
         validator: replValidator(env),
         env: env);
-    env.out.writeln(env.styleWith(
+    env.out.writeln(env.style(
         "\n;; [INFO] Loading caches from disk, some data may appear missing until finished...",
-        [yellow]));
+        styleWarn));
     unawaited(loadCaches(env, repl));
     await for (final x in repl.runAsync()) {
       handleRepl(env, repl, sendPort, x);
@@ -188,7 +190,7 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
         env.interactivityState = ScInteractivityState.getDefaultWorkflowId;
         env.out.writeln("Fetching your workspace's workflows...");
         scPrint(env, env.interpret('workflows | map %(select % "id" "name")'));
-        repl.prompt = env.styleWith('\nDefault Workflow ID: ', [green])!;
+        repl.prompt = env.style('\nDefault Workflow ID: ', stylePrompt);
       } else if (env.interactivityState ==
           ScInteractivityState.getDefaultWorkflowId) {
         env.interactivityState = ScInteractivityState.getDefaultWorkflowStateId;
@@ -199,7 +201,7 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
             env,
             env.interpret(
                 '${env[ScSymbol("__sc_default-workflow-id")]} | workflow | .states | map %(select % "id" "name") '));
-        repl.prompt = env.styleWith('\nDefault Workflow State Id: ', [green])!;
+        repl.prompt = env.style('\nDefault Workflow State Id: ', stylePrompt);
       } else if (env.interactivityState ==
           ScInteractivityState.getDefaultWorkflowStateId) {
         env.interactivityState = ScInteractivityState.getDefaultTeamId;
@@ -207,21 +209,22 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
             ScNumber(int.tryParse((expr as ScString).value)!);
         env.out.writeln("Fetching your workspace's teams...");
         scPrint(env, env.interpret('teams'));
-        repl.prompt = env.styleWith('\nDefault Team ID: ', [green])!;
+        repl.prompt = env.style('\nDefault Team ID: ', stylePrompt);
       } else if (env.interactivityState ==
           ScInteractivityState.getDefaultTeamId) {
         env.interactivityState = ScInteractivityState.finishSetup;
         env[ScSymbol('__sc_default-team-id')] = expr;
         env.writeToDisk();
-        env.out.writeln(env.styleWith("Defaults set!", [green]));
+        env.out.writeln(env.style("Defaults set!", styleInfo));
         repl.prompt = formatPrompt(env);
         // == Interactive Entity Creation ==
       } else if (env.interactivityState ==
               ScInteractivityState.startCreateEntity &&
           env[ScSymbol('__sc_entity-type')] == null) {
         env.interactivityState = ScInteractivityState.getEntityType;
-        repl.prompt = env.styleWith(
-            "Create a story, epic, milestone, iteration, or task? ", [green])!;
+        repl.prompt = env.style(
+            "Create a story, epic, milestone, iteration, or task? ",
+            stylePrompt);
       } else if (env.interactivityState == ScInteractivityState.getEntityType ||
           (env.interactivityState == ScInteractivityState.startCreateEntity &&
               env[ScSymbol('__sc_entity-type')] != null)) {
@@ -258,25 +261,25 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
             // NB: Assumption is this `create` call is meant to be scoped to the cwd of the Story
             env.interactivityState = ScInteractivityState.getEntityDescription;
             env[ScSymbol('__sc_task-story-id')] = pe.id;
-            repl.prompt = env.styleWith('Description: ', [green])!;
+            repl.prompt = env.style('Description: ', stylePrompt);
           } else {
             env.interactivityState = ScInteractivityState.getTaskStoryId;
-            repl.prompt = env.styleWith("Task's Story ID: ", [green])!;
+            repl.prompt = env.style("Task's Story ID: ", stylePrompt);
           }
         } else {
           env.interactivityState = ScInteractivityState.getEntityName;
-          repl.prompt = env.styleWith('Title: ', [green])!;
+          repl.prompt = env.style('Title: ', stylePrompt);
         }
       } else if (env.interactivityState ==
           ScInteractivityState.getTaskStoryId) {
         env[ScSymbol('__sc_task-story-id')] = expr;
         env.interactivityState = ScInteractivityState.getEntityDescription;
-        repl.prompt = env.styleWith('Description: ', [green])!;
+        repl.prompt = env.style('Description: ', stylePrompt);
       } else if (env.interactivityState == ScInteractivityState.getEntityName &&
           env[ScSymbol('__sc_entity-type')] != ScString('task')) {
         env.interactivityState = ScInteractivityState.getEntityDescription;
         env[ScSymbol('__sc_entity-name')] = expr;
-        repl.prompt = env.styleWith('Description: ', [green])!;
+        repl.prompt = env.style('Description: ', stylePrompt);
       } else if (env.interactivityState ==
           ScInteractivityState.getEntityDescription) {
         env.interactivityState = ScInteractivityState.finishCreateEntity;
@@ -340,27 +343,26 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
         if (answer == 'y' || answer == 'yes') {
           env.bindNextValue = true;
           env.isExpectingBindingAnswer = false;
-          env.out.write(env.styleWith(
-              'Great! The next thing you evaluate will be bound to ', [green]));
-          env.out.write(
-              env.styleWith(env.symbolBeingDefined.toString(), [yellow]));
+          env.out.write(env.style(
+              'Great! The next thing you evaluate will be bound to ',
+              styleInfo));
+          env.out
+              .write(env.style(env.symbolBeingDefined.toString(), styleTitle));
           repl.prompt = '\ndef ${env.symbolBeingDefined.toString()} ';
         } else {
           env.bindNextValue = false;
           env.isExpectingBindingAnswer = false;
-          env.out.write(env.styleWith('Ok, maybe next time!', [green]));
+          env.out.write(env.style('Ok, maybe next time!', styleInfo));
           repl.prompt = formatPrompt(env);
         }
       } else if (env.symbolBeingDefined != null && env.bindNextValue) {
         final sym = env.symbolBeingDefined!;
         env[sym] = expr;
         env.bindNextValue = false;
-        env.out.write(env.styleWith('✅ The symbol ', [green]));
-        env.out
-            .write(env.styleWith(env.symbolBeingDefined.toString(), [yellow]));
-        env.out.write(env.styleWith(
-            ' is now bound to that ${expr.informalTypeName()} value.',
-            [green]));
+        env.out.write(env.style('✅ The symbol ', styleInfo));
+        env.out.write(env.style(env.symbolBeingDefined.toString(), styleTitle));
+        env.out.write(env.style(
+            ' is now bound to that ${expr.typeName()} value.', styleInfo));
         env.symbolBeingDefined = null;
         repl.prompt = formatPrompt(env);
       } else {
@@ -372,11 +374,11 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
       if (e is UndefinedSymbolException) {
         env.isExpectingBindingAnswer = true;
         env.interactiveStartBinding(e.symbol);
-        stderr.write(env.styleWith(
+        stderr.write(env.style(
             "${e.symbol}\n${'^' * e.symbol.toString().length} This symbol isn't defined.\n",
-            [yellow]));
+            styleWarn));
         repl.prompt =
-            env.styleWith("\nDo you want to define it? (y/n) > ", [green])!;
+            env.style("\nDo you want to define it? (y/n) > ", stylePrompt);
       } else {
         String? recoveryMessage;
         if (e is ExceptionWithMessage) {
@@ -390,9 +392,9 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
         if (recoveryMessage != null) {
           if (e is ScAssertionError) {
             stderr.write(
-                env.styleWith("Assertion Failed: $recoveryMessage", [red]));
+                env.style("Assertion Failed: $recoveryMessage", styleError));
           } else {
-            stderr.write(env.styleWith("Error! $recoveryMessage", [red]));
+            stderr.write(env.style("Error! $recoveryMessage", styleError));
           }
         } else {
           stderr.write("🔥 Something Broke 🔥\n$e\n$stacktrace");
@@ -427,14 +429,14 @@ void maybeLoadFiles(ScEnv env, Options options) {
 Future loadCaches(ScEnv env, Repl repl) async {
   try {
     await env.loadCachesFromDisk();
-    env.out.write(
-        env.styleWith("\n;; [INFO] Finished loading caches.\n", [yellow]));
+    env.out
+        .write(env.style("\n;; [INFO] Finished loading caches.\n", styleWarn));
     bindAllTheThings(env);
     repl.rewriteBuffer();
   } catch (_) {
-    env.err.writeln(env.styleWith(
+    env.err.writeln(env.style(
         ";; [WARN] Failed to load caches. Delete the cache*.json files under your config direction (default is ~/.config/shortcut-cli/) and try again.",
-        [red]));
+        styleError));
     exit(1);
   }
 }

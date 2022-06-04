@@ -11,6 +11,7 @@ import 'package:sc_cli/src/options.dart';
 import 'package:sc_cli/src/sc.dart';
 import 'package:sc_cli/src/sc_api.dart' show ScLiveClient;
 import 'package:sc_cli/src/sc_config.dart';
+import 'package:sc_cli/src/sc_style.dart';
 
 /// Closure to make [options] available to the isolate fn. Dev-facing because it activates hot code reloading.
 Function startDevReplServerIsolateFn(Options options) {
@@ -37,16 +38,17 @@ Function startDevReplServerIsolateFn(Options options) {
         err: stderr,
         isReplMode: true,
         isPrintJson: options.isPrintJson,
-        isAnsiEnabled: options.isAnsiEnabled ?? true);
+        isAnsiEnabled: options.isAnsiEnabled ?? true,
+        isAccessibleColors: options.isAccessibleColors);
     maybeLoadFiles(env, options);
     final repl = Repl(
         prompt: formatPrompt(env),
         continuation: '>>> ',
         validator: replValidator(env),
         env: env);
-    env.out.writeln(env.styleWith(
+    env.out.writeln(env.style(
         "\n;; [INFO] Loading caches from disk, some data may appear missing until finished...",
-        [yellow]));
+        styleWarn));
     unawaited(loadCaches(env, repl));
     await for (final x in repl.runAsync()) {
       handleRepl(env, repl, sendPort, x);

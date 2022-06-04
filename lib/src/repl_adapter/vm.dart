@@ -28,7 +28,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:async/async.dart';
-import 'package:io/ansi.dart';
+import 'package:sc_cli/src/sc_style.dart';
 
 import '../../cli_repl.dart';
 import 'codes.dart';
@@ -367,8 +367,8 @@ class ReplAdapter {
                 } else {
                   s = autoCompletion.substring(prefixLength);
                 }
-                write(repl.env.styleWith(
-                    autoCompletePrefix + sharedFurtherPrefix, [darkGray])!);
+                write(repl.env.style(
+                    autoCompletePrefix + sharedFurtherPrefix, styleSubdued));
                 write(s);
                 write(' ');
               }

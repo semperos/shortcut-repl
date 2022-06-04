@@ -155,7 +155,7 @@ class PipedLispParserDefinition extends PipedLispGrammarDefinition {
                   defName, ScList([ScList(defBody), ScList([])]));
             } else {
               throw BadDef(
-                  "The `def` form expects a symbol for its name, but received a ${defName.informalTypeName()}");
+                  "The `def` form expects a symbol for its name, but received a ${defName.typeName()}");
             }
           } else {
             throw BadDef("A definition must have at least a name and a value.");
@@ -191,7 +191,7 @@ class PipedLispParserDefinition extends PipedLispGrammarDefinition {
             }
           } else {
             throw BadFn(
-                "The parameters of a function must be a list, but found a ${fnParams.informalTypeName()}");
+                "The parameters of a function must be a list, but found a ${fnParams.typeName()}");
           }
         } else {
           return ScInvocation(ScList(exprs));
@@ -476,7 +476,7 @@ class LispParserPipedArg implements ScExpr {
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     // Tagged as ScExpr for consistency; type name not meaningful.
     throw UnimplementedError();
   }
@@ -515,7 +515,7 @@ class LispParserPipe implements ScExpr {
   }
 
   @override
-  String informalTypeName() {
+  String typeName() {
     // Tagged as ScExpr for consistency; type name not meaningful.
     throw UnimplementedError();
   }
