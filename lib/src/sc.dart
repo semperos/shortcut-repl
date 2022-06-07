@@ -173,8 +173,8 @@ class ScEnv {
 
     // Collections
 
-    ScSymbol('for-each'): ScFnForEach(),
-    ScSymbol('map'): ScFnForEach(),
+    ScSymbol('for-each'): ScFnMap(),
+    ScSymbol('map'): ScFnMap(),
     ScSymbol('reduce'): ScFnReduce(),
     ScSymbol('concat'): ScFnConcat(),
     ScSymbol('extend'): ScFnExtend(),
@@ -1291,7 +1291,7 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
     } else if (args.isEmpty) {
       if (parentEntity == null) {
         throw BadArgumentsException(
-            "If calling the `$fnName` function's with no arguments, a parent entity must be active (`cd` into one).");
+            "If calling the `$fnName` function with no arguments, a parent entity must be active (`cd` into one).");
       } else {
         entity = parentEntity!;
         if (entity.data.isEmpty && !forceFetch) waitOn(entity.fetch(this));
@@ -1794,6 +1794,12 @@ When used within a structure that gets serialized to JSON and sent to Shortcut, 
           "Dotted symbols expect either no arguments, 1 map/entity argument, or 1 map/entity argument and a default-if-not-found value.");
     }
   }
+
+  @override
+  Set<List<String>> arities = {
+    ["map-or-entity"],
+    ["map-or-entity" "default-if-missing"]
+  };
 }
 
 class ScFile extends ScExpr {
@@ -1831,6 +1837,8 @@ abstract class ScBaseInvocable extends ScExpr {
   // ScBaseInvocable(this.name);
   // final String name;
 
+  Set<List<String>> arities = {};
+
   @override
   String typeName() {
     return 'built-in function';
@@ -1847,11 +1855,16 @@ abstract class ScBaseInvocable extends ScExpr {
   String get helpFull;
 }
 
+/// Class of functions defined in Piped Lisp using `fn`
 class ScFunction extends ScBaseInvocable {
   ScFunction(String name, this.env, this.params, this.bodyExprs) : super();
   final ScEnv env;
   final ScList params;
   final ScList bodyExprs;
+
+  @override
+  Set<List<String>> get arities =>
+      {List<ScExpr>.from(params.innerList).map((e) => e.toString()).toList()};
 
   ScList get getExprs => ScList(List<ScExpr>.from(bodyExprs.innerList));
 
@@ -1918,6 +1931,15 @@ class ScAnonymousFunction extends ScBaseInvocable {
   final ScEnv env;
   final int numArgs;
   final ScList exprs;
+
+  @override
+  Set<List<String>> get arities {
+    List<String> l = [];
+    for (var i = 0; i < numArgs; i++) {
+      l.add("arg-${i + 1}");
+    }
+    return {l};
+  }
 
   ScList get getExprs => ScList(List<ScExpr>.from(exprs.innerList));
 
@@ -1998,6 +2020,11 @@ class ScFnIdentity extends ScBaseInvocable {
   factory ScFnIdentity() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["value"]
+      };
+
+  @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length == 1) {
       return args.first;
@@ -2020,6 +2047,10 @@ def add identity +""";
 }
 
 class ScFnType extends ScBaseInvocable {
+  @override
+  Set<List<String>> get arities => {
+        ["value"]
+      };
   @override
   String get help => "Return the name of the type of the value as a string.";
 
@@ -2067,6 +2098,10 @@ class ScFnType extends ScBaseInvocable {
 
 class ScFnUndef extends ScBaseInvocable {
   @override
+  Set<List<String>> get arities => {
+        ["symbol"]
+      };
+  @override
   String get help =>
       "Remove the symbol with the given string or dotted symbol name from the environment's bindings.";
 
@@ -2098,6 +2133,10 @@ class ScFnDateTime extends ScBaseInvocable {
   ScFnDateTime._internal();
   factory ScFnDateTime() => _instance;
 
+  @override
+  Set<List<String>> get arities => {
+        ["date-time-string"]
+      };
   @override
   String get help => 'Return a date-time value for the given string.';
 
@@ -2157,6 +2196,9 @@ class ScFnDateTimeNow extends ScBaseInvocable {
   factory ScFnDateTimeNow() => _instance;
 
   @override
+  Set<List<String>> get arities => {[]};
+
+  @override
   String get help => 'Return the current date-time in your local timezone.';
 
   @override
@@ -2177,6 +2219,11 @@ class ScFnDateTimeToUtc extends ScBaseInvocable {
   static final ScFnDateTimeToUtc _instance = ScFnDateTimeToUtc._internal();
   ScFnDateTimeToUtc._internal();
   factory ScFnDateTimeToUtc() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["date-time"]
+      };
 
   @override
   String get help => "Convert the date-time to be in the UTC time zone.";
@@ -2214,6 +2261,11 @@ class ScFnDateTimeToLocal extends ScBaseInvocable {
   static final ScFnDateTimeToLocal _instance = ScFnDateTimeToLocal._internal();
   ScFnDateTimeToLocal._internal();
   factory ScFnDateTimeToLocal() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["date-time"]
+      };
 
   @override
   String get help => "Convert the date-time to be in the local time zone.";
@@ -2254,6 +2306,11 @@ class ScFnDateTimeIsBefore extends ScBaseInvocable {
   factory ScFnDateTimeIsBefore() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["date-time-earlier", "date-time-later"]
+      };
+
+  @override
   String get help => "Return true if the first date is before the second.";
 
   @override
@@ -2289,6 +2346,11 @@ class ScFnDateTimeIsAfter extends ScBaseInvocable {
   static final ScFnDateTimeIsAfter _instance = ScFnDateTimeIsAfter._internal();
   ScFnDateTimeIsAfter._internal();
   factory ScFnDateTimeIsAfter() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["date-time-later", "date-time-earlier"]
+      };
 
   @override
   String get help => "Return true if the first date is after the second.";
@@ -2344,6 +2406,11 @@ class ScFnDateTimePlus extends ScBaseInvocable {
   ScFnDateTimePlus._internalWeeks() : unit = ScDateTimeUnit.weeks;
 
   factory ScFnDateTimePlus(ScDateTimeUnit unit) => _instances[unit]!;
+
+  @override
+  Set<List<String>> get arities => {
+        ["date-time", "number"]
+      };
 
   @override
   String get help =>
@@ -2411,6 +2478,11 @@ class ScFnDateTimeMinus extends ScBaseInvocable {
   factory ScFnDateTimeMinus(ScDateTimeUnit unit) => _instances[unit]!;
 
   @override
+  Set<List<String>> get arities => {
+        ["date-time", "number"]
+      };
+
+  @override
   String get help =>
       "Return a date-time value that is N units further into the past. Accepts a date-time value and a variable number of arguments (or a list of arguments).";
 
@@ -2474,6 +2546,12 @@ class ScFnDateTimeUntil extends ScBaseInvocable {
   ScFnDateTimeUntil._internalWeeks() : unit = ScDateTimeUnit.weeks;
 
   factory ScFnDateTimeUntil(ScDateTimeUnit unit) => _instances[unit]!;
+
+  @override
+  Set<List<String>> get arities => {
+        ["date-time-later"],
+        ["date-time-earlier", "date-time-later"]
+      };
 
   @override
   String get help =>
@@ -2540,6 +2618,12 @@ class ScFnDateTimeSince extends ScBaseInvocable {
   ScFnDateTimeSince._internalWeeks() : unit = ScDateTimeUnit.weeks;
 
   factory ScFnDateTimeSince(ScDateTimeUnit unit) => _instances[unit]!;
+
+  @override
+  Set<List<String>> get arities => {
+        ["date-time-earlier"],
+        ["date-time-later", "date-time-earlier"]
+      };
 
   @override
   String get help =>
@@ -2626,6 +2710,11 @@ class ScFnDateTimeField extends ScBaseInvocable {
   };
 
   @override
+  Set<List<String>> get arities => {
+        ["date-time"]
+      };
+
+  @override
   String get help => "Return given part of the date-time value.";
 
   @override
@@ -2677,6 +2766,11 @@ class ScFnIf extends ScBaseInvocable {
   factory ScFnIf() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["condition", "then-nullary-function", "else-nullary-function"]
+      };
+
+  @override
   String get help =>
       "If the first argument is truthy, invoke the first function; else the second.";
 
@@ -2717,6 +2811,11 @@ class ScFnAssert extends ScBaseInvocable {
   static final ScFnAssert _instance = ScFnAssert._internal();
   ScFnAssert._internal();
   factory ScFnAssert() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["condition", "failure-message"]
+      };
 
   @override
   String get help => "Throw an error if the assertion doesn't hold.";
@@ -2828,6 +2927,11 @@ class ScFnWhere extends ScBaseInvocable {
   factory ScFnWhere() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["collection", "map-spec-or-fn"]
+      };
+
+  @override
   String get help =>
       'Return items from a collection that match the given map spec or function.';
 
@@ -2865,7 +2969,7 @@ The second argument is expected to be a function that takes two arguments: a key
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length != 2) {
       throw BadArgumentsException(
-          "The `where` function expects two arguments: a query and a map of where clauses.");
+          "The `where` function expects two arguments: a collection and a map of where clauses.");
     }
     final ScExpr coll = args[0];
     final ScExpr notFound = ScSymbol("__sc_not-found");
@@ -2942,6 +3046,11 @@ class ScFnLimit extends ScBaseInvocable {
   factory ScFnLimit() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["collection", "number-to-keep"]
+      };
+
+  @override
   String get help =>
       'Limit the number of items in the collection to the given number.';
 
@@ -2993,6 +3102,11 @@ class ScFnSkip extends ScBaseInvocable {
   static final ScFnSkip _instance = ScFnSkip._internal();
   ScFnSkip._internal();
   factory ScFnSkip() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["collection", "number-to-skip"]
+      };
 
   @override
   String get help => 'Skip the first N items of the given collection.';
@@ -3047,6 +3161,11 @@ class ScFnDistinct extends ScBaseInvocable {
   factory ScFnDistinct() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["collection"]
+      };
+
+  @override
   String get help =>
       "Return new collection with only distinct items from the original.";
 
@@ -3083,6 +3202,12 @@ class ScFnHelp extends ScBaseInvocable {
   factory ScFnHelp() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["fn-or-string"]
+      };
+
+  @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
       env.out.writeln('Available commands:');
@@ -3103,6 +3228,20 @@ class ScFnHelp extends ScBaseInvocable {
     } else {
       final query = args[0];
       if (query is ScBaseInvocable) {
+        if (query.arities.isNotEmpty) {
+          env.out.writeln(env.style('Signatures: ', 'title'));
+          final arities = query.arities.toList();
+          arities.sort((la, lb) => la.length.compareTo(lb.length));
+          for (final arity in query.arities) {
+            String params = arity.join(' ');
+            if (params.isNotEmpty) {
+              params = ' $params';
+            }
+            // TODO Re-introduce String name as a required [ScBaseInvocable] field.
+            env.out.writeln(env.style('  (λ$params)', 'title'));
+          }
+        }
+        env.out.writeln();
         env.out.writeln(env.style(query.helpFull, 'title'));
       } else if (query is ScString) {
         final searchFn = ScFnSearch();
@@ -3167,6 +3306,12 @@ class ScFnPrint extends ScBaseInvocable {
   String strToAppend;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["value", "..."]
+      };
+
+  @override
   String get help => "Print values to the output stream.";
 
   @override
@@ -3193,6 +3338,11 @@ class ScFnPrStr extends ScBaseInvocable {
   factory ScFnPrStr() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["value"]
+      };
+
+  @override
   String get help => "Return a readable string of the given argument.";
 
   @override
@@ -3216,6 +3366,13 @@ class ScFnPrStr extends ScBaseInvocable {
 }
 
 class ScFnDefaults extends ScBaseInvocable {
+  static final ScFnDefaults _instance = ScFnDefaults._internal();
+  ScFnDefaults._internal();
+  factory ScFnDefaults() => _instance;
+
+  @override
+  Set<List<String>> get arities => {[]};
+
   @override
   String get help => "Display all workspace-level defaults set using sc.";
 
@@ -3248,6 +3405,12 @@ class ScFnDefault extends ScBaseInvocable {
   static final ScFnDefault _instance = ScFnDefault._internal();
   ScFnDefault._internal();
   factory ScFnDefault() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["default-key"],
+        ["default-key", "default-value"]
+      };
 
   static List<String> identifiers = [
     "group",
@@ -3393,6 +3556,9 @@ class ScFnSetup extends ScBaseInvocable {
   factory ScFnSetup() => _instance;
 
   @override
+  Set<List<String>> get arities => {[]};
+
+  @override
   String get help =>
       "Setup your local environment's default workflow, workflow state, and team.";
 
@@ -3426,6 +3592,12 @@ class ScFnCd extends ScBaseInvocable {
   static final ScFnCd _instance = ScFnCd._internal();
   ScFnCd._internal();
   factory ScFnCd() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["entity"]
+      };
 
   @override
   String get help =>
@@ -3494,6 +3666,13 @@ You can `cd` into an entity to make that entity your current "parent entity." Ma
 }
 
 class ScFnHistory extends ScBaseInvocable {
+  static final ScFnHistory _instance = ScFnHistory._internal();
+  ScFnHistory._internal();
+  factory ScFnHistory() => _instance;
+
+  @override
+  Set<List<String>> get arities => {[]};
+
   @override
   String get help =>
       "Return history of parent entities you have `cd`ed into, in reverse order so latest are at the bottom. Max 100 entries.";
@@ -3518,6 +3697,13 @@ Note that Shortcut tasks can be `cd`ed into, but at this time are not persisted 
 }
 
 class ScFnBackward extends ScBaseInvocable {
+  static final ScFnBackward _instance = ScFnBackward._internal();
+  ScFnBackward._internal();
+  factory ScFnBackward() => _instance;
+
+  @override
+  Set<List<String>> get arities => {[]};
+
   @override
   String get help =>
       "Change your parent entity to the previous one in your history.";
@@ -3553,6 +3739,13 @@ class ScFnBackward extends ScBaseInvocable {
 }
 
 class ScFnForward extends ScBaseInvocable {
+  static final ScFnForward _instance = ScFnForward._internal();
+  ScFnForward._internal();
+  factory ScFnForward() => _instance;
+
+  @override
+  Set<List<String>> get arities => {[]};
+
   @override
   String get help =>
       "Change your parent entity to the next one in your history.";
@@ -3584,6 +3777,16 @@ class ScFnForward extends ScBaseInvocable {
 }
 
 class ScFnLs extends ScBaseInvocable {
+  static final ScFnLs _instance = ScFnLs._internal();
+  ScFnLs._internal();
+  factory ScFnLs() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["entity"]
+      };
+
   @override
   String get help => 'List items within a context.';
 
@@ -3599,6 +3802,13 @@ class ScFnLs extends ScBaseInvocable {
 }
 
 class ScFnCwd extends ScBaseInvocable {
+  static final ScFnCwd _instance = ScFnCwd._internal();
+  ScFnCwd._internal();
+  factory ScFnCwd() => _instance;
+
+  @override
+  Set<List<String>> get arities => {[]};
+
   static String cwdHelp =
       '[Help] `cd` into a Shortcut entity or entity ID to use `cwd`, `pwd`, and `.`';
 
@@ -3631,6 +3841,13 @@ class ScFnCwd extends ScBaseInvocable {
 }
 
 class ScFnPwd extends ScBaseInvocable {
+  static final ScFnPwd _instance = ScFnPwd._internal();
+  ScFnPwd._internal();
+  factory ScFnPwd() => _instance;
+
+  @override
+  Set<List<String>> get arities => {[]};
+
   @override
   String get help =>
       'Print the working "directory"—the current parent entity we have `cd`ed into.';
@@ -3661,6 +3878,15 @@ class ScFnPwd extends ScBaseInvocable {
 }
 
 class ScFnMv extends ScBaseInvocable {
+  static final ScFnMv _instance = ScFnMv._internal();
+  ScFnMv._internal();
+  factory ScFnMv() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["entity-to-move", "target-container-entity"]
+      };
+
   @override
   String get help =>
       "Move a Shortcut entity from one container to another (e.g., a story to a new epic).";
@@ -3673,7 +3899,7 @@ class ScFnMv extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length != 2) {
       throw BadArgumentsException(
-          "The `mv` function expects 2 arguments: a child entity and a new parent entity to move it to.");
+          "The `mv` function expects 2 arguments: a child entity and a new parent entity to move it to, but received ${args.length} arguments.");
     } else {
       ScEntity childEntity = env.resolveArgEntity(args, 'mv');
       ScEntity parentEntity =
@@ -3714,6 +3940,16 @@ class ScFnMv extends ScBaseInvocable {
 }
 
 class ScFnData extends ScBaseInvocable {
+  static final ScFnData _instance = ScFnData._internal();
+  ScFnData._internal();
+  factory ScFnData() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["entity"]
+      };
+
   @override
   String get help => "Return the entity's complete, raw data.";
 
@@ -3750,6 +3986,16 @@ class ScFnData extends ScBaseInvocable {
 }
 
 class ScFnDetails extends ScBaseInvocable {
+  static final ScFnDetails _instance = ScFnDetails._internal();
+  ScFnDetails._internal();
+  factory ScFnDetails() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["entity"]
+      };
+
   @override
   String get help => "Return the entity's most important details as a map.";
 
@@ -3786,6 +4032,16 @@ class ScFnDetails extends ScBaseInvocable {
 }
 
 class ScFnSummary extends ScBaseInvocable {
+  static final ScFnSummary _instance = ScFnSummary._internal();
+  ScFnSummary._internal();
+  factory ScFnSummary() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["entity"]
+      };
+
   @override
   String get help => "Return a summary of the Shortcut entity's state.";
 
@@ -3805,6 +4061,12 @@ class ScFnInvoke extends ScBaseInvocable {
   static final ScFnInvoke _instance = ScFnInvoke._internal();
   ScFnInvoke._internal();
   factory ScFnInvoke() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["function"],
+        ["function", "argument", "..."]
+      };
 
   @override
   String get help => "Invoke the provided function.";
@@ -3853,6 +4115,11 @@ class ScFnApply extends ScBaseInvocable {
   factory ScFnApply() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["function", "list-of-args"]
+      };
+
+  @override
   String get help => "Apply the given function to the list of arguments.";
 
   @override
@@ -3882,10 +4149,15 @@ class ScFnApply extends ScBaseInvocable {
   }
 }
 
-class ScFnForEach extends ScBaseInvocable {
-  static final ScFnForEach _instance = ScFnForEach._internal();
-  ScFnForEach._internal();
-  factory ScFnForEach() => _instance;
+class ScFnMap extends ScBaseInvocable {
+  static final ScFnMap _instance = ScFnMap._internal();
+  ScFnMap._internal();
+  factory ScFnMap() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["collection", "function"]
+      };
 
   @override
   String get help =>
@@ -3899,17 +4171,17 @@ class ScFnForEach extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length != 2) {
       throw BadArgumentsException(
-          "The `for-each` or `map` function expects 2 arguments: a list and a function.");
+          "The `map` or `for-each` function expects 2 arguments: a list and a function.");
     } else {
       final list = args[0];
       final invocable = args[1];
       if (list is! ScList) {
         throw BadArgumentsException(
-            "The first argument to `for-each` or `map` must be a list, but received ${list.typeName()}");
+            "The first argument to `map` or `for-each` must be a list, but received ${list.typeName()}");
       }
       if (invocable is! ScBaseInvocable) {
         throw BadArgumentsException(
-            "The second argument to `for-each` or `map` must be a function, but received ${invocable.typeName()}");
+            "The second argument to `map` or `for-each` must be a function, but received ${invocable.typeName()}");
       }
       List<ScExpr> ret = [];
       for (final item in list.innerList) {
@@ -3924,6 +4196,12 @@ class ScFnReduce extends ScBaseInvocable {
   static final ScFnReduce _instance = ScFnReduce._internal();
   ScFnReduce._internal();
   factory ScFnReduce() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["collection", "reducing-fn"],
+        ["collection", "starting-accumulator", "reducing-fn"]
+      };
 
   @override
   String get help =>
@@ -3953,7 +4231,7 @@ NB: Although Piped Lisp does not support implementing your own multi-arity funct
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length < 2 || args.length > 3) {
       throw BadArgumentsException(
-          "The `reduce` function expects 2 or 3 arguments: a list, an optional starting accumulator, and a function of (acc, item).");
+          "The `reduce` function expects 2 or 3 arguments: a list, an optional starting accumulator, and a function of (acc, item), but received ${args.length} arguments.");
     } else {
       final list = args[0];
       if (list is ScList) {
@@ -4007,6 +4285,12 @@ class ScFnConcat extends ScBaseInvocable {
   static final ScFnConcat _instance = ScFnConcat._internal();
   ScFnConcat._internal();
   factory ScFnConcat() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["collection", "..."]
+      };
 
   @override
   String get help => 'Combine multiple collections into one.';
@@ -4065,6 +4349,12 @@ class ScFnExtend extends ScBaseInvocable {
   static final ScFnExtend _instance = ScFnExtend._internal();
   ScFnExtend._internal();
   factory ScFnExtend() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["collection", "..."]
+      };
 
   @override
   String get help =>
@@ -4127,6 +4417,12 @@ class ScFnKeys extends ScBaseInvocable {
   factory ScFnKeys() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["map-or-entity"]
+      };
+
+  @override
   String get help => "Return the keys of this map or entity's data.";
 
   @override
@@ -4163,8 +4459,13 @@ class ScFnWhenNil extends ScBaseInvocable {
   factory ScFnWhenNil() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["possibly-nil-value", "replacement-value"]
+      };
+
+  @override
   String get help =>
-      "If argument is nil, returns the default value provided instead.";
+      "If argument is `nil`, returns the replacement value provided.";
 
   @override
   // TODO: implement helpFull
@@ -4191,6 +4492,12 @@ class ScFnGet extends ScBaseInvocable {
   static final ScFnGet _instance = ScFnGet._internal();
   ScFnGet._internal();
   factory ScFnGet() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["collection", "key-or-index"],
+        ["collection", "key-or-index", "default-if-not-found"]
+      };
 
   @override
   String get help => 'Retrieve an item from a source at a selector.';
@@ -4243,6 +4550,11 @@ class ScFnSecond extends ScBaseInvocable {
   factory ScFnSecond() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["collection-or-date-time"]
+      };
+
+  @override
   String get help =>
       "Return either the second item in a collection, or the second value of a date-time value.";
 
@@ -4272,6 +4584,12 @@ class ScFnGetIn extends ScBaseInvocable {
   static final ScFnGetIn _instance = ScFnGetIn._internal();
   ScFnGetIn._internal();
   factory ScFnGetIn() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["collection", "list-of-keys-and/or-indices"],
+        ["collection", "list-of-keys-and/or-indices", "default-if-not-found"]
+      };
 
   @override
   String get help => 'Retrieve an item from a source at a selector.';
@@ -4307,6 +4625,11 @@ class ScFnContains extends ScBaseInvocable {
   static final ScFnContains _instance = ScFnContains._internal();
   ScFnContains._internal();
   factory ScFnContains() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["collection", "item"]
+      };
 
   @override
   String get help => 'Returns true if the collection contains the given item.';
@@ -4353,6 +4676,11 @@ class ScFnIsSubset extends ScBaseInvocable {
   static final ScFnIsSubset _instance = ScFnIsSubset._internal();
   ScFnIsSubset._internal();
   factory ScFnIsSubset() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["collection-subset", "collection-superset"]
+      };
 
   @override
   String get help =>
@@ -4415,7 +4743,13 @@ class ScFnCount extends ScBaseInvocable {
   factory ScFnCount() => _instance;
 
   @override
-  String get help => 'The length of the collection, the count of its items.';
+  Set<List<String>> get arities => {
+        ["collection"]
+      };
+
+  @override
+  String get help =>
+      'Return the length of the collection, i.e., the count of its items.';
 
   @override
   // TODO: implement helpFull
@@ -4448,6 +4782,12 @@ class ScFnSort extends ScBaseInvocable {
   factory ScFnSort() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["collection"],
+        ["collection", "function"]
+      };
+
+  @override
   String get help => 'Sort the collection (maps by their keys).';
 
   @override
@@ -4456,7 +4796,7 @@ class ScFnSort extends ScBaseInvocable {
       '\n\n' +
       r"""Return a copy of the original collection, sorted. Maps are sorted by their keys.
 
-If you need to sort by a derivative value of each item, try `sort-by`.""";
+Pass an additional function (or dotted symbol) to sort using a custom comparator.""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -4533,17 +4873,27 @@ class ScFnSplit extends ScBaseInvocable {
   factory ScFnSplit() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["collection"],
+        ["collection", "separator"]
+      };
+
+  @override
   String get help => 'Split the collection by the given separator.';
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+
+If no separator is given, defaults to splitting by newlines (\n).""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.isEmpty) {
+    if (args.isEmpty || args.length > 2) {
       throw BadArgumentsException(
-          'The `split` function expects one or two arguments: a collection and an optional separator (default is newline)');
+          'The `split` function expects one or two arguments: a collection and an optional separator (default is newline), but received ${args.length} arguments.');
     } else {
       final coll = args.first;
       ScString sep;
@@ -4575,12 +4925,22 @@ class ScFnJoin extends ScBaseInvocable {
   factory ScFnJoin() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["collection"],
+        ["collection", "separator"]
+      };
+
+  @override
   String get help =>
       'Join the collection into a string using the given separator.';
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+
+If no separator is given, defaults to joining with newlines (\n).""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -4618,8 +4978,14 @@ class ScFnFile extends ScBaseInvocable {
   factory ScFnFile() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["file-name"]
+      };
+
+  @override
   String get help =>
-      'Returns a file object given its relative or absolute path as a string.';
+      'Returns a file object given its relative or absolute path as a string, or a temporary file if called with no arguments.';
 
   @override
   // TODO: implement helpFull
@@ -4628,9 +4994,8 @@ class ScFnFile extends ScBaseInvocable {
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
-      throw BadArgumentsException(
-          'The `file` function expects one argument: a string of the file\'s path.');
-    } else {
+      return ScFile(newTempFile());
+    } else if (args.length == 1) {
       final path = args.first;
       if (path is ScString) {
         final file = File(path.value);
@@ -4639,6 +5004,9 @@ class ScFnFile extends ScBaseInvocable {
         throw BadArgumentsException(
             'The argument to `file` must be a string, but received a ${path.typeName()}');
       }
+    } else {
+      throw BadArgumentsException(
+          "The `file` function expects 0 or 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -4647,6 +5015,11 @@ class ScFnReadFile extends ScBaseInvocable {
   static final ScFnReadFile _instance = ScFnReadFile._internal();
   ScFnReadFile._internal();
   factory ScFnReadFile() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["file-or-file-name"]
+      };
 
   @override
   String get help => 'Return string contents of a file.';
@@ -4679,6 +5052,11 @@ class ScFnWriteFile extends ScBaseInvocable {
   static final ScFnWriteFile _instance = ScFnWriteFile._internal();
   ScFnWriteFile._internal();
   factory ScFnWriteFile() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["file-or-file-name", "value"]
+      };
 
   @override
   String get help => 'Write string contents to a file.';
@@ -4715,7 +5093,7 @@ class ScFnWriteFile extends ScBaseInvocable {
       return ScNil();
     } else {
       throw BadArgumentsException(
-          'The `write-file` function expects two arguments: the file to read.');
+          'The `write-file` function expects two arguments: the file to write and content to write to it.');
     }
   }
 }
@@ -4724,6 +5102,11 @@ class ScFnClipboard extends ScBaseInvocable {
   static final ScFnClipboard _instance = ScFnClipboard._internal();
   ScFnClipboard._internal();
   factory ScFnClipboard() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["value"]
+      };
 
   @override
   String get help => "Copy the given string to your system clipboard.";
@@ -4772,6 +5155,15 @@ class ScFnClipboard extends ScBaseInvocable {
 }
 
 class ScFnInterpret extends ScBaseInvocable {
+  static final ScFnInterpret _instance = ScFnInterpret._internal();
+  ScFnInterpret._internal();
+  factory ScFnInterpret() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["string"]
+      };
+
   @override
   String get help =>
       "Return the expression resulting from interpreting the given string of code.";
@@ -4802,6 +5194,11 @@ class ScFnLoad extends ScBaseInvocable {
   static final ScFnLoad _instance = ScFnLoad._internal();
   ScFnLoad._internal();
   factory ScFnLoad() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["file-or-file-name"]
+      };
 
   @override
   String get help => 'Read and evaluate the given source code file.';
@@ -4838,7 +5235,13 @@ class ScFnOpen extends ScBaseInvocable {
   factory ScFnOpen() => _instance;
 
   @override
-  String get help => "Open an entity's page in the Shortcut web app.";
+  Set<List<String>> get arities => {
+        ["entity-or-map"]
+      };
+
+  @override
+  String get help =>
+      "Open an entity's page in the Shortcut web app, or any map with a \"url\" or \"app_url\" entry.";
 
   @override
   String get helpFull =>
@@ -4882,8 +5285,14 @@ class ScFnEdit extends ScBaseInvocable {
   factory ScFnEdit() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["content-or-file"]
+      };
+
+  @override
   String get help =>
-      'Opens your SHORTCUT_EDITOR or EDITOR and returns the temp file created.';
+      'Opens your SHORTCUT_EDITOR or EDITOR and returns the temp file created, or opens your editor with the temp file supplied, or opens your editor with a temp file pre-populated with the value supplied.';
 
   @override
   // TODO: implement helpFull
@@ -4895,15 +5304,19 @@ class ScFnEdit extends ScBaseInvocable {
       return execOpenInEditor(env);
     } else if (args.length == 1) {
       final content = args[0];
-      String contentStr;
-      if (content is ScString) {
-        contentStr = content.value;
+      if (content is ScFile) {
+        return execOpenInEditor(env, existingFile: content.file);
       } else {
-        contentStr = content.printToString(env);
+        String contentStr;
+        if (content is ScString) {
+          contentStr = content.value;
+        } else {
+          contentStr = content.printToString(env);
+        }
+        final tempFile = newTempFile();
+        tempFile.writeAsStringSync(contentStr);
+        return execOpenInEditor(env, existingFile: tempFile);
       }
-      final tempFile = newTempFile();
-      tempFile.writeAsStringSync(contentStr);
-      return execOpenInEditor(env, existingFile: tempFile);
     } else {
       throw BadArgumentsException(
           "The `edit` function does not take any arguments, but received ${args.length} arguments.");
@@ -4915,6 +5328,12 @@ class ScFnSearch extends ScBaseInvocable {
   static final ScFnSearch _instance = ScFnSearch._internal();
   ScFnSearch._internal();
   factory ScFnSearch() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["api-search-query-string"],
+        ["collection", "string"]
+      };
 
   @override
   String get help =>
@@ -4980,8 +5399,10 @@ is:archived  project:
         });
       } else if (coll is ScMap) {
         return coll.where((k, v) {
-          final keyJson = jsonEncoder.convert(scExprToValue(k));
-          final valueJson = jsonEncoder.convert(scExprToValue(v));
+          final keyJson = jsonEncoder.convert(
+              scExprToValue(k, forJson: true, throwOnIllegalJsonKeys: false));
+          final valueJson = jsonEncoder.convert(
+              scExprToValue(v, forJson: true, throwOnIllegalJsonKeys: false));
           final jsonStr = '$keyJson $valueJson';
           return ScBoolean.fromBool(
               jsonStr.toLowerCase().contains(queryStr.toLowerCase()));
@@ -5003,7 +5424,12 @@ class ScFnFindStories extends ScBaseInvocable {
   factory ScFnFindStories() => _instance;
 
   @override
-  String get help => "Find stories given specific parameters.";
+  Set<List<String>> get arities => {
+        ["find-stories-query-map"]
+      };
+
+  @override
+  String get help => "Find stories given map of search parameters.";
 
   @override
   String get helpFull =>
@@ -5051,6 +5477,12 @@ class ScFnFetch extends ScBaseInvocable {
   factory ScFnFetch() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["entity-or-id"]
+      };
+
+  @override
   String get help => 'Fetch an entity via the Shortcut API.';
 
   @override
@@ -5068,6 +5500,9 @@ class ScFnFetchAll extends ScBaseInvocable {
   static final ScFnFetchAll _instance = ScFnFetchAll._internal();
   ScFnFetchAll._internal();
   factory ScFnFetchAll() => _instance;
+
+  @override
+  Set<List<String>> get arities => {[]};
 
   @override
   String get help => 'Fetch and cache members, teams, and workflows.';
@@ -5098,11 +5533,18 @@ class ScFnUpdate extends ScBaseInvocable {
   factory ScFnUpdate() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["update-map"],
+        ["key", "value"],
+        ["entity", "update-map"],
+        ["entity", "key", "value"],
+      };
+
+  @override
   String get help =>
       'Update the given entity in Shortcut with the given update map.';
 
   @override
-  // TODO: implement helpFull
   String get helpFull =>
       help +
       '\n\n' +
@@ -5159,6 +5601,13 @@ class ScFnNextState extends ScBaseInvocable {
   static final ScFnNextState _instance = ScFnNextState._internal();
   ScFnNextState._internal();
   factory ScFnNextState() => _instance;
+
+  @override
+  // TODO: implement arities
+  Set<List<String>> get arities => {
+        [],
+        ["entity"]
+      };
 
   @override
   String get help =>
@@ -5283,6 +5732,12 @@ class ScFnPreviousState extends ScBaseInvocable {
   factory ScFnPreviousState() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["entity"]
+      };
+
+  @override
   String get help =>
       "Update the given entity (or parent entity, if unspecified) to the previous workflow state.";
 
@@ -5405,6 +5860,12 @@ class ScFnCreate extends ScBaseInvocable {
   factory ScFnCreate() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["entity-map"]
+      };
+
+  @override
   String get help =>
       'Create the given entity in Shortcut, either interactively (no args) or with the given data map.';
 
@@ -5419,7 +5880,7 @@ class ScFnCreate extends ScBaseInvocable {
     if (args.isEmpty) {
       env.startInteractionCreateEntity(null);
       return ScNil();
-    } else {
+    } else if (args.length == 1) {
       final maybeDataMap = args[0];
       ScEntity? entity;
       if (maybeDataMap is ScMap) {
@@ -5628,6 +6089,9 @@ class ScFnCreate extends ScBaseInvocable {
         }
       }
       return entity ?? ScNil();
+    } else {
+      throw BadArgumentsException(
+          "The `create` function expects 0 or 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -5636,6 +6100,12 @@ class ScFnCreateStory extends ScBaseInvocable {
   static final ScFnCreateStory _instance = ScFnCreateStory._internal();
   ScFnCreateStory._internal();
   factory ScFnCreateStory() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["story-map"]
+      };
 
   @override
   String get help => "Create a Shortcut story given a data map.";
@@ -5685,6 +6155,15 @@ class ScFnCreateComment extends ScBaseInvocable {
   static final ScFnCreateComment _instance = ScFnCreateComment._internal();
   ScFnCreateComment._internal();
   factory ScFnCreateComment() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        // TODO See below, this should be ["comment-map"] that uses the parent if story or epic
+        ["story-or-epic", "comment-map"],
+        // TODO Should probably support this arity for stories as well, since it's natural for specifying parentage/reply-to
+        ["epic" "comment" "comment-map"]
+      };
 
   @override
   String get help =>
@@ -5757,6 +6236,7 @@ class ScFnCreateComment extends ScBaseInvocable {
             "The `create-comment` function expects you to be within a parent story, story comment, epic, or epic comment if no arguments are supplied, but no parent entity found.");
       }
     } else if (args.length == 2) {
+      // TODO args.length == 1 of the comment data map and a parent entity that is either story or epic
       // All but Epic Comment Comment
       ScString? storyId;
       ScString? epicId;
@@ -5876,6 +6356,12 @@ class ScFnCreateEpic extends ScBaseInvocable {
   factory ScFnCreateEpic() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["epic-map"]
+      };
+
+  @override
   String get help => "Create a Shortcut epic given a data map.";
 
   @override
@@ -5907,7 +6393,7 @@ class ScFnCreateEpic extends ScBaseInvocable {
       }
     } else {
       throw BadArgumentsException(
-          "The `create-epic` function expects 1 argument: a data map.");
+          "The `create-epic` function expects 0 or 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -5916,6 +6402,11 @@ class ScFnCreateMilestone extends ScBaseInvocable {
   static final ScFnCreateMilestone _instance = ScFnCreateMilestone._internal();
   ScFnCreateMilestone._internal();
   factory ScFnCreateMilestone() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["milestone-map"]
+      };
 
   @override
   String get help => "Create a Shortcut milestone given a data map.";
@@ -5937,8 +6428,8 @@ class ScFnCreateMilestone extends ScBaseInvocable {
             "The `create-milestone` function expects its argument to be a map, but received ${dataMap.typeName()}");
       }
     } else {
-      throw BadArgumentsException(
-          "The `create-milestone` function expects 1 argument: a data map.");
+      // TODO This should open up editor with default milestone map
+      throw UnimplementedError();
     }
   }
 }
@@ -5947,6 +6438,11 @@ class ScFnCreateIteration extends ScBaseInvocable {
   static final ScFnCreateIteration _instance = ScFnCreateIteration._internal();
   ScFnCreateIteration._internal();
   factory ScFnCreateIteration() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["iteration-map"]
+      };
 
   @override
   String get help => "Create a Shortcut iteration given a data map.";
@@ -5968,8 +6464,8 @@ class ScFnCreateIteration extends ScBaseInvocable {
             "The `create-iteration` function expects its argument to be a map, but received ${dataMap.typeName()}");
       }
     } else {
-      throw BadArgumentsException(
-          "The `create-iteration` function expects 1 argument: a data map.");
+      // TODO This should open editor with default iteration map
+      throw UnimplementedError();
     }
   }
 }
@@ -5978,6 +6474,12 @@ class ScFnCreateTask extends ScBaseInvocable {
   static final ScFnCreateTask _instance = ScFnCreateTask._internal();
   ScFnCreateTask._internal();
   factory ScFnCreateTask() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["task-map"],
+        ["story", "task-map"]
+      };
 
   @override
   String get help => "Create a Shortcut task given a story ID and data map.";
@@ -6014,8 +6516,8 @@ class ScFnCreateTask extends ScBaseInvocable {
             "The `create-task` function expects either an entity and a create map, or just a create map and a parent entity that is a story.");
       }
     } else {
-      throw BadArgumentsException(
-          "The `create-task` function expects either an entity and a create map, or just a create map and a parent entity that is a story. Received no arguments.");
+      // TODO This should open up user's editor with default task map.
+      throw UnimplementedError();
     }
   }
 }
@@ -6026,6 +6528,9 @@ class ScFnMe extends ScBaseInvocable {
   factory ScFnMe() => _instance;
 
   static ScMember? me;
+
+  @override
+  Set<List<String>> get arities => {[]};
 
   @override
   String get help => 'Fetch the current member based on the API token.';
@@ -6047,6 +6552,11 @@ class ScFnMember extends ScBaseInvocable {
   factory ScFnMember() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["member-id"]
+      };
+
+  @override
   String get help => 'Fetch the member with the given ID.';
 
   @override
@@ -6055,10 +6565,7 @@ class ScFnMember extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.length != 1) {
-      throw BadArgumentsException(
-          "The `member` function expects 1 argument: the member ID.");
-    } else {
+    if (args.length == 1) {
       final memberId = args[0];
       if (memberId is ScString) {
         return waitOn(env.client.getMember(env, memberId.value));
@@ -6066,6 +6573,9 @@ class ScFnMember extends ScBaseInvocable {
         throw BadArgumentsException(
             "The `member` function's argument must be a string, but received a ${memberId.typeName()}");
       }
+    } else {
+      throw BadArgumentsException(
+          "The `member` function expects 1 argument, but received ${args.length}.");
     }
   }
 }
@@ -6074,6 +6584,12 @@ class ScFnMembers extends ScBaseInvocable {
   static final ScFnMembers _instance = ScFnMembers._internal();
   ScFnMembers._internal();
   factory ScFnMembers() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["team"]
+      };
 
   @override
   String get help => "Return _all_ members in this workspace.";
@@ -6086,26 +6602,43 @@ class ScFnMembers extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.isNotEmpty) {
-      throw BadArgumentsException("The `members` function takes no arguments.");
-    } else {
+    if (args.length > 1) {
+      throw BadArgumentsException(
+          "The `members` function expects 0 or 1 argument, but received ${args.length} arguments.");
+    }
+
+    ScTeam? team;
+    if (args.isEmpty) {
       if (env.parentEntity is ScTeam) {
-        final team = env.parentEntity! as ScTeam;
-        ScExpr? memberIds = team.data[ScString('member_ids')];
-        if (memberIds == null) {
-          waitOn(team.fetch(env));
-        }
-        memberIds = team.data[ScString('member_ids')];
-        if (memberIds is ScList) {
-          return memberIds;
-        } else {
-          env.err.writeln(
-              ";; [WARNING] Team didn't have expected \"member_ids\" entry, even after fetching.");
-          return ScNil();
-        }
-      } else {
-        return waitOn(env.client.getMembers(env));
+        team = env.parentEntity! as ScTeam;
       }
+    } else if (args.length == 1) {
+      final rawTeam = args[0];
+      if (rawTeam is ScTeam) {
+        team = rawTeam;
+      } else if (rawTeam is ScString) {
+        team = ScTeam(rawTeam);
+        waitOn(team.fetch(env));
+      } else {
+        throw BadArgumentsException(
+            "The `members` function expects its first argument to be a team or its ID, but received a ${rawTeam.typeName()}");
+      }
+    }
+    if (team != null) {
+      ScExpr? memberIds = team.data[ScString('member_ids')];
+      if (memberIds == null) {
+        waitOn(team.fetch(env));
+      }
+      memberIds = team.data[ScString('member_ids')];
+      if (memberIds is ScList) {
+        return memberIds;
+      } else {
+        env.err.writeln(
+            ";; [WARNING] Team didn't have expected \"member_ids\" entry, even after fetching.");
+        return ScNil();
+      }
+    } else {
+      return waitOn(env.client.getMembers(env));
     }
   }
 }
@@ -6114,6 +6647,11 @@ class ScFnWorkflow extends ScBaseInvocable {
   static final ScFnWorkflow _instance = ScFnWorkflow._internal();
   ScFnWorkflow._internal();
   factory ScFnWorkflow() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["workflow-id"]
+      };
 
   @override
   String get help => "Return the Shortcut workflow with this ID.";
@@ -6128,10 +6666,7 @@ A workspace can have multiple workflows defined, but a given story falls only wi
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.length != 1) {
-      throw BadArgumentsException(
-          "The `workflow` function expects 1 argument: the workflow ID.");
-    } else {
+    if (args.length == 1) {
       final workflowId = args[0];
       if (workflowId is ScString) {
         return waitOn(env.client.getWorkflow(env, workflowId.value));
@@ -6141,6 +6676,9 @@ A workspace can have multiple workflows defined, but a given story falls only wi
         throw BadArgumentsException(
             "The `workflow` function's first argument must be the workflow's ID, but received a ${workflowId.typeName()}.");
       }
+    } else {
+      throw BadArgumentsException(
+          "The `workflow` function expects 1 argument: the workflow ID.");
     }
   }
 }
@@ -6149,6 +6687,9 @@ class ScFnWorkflows extends ScBaseInvocable {
   static final ScFnWorkflows _instance = ScFnWorkflows._internal();
   ScFnWorkflows._internal();
   factory ScFnWorkflows() => _instance;
+
+  @override
+  Set<List<String>> get arities => {[]};
 
   @override
   String get help => "Return all story workflows in this workspace.";
@@ -6176,6 +6717,9 @@ class ScFnEpicWorkflow extends ScBaseInvocable {
   static final ScFnEpicWorkflow _instance = ScFnEpicWorkflow._internal();
   ScFnEpicWorkflow._internal();
   factory ScFnEpicWorkflow() => _instance;
+
+  @override
+  Set<List<String>> get arities => {[]};
 
   @override
   String get help =>
@@ -6206,6 +6750,11 @@ class ScFnTeam extends ScBaseInvocable {
   factory ScFnTeam() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["team-id"]
+      };
+
+  @override
   String get help => "Return the Shortcut team with this ID.";
 
   @override
@@ -6214,10 +6763,10 @@ class ScFnTeam extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.length != 1) {
-      throw BadArgumentsException(
-          "The `team` function expects 1 argument: the team ID.");
-    } else {
+    if (args.isEmpty) {
+      // TODO Implement team creation with this arity
+      throw UnimplementedError();
+    } else if (args.length == 1) {
       final teamId = args[0];
       if (teamId is ScString) {
         return waitOn(env.client.getTeam(env, teamId.value));
@@ -6225,6 +6774,9 @@ class ScFnTeam extends ScBaseInvocable {
         throw BadArgumentsException(
             "The `team` function's first argument must be a string of the team's ID, but received a ${teamId.typeName()}");
       }
+    } else {
+      throw BadArgumentsException(
+          "The `team` function expects 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -6233,6 +6785,12 @@ class ScFnTeams extends ScBaseInvocable {
   static final ScFnTeams _instance = ScFnTeams._internal();
   ScFnTeams._internal();
   factory ScFnTeams() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["entity"]
+      };
 
   @override
   String get help => "Return teams in this workspace.";
@@ -6274,6 +6832,12 @@ class ScFnStory extends ScBaseInvocable {
   factory ScFnStory() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["story-id"]
+      };
+
+  @override
   String get help => 'Fetch a story given its identifier.';
 
   @override
@@ -6300,6 +6864,13 @@ class ScFnTask extends ScBaseInvocable {
   static final ScFnTask _instance = ScFnTask._internal();
   ScFnTask._internal();
   factory ScFnTask() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["task-id"],
+        ["story", "task-id"]
+      };
 
   @override
   String get help => 'Fetch a task given its identifier.';
@@ -6362,6 +6933,12 @@ class ScFnComment extends ScBaseInvocable {
   factory ScFnComment() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["comment-id"],
+        ["story", "comment-id"]
+      };
+
+  @override
   String get help => 'Fetch a comment given its identifier.';
 
   @override
@@ -6371,6 +6948,7 @@ class ScFnComment extends ScBaseInvocable {
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
+      // TODO Implement comment creation with this arity
       throw UnimplementedError();
     } else if (args.length == 1) {
       if (env.parentEntity is ScStory) {
@@ -6421,6 +6999,12 @@ class ScFnEpic extends ScBaseInvocable {
   factory ScFnEpic() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["epic-id"]
+      };
+
+  @override
   String get help => 'Fetch an epic given its identifier.';
 
   @override
@@ -6449,6 +7033,12 @@ class ScFnEpicComment extends ScBaseInvocable {
   factory ScFnEpicComment() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["epic-comment-id"],
+        ["epic", "epic-comment-id"]
+      };
+
+  @override
   String get help => 'Fetch an epic comment given its identifier.';
 
   @override
@@ -6458,6 +7048,7 @@ class ScFnEpicComment extends ScBaseInvocable {
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
+      // TODO Implement epic comment creation with this arity
       throw UnimplementedError();
     } else if (args.length == 1) {
       if (env.parentEntity is ScEpic) {
@@ -6504,6 +7095,16 @@ class ScFnEpicComment extends ScBaseInvocable {
 }
 
 class ScFnStories extends ScBaseInvocable {
+  static final ScFnStories _instance = ScFnStories._internal();
+  ScFnStories._internal();
+  factory ScFnStories() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["entity"]
+      };
+
   @override
   String get help =>
       'Fetch epics, either all or based on the current parent entity.';
@@ -6550,7 +7151,7 @@ Use the `find-stories` function to use more fine-grained criteria for retrieving
       } else if (entity is ScMember) {
         final findStoriesFn = ScFnFindStories();
         final ScMap findMap = ScMap({
-          ScString("owner_ids"): ScList([entity]),
+          ScString("owner_id"): entity,
         });
         return findStoriesFn.invoke(env, ScList([findMap]));
       } else {
@@ -6565,6 +7166,12 @@ class ScFnEpics extends ScBaseInvocable {
   static final ScFnEpics _instance = ScFnEpics._internal();
   ScFnEpics._internal();
   factory ScFnEpics() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["entity"]
+      };
 
   @override
   String get help =>
@@ -6584,15 +7191,21 @@ Warning: That last eventuality can be an expensive call.""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    ScEntity entity = env.resolveArgEntity(args, 'epics');
-    if (entity is ScMilestone) {
-      return epicsInMilestone(env, entity);
-    } else if (entity is ScIteration) {
-      return epicsInIteration(env, entity);
-    } else if (entity is ScTeam) {
-      return epicsInTeam(env, entity);
-    } else {
+    if (args.isEmpty) {
       return waitOn(env.client.getEpics(env));
+    } else {
+      ScEntity entity = env.resolveArgEntity(args, 'epics');
+      if (entity is ScMilestone) {
+        return epicsInMilestone(env, entity);
+      } else if (entity is ScIteration) {
+        return epicsInIteration(env, entity);
+      } else if (entity is ScTeam) {
+        return epicsInTeam(env, entity);
+      } else if (entity is ScMember) {
+        return epicsForStoriesOwnedByMember(env, entity);
+      } else {
+        return waitOn(env.client.getEpics(env));
+      }
     }
   }
 }
@@ -6601,6 +7214,12 @@ class ScFnMilestone extends ScBaseInvocable {
   static final ScFnMilestone _instance = ScFnMilestone._internal();
   ScFnMilestone._internal();
   factory ScFnMilestone() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["milestone-id"]
+      };
 
   @override
   String get help => 'Fetch a milestone given its identifier.';
@@ -6631,6 +7250,12 @@ class ScFnMilestones extends ScBaseInvocable {
   factory ScFnMilestones() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["entity"]
+      };
+
+  @override
   String get help => 'Fetch all milestones in the current workspace.';
 
   @override
@@ -6649,6 +7274,7 @@ class ScFnMilestones extends ScBaseInvocable {
         final team = env.parentEntity as ScTeam;
         return milestonesInTeam(env, team);
       } else {
+        // TODO Milestones for ScMember also make sense
         final milestones = waitOn(env.client.getMilestones(env));
         return milestones;
       }
@@ -6659,6 +7285,7 @@ class ScFnMilestones extends ScBaseInvocable {
       } else if (entity is ScTeam) {
         return milestonesInTeam(env, entity);
       } else {
+        // TODO Milestones for ScMember also make sense
         throw BadArgumentsException(
             "The `milestones` function doesn't know how to find milestones in a ${entity.typeName()}.");
       }
@@ -6673,6 +7300,12 @@ class ScFnIteration extends ScBaseInvocable {
   static final ScFnIteration _instance = ScFnIteration._internal();
   ScFnIteration._internal();
   factory ScFnIteration() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["iteration-id"]
+      };
 
   @override
   String get help => 'Fetch an iteration given its identifier.';
@@ -6701,6 +7334,9 @@ class ScFnIterations extends ScBaseInvocable {
   static final ScFnIterations _instance = ScFnIterations._internal();
   ScFnIterations._internal();
   factory ScFnIterations() => _instance;
+
+  @override
+  Set<List<String>> get arities => {[]};
 
   @override
   String get help =>
@@ -6744,6 +7380,11 @@ class ScFnLabel extends ScBaseInvocable {
   String get help => "Fetch a specific Shortcut label (for stories, epics).";
 
   @override
+  Set<List<String>> get arities => {
+        ["label-id"]
+      };
+
+  @override
   // TODO: implement helpFull
   String get helpFull => help;
 
@@ -6762,6 +7403,7 @@ class ScFnLabel extends ScBaseInvocable {
       }
       return waitOn(label.fetch(env));
     } else {
+      // TODO Implement label creation
       throw UnimplementedError();
     }
   }
@@ -6770,6 +7412,9 @@ class ScFnLabel extends ScBaseInvocable {
 class ScFnLabels extends ScBaseInvocable {
   @override
   String get help => "Fetch all Shortcut labels in your workspace.";
+
+  @override
+  Set<List<String>> get arities => {[]};
 
   @override
   // TODO: implement helpFull
@@ -6790,6 +7435,11 @@ class ScFnMax extends ScBaseInvocable {
   static final ScFnMax _instance = ScFnMax._internal();
   ScFnMax._internal();
   factory ScFnMax() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["number-a", "number-b"]
+      };
 
   @override
   String get help => 'Returns the largest argument.';
@@ -6830,6 +7480,11 @@ class ScFnMin extends ScBaseInvocable {
   factory ScFnMin() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        ["number-a", "number-b"]
+      };
+
+  @override
   String get help => 'Returns the smallest argument.';
 
   @override
@@ -6868,6 +7523,13 @@ class ScFnEquals extends ScBaseInvocable {
   factory ScFnEquals() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["number"],
+        ["number", "..."]
+      };
+
+  @override
   String get help => "Returns true if arguments equal one another.";
 
   @override
@@ -6896,6 +7558,13 @@ class ScFnGreaterThan extends ScBaseInvocable {
   static final ScFnGreaterThan _instance = ScFnGreaterThan._internal();
   ScFnGreaterThan._internal();
   factory ScFnGreaterThan() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["number"],
+        ["number", "..."]
+      };
 
   @override
   String get help =>
@@ -6927,6 +7596,13 @@ class ScFnLessThan extends ScBaseInvocable {
   static final ScFnLessThan _instance = ScFnLessThan._internal();
   ScFnLessThan._internal();
   factory ScFnLessThan() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["number"],
+        ["number", "..."]
+      };
 
   @override
   String get help =>
@@ -6961,6 +7637,13 @@ class ScFnGreaterThanOrEqualTo extends ScBaseInvocable {
   factory ScFnGreaterThanOrEqualTo() => _instance;
 
   @override
+  Set<List<String>> get arities => {
+        [],
+        ["number"],
+        ["number", "..."]
+      };
+
+  @override
   String get help =>
       "Returns true if earlier arguments are greater than or equal to later ones.";
 
@@ -6991,6 +7674,13 @@ class ScFnLessThanOrEqualTo extends ScBaseInvocable {
       ScFnLessThanOrEqualTo._internal();
   ScFnLessThanOrEqualTo._internal();
   factory ScFnLessThanOrEqualTo() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["number"],
+        ["number", "..."]
+      };
 
   @override
   String get help =>
@@ -7024,7 +7714,14 @@ class ScFnAdd extends ScBaseInvocable {
   factory ScFnAdd() => _instance;
 
   @override
-  String get help => 'Adds values together.';
+  Set<List<String>> get arities => {
+        [],
+        ["number"],
+        ["number", "..."]
+      };
+
+  @override
+  String get help => 'Return the sum of all the arguments.';
 
   @override
   // TODO: implement helpFull
@@ -7055,7 +7752,15 @@ class ScFnSubtract extends ScBaseInvocable {
   factory ScFnSubtract() => _instance;
 
   @override
-  String get help => 'Subtracts later arguments from earlier ones.';
+  Set<List<String>> get arities => {
+        [],
+        ["number"],
+        ["number", "..."]
+      };
+
+  @override
+  String get help =>
+      'Return the difference of all the arguments, left-to-right.';
 
   @override
   // TODO: implement helpFull
@@ -7086,7 +7791,13 @@ class ScFnMultiply extends ScBaseInvocable {
   factory ScFnMultiply() => _instance;
 
   @override
-  String get help => 'Multiplies its arguments.';
+  Set<List<String>> get arities => {
+        [],
+        ["number"],
+        ["number", "..."]
+      };
+  @override
+  String get help => 'Return the product of all the arguments.';
 
   @override
   // TODO: implement helpFull
@@ -7117,7 +7828,14 @@ class ScFnDivide extends ScBaseInvocable {
   factory ScFnDivide() => _instance;
 
   @override
-  String get help => 'Divides earlier arguments by later ones.';
+  Set<List<String>> get arities => {
+        ['divisor'],
+        ['dividend', 'divisor']
+      };
+
+  @override
+  String get help =>
+      'Return the quotient of all the numbers, left-to-right, as a floating-point number (Dart double).';
 
   @override
   // TODO: implement helpFull
@@ -7155,6 +7873,11 @@ class ScFnModulo extends ScBaseInvocable {
   static final ScFnModulo _instance = ScFnModulo._internal();
   ScFnModulo._internal();
   factory ScFnModulo() => _instance;
+
+  @override
+  Set<List<String>> get arities => {
+        ["dividend", "divisor"]
+      };
 
   @override
   String get help => 'Return the modulo of the two numbers.';
@@ -10578,6 +11301,16 @@ ScList epicsInTeam(ScEnv env, ScTeam team) {
   return uniqueEpicsAcrossStories(env, storiesInTeam);
 }
 
+ScList epicsForStoriesOwnedByMember(ScEnv env, ScMember member) {
+  final findStoriesFn = ScFnFindStories();
+  final findMap = ScMap({
+    ScString('owner_id'): member.id,
+  });
+  final storiesForMember =
+      findStoriesFn.invoke(env, ScList([findMap])) as ScList;
+  return uniqueEpicsAcrossStories(env, storiesForMember);
+}
+
 ScList uniqueEpicsAcrossStories(ScEnv env, ScList stories) {
   final Set<ScString> epicIds = {};
   for (final story in stories.innerList) {
@@ -10775,18 +11508,23 @@ ScExpr valueToScExpr(dynamic value) {
 
 /// Convert an [ScExpr] to an equivalent Dart value.
 dynamic scExprToValue(ScExpr expr,
-    {currentDepth = 0, forJson = false, onlyEntityIds = false}) {
+    {currentDepth = 0,
+    forJson = false,
+    onlyEntityIds = false,
+    throwOnIllegalJsonKeys = true}) {
   if (expr is ScList) {
     return unwrapScList(expr,
         currentDepth: currentDepth + 1,
         forJson: forJson,
         onlyEntityIds: onlyEntityIds);
   } else if (expr is ScMap) {
-    // currentDepth++;
-    return unwrapScMap(expr,
-        currentDepth: currentDepth + 1,
-        forJson: forJson,
-        onlyEntityIds: onlyEntityIds);
+    return unwrapScMap(
+      expr,
+      currentDepth: currentDepth + 1,
+      forJson: forJson,
+      onlyEntityIds: onlyEntityIds,
+      throwOnIllegalJsonKeys: throwOnIllegalJsonKeys,
+    );
   } else if (expr is ScEntity) {
     // ScWorkflowState should always be persisted as-is, not independenty fetch-able.
     if (expr is ScWorkflowState) {
@@ -10795,6 +11533,7 @@ dynamic scExprToValue(ScExpr expr,
         currentDepth: currentDepth + 1,
         forJson: forJson,
         onlyEntityIds: onlyEntityIds,
+        throwOnIllegalJsonKeys: throwOnIllegalJsonKeys,
       );
     }
     if (onlyEntityIds) {
@@ -10803,11 +11542,13 @@ dynamic scExprToValue(ScExpr expr,
       // NB: Given Shortcut's data model, we are likely in an cycle like Member -> Teams -> Members -> Teams
       return expr.idString;
     } else {
-      // currentDepth++;
-      return unwrapScMap(expr.data,
-          currentDepth: currentDepth + 1,
-          forJson: forJson,
-          onlyEntityIds: onlyEntityIds);
+      return unwrapScMap(
+        expr.data,
+        currentDepth: currentDepth + 1,
+        forJson: forJson,
+        onlyEntityIds: onlyEntityIds,
+        throwOnIllegalJsonKeys: throwOnIllegalJsonKeys,
+      );
     }
   } else if (expr is ScString) {
     return expr.value;
@@ -10846,22 +11587,32 @@ List<dynamic> unwrapScList(ScList list,
 }
 
 Map<String, dynamic> unwrapScMap(ScMap map,
-    {bool forJson = false, bool onlyEntityIds = false, currentDepth = 0}) {
+    {bool forJson = false,
+    bool onlyEntityIds = false,
+    currentDepth = 0,
+    throwOnIllegalJsonKeys = true}) {
   Map<String, dynamic> m = {};
   for (final key in map.innerMap.keys) {
     final k = scExprToValue(key,
         currentDepth: currentDepth,
         forJson: forJson,
         onlyEntityIds: onlyEntityIds);
+    bool includeEntry = true;
     if (forJson && k is! String) {
-      throw BadArgumentsException(
-          "The map targeting JSON must contain only symbol or string keys, but found the key $key of type ${key.typeName()}");
+      if (throwOnIllegalJsonKeys) {
+        throw BadArgumentsException(
+            "The map targeting JSON must contain only symbol or string keys, but found the key $key of type ${key.typeName()}");
+      } else {
+        includeEntry = false;
+      }
     }
-    var expr = map[key]!;
-    m[k] = scExprToValue(expr,
-        currentDepth: currentDepth,
-        forJson: forJson,
-        onlyEntityIds: onlyEntityIds);
+    if (includeEntry) {
+      var expr = map[key]!;
+      m[k] = scExprToValue(expr,
+          currentDepth: currentDepth,
+          forJson: forJson,
+          onlyEntityIds: onlyEntityIds);
+    }
   }
   return m;
 }
