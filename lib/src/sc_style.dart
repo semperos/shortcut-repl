@@ -52,10 +52,13 @@ String applyStringStyles(List<String>? styles, String s) {
   }
 }
 
+final styleBug = 'bug';
+final styleChore = 'chore';
 final styleDateTime = 'date-time';
 final styleDone = 'done';
 final styleEpicWorkflowState = 'epic workflow state';
 final styleError = 'error';
+final styleFeature = 'feature';
 final styleInfo = 'info';
 final styleMemberMention = 'member';
 final styleNumber = 'number';
@@ -76,6 +79,8 @@ final styleWorkflowState = 'workflow state';
 
 final defaultDarkPalette = {
   'boolean': '#d96e7b',
+  'bug': '#e75569',
+  'chore': '#3895c9',
   'comment': '#8c8d8c',
   'date-time': '#97c6e8',
   'done': '#71b259',
@@ -86,6 +91,7 @@ final defaultDarkPalette = {
   'epic': '#71b259',
   'error': '#e75569',
   '__fallback': '#8c8d8c',
+  'feature': '#e6d566',
   'file': '#d96e7b',
   // 'iteration': '#58b1e4',
   'iteration': '#3895c9',

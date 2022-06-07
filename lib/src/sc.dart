@@ -247,16 +247,18 @@ class ScEnv {
     ScSymbol('fetch'): ScFnFetch(),
     ScSymbol('fetch-all'): ScFnFetchAll(),
     ScSymbol('create'): ScFnCreate(),
-    ScSymbol('create-story'): ScFnCreateStory(),
+    ScSymbol('create-comment'): ScFnCreateComment(),
     ScSymbol('create-epic'): ScFnCreateEpic(),
-    ScSymbol('create-milestone'): ScFnCreateMilestone(),
     ScSymbol('create-iteration'): ScFnCreateIteration(),
+    ScSymbol('create-milestone'): ScFnCreateMilestone(),
+    ScSymbol('create-story'): ScFnCreateStory(),
     ScSymbol('create-task'): ScFnCreateTask(),
     ScSymbol('new'): ScFnCreate(),
-    ScSymbol('new-story'): ScFnCreateStory(),
+    ScSymbol('new-comment'): ScFnCreateComment(),
     ScSymbol('new-epic'): ScFnCreateEpic(),
-    ScSymbol('new-milestone'): ScFnCreateMilestone(),
     ScSymbol('new-iteration'): ScFnCreateIteration(),
+    ScSymbol('new-milestone'): ScFnCreateMilestone(),
+    ScSymbol('new-story'): ScFnCreateStory(),
     ScSymbol('new-task'): ScFnCreateTask(),
     ScSymbol('!'): ScFnUpdate(),
     ScSymbol('update!'): ScFnUpdate(),
@@ -274,6 +276,8 @@ class ScEnv {
     ScSymbol('tk'): ScFnTask(),
     ScSymbol('comment'): ScFnComment(),
     ScSymbol('cm'): ScFnComment(),
+    ScSymbol('epic-comment'): ScFnEpicComment(),
+    ScSymbol('ec'): ScFnEpicComment(),
     ScSymbol('epic'): ScFnEpic(),
     ScSymbol('ep'): ScFnEpic(),
     ScSymbol('epics'): ScFnEpics(),
@@ -334,13 +338,12 @@ class ScEnv {
     final envFile = getEnvFile(baseConfigDirPath);
     String contents = envFile.readAsStringSync();
     if (contents.isEmpty) {
-      contents = '{}';
+      contents = '{"format": "2022.1"}';
     }
     final historyFile = getHistoryFile(baseConfigDirPath);
     final history = historyFile.readAsLinesSync();
     final json = jsonDecode(contents);
     ScEnv env = ScEnv(client);
-    // TODO I did this in an effort to simply the ctor, but I think that was misguided. Refactor to make better ctor guarantees.
     env.baseConfigDirPath = baseConfigDirPath;
     env.envFile = envFile;
     env.history = history;
@@ -894,6 +897,7 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
     // Because otherwise the JSON is malformed when written
     if (parentEntity != null) {
       final pe = parentEntity!;
+
       String title;
       if (pe is ScTask) {
         final desc = pe.data[ScString('description')];
@@ -924,11 +928,29 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
           title = '<No name: fetch the entity>';
         }
       }
+
       m['parent'] = {
         'entityType': pe.typeName(),
         'entityId': pe.idString,
         'entityTitle': title,
       };
+
+      ScExpr? entityContainerId;
+      if (pe is ScComment) {
+        entityContainerId = pe.storyId;
+      } else if (pe is ScEpicComment) {
+        entityContainerId = pe.epicId;
+      } else if (pe is ScTask) {
+        entityContainerId = pe.storyId;
+      }
+
+      if (entityContainerId != null) {
+        if (entityContainerId is ScString) {
+          m['parent']['entityContainerId'] = entityContainerId.value;
+        } else {
+          m['parent']['entityContainerId'] = entityContainerId.toString();
+        }
+      }
     }
 
     final rawDefaultWorkflowId = this[ScSymbol('__sc_default-workflow-id')];
@@ -961,11 +983,30 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
     final List<Map<String, dynamic>> pH = [];
     for (final entity in parentEntityHistory) {
       final title = entity.calculateTitle();
-      pH.add({
+      final m = {
         'entityType': entity.typeName(),
         'entityId': entity.idString,
         'entityTitle': title,
-      });
+      };
+
+      ScExpr? entityContainerId;
+      if (entity is ScComment) {
+        entityContainerId = entity.storyId;
+      } else if (entity is ScEpicComment) {
+        entityContainerId = entity.epicId;
+      } else if (entity is ScTask) {
+        entityContainerId = entity.storyId;
+      }
+
+      if (entityContainerId != null) {
+        if (entityContainerId is ScString) {
+          m['entityContainerId'] = entityContainerId.value;
+        } else {
+          m['entityContainerId'] = entityContainerId.toString();
+        }
+      }
+
+      pH.add(m);
     }
     m['parentHistory'] = pH;
 
@@ -2727,7 +2768,10 @@ class ScFnSelect extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     ScExpr? sourceMap;
     ScExpr? selector;
-    if (args.length == 2) {
+    if (args.length > 2) {
+      sourceMap = args[0];
+      selector = args.skip(1);
+    } else if (args.length == 2) {
       sourceMap = args[0];
       selector = args[1];
     } else if (args.length == 1) {
@@ -5499,6 +5543,85 @@ class ScFnCreate extends ScBaseInvocable {
                         forJson: true, onlyEntityIds: true)));
               }
               break;
+            case 'comment':
+              final rawStoryId = dataMap[ScString('story_id')] ??
+                  dataMap[ScDottedSymbol('story_id')];
+              if (rawStoryId == null) {
+                throw BadArgumentsException(
+                    "To create a story comment, you must include a \"story_id\" entry.");
+              } else {
+                String storyPublicId;
+                if (rawStoryId is ScString) {
+                  storyPublicId = rawStoryId.value;
+                } else if (rawStoryId is ScNumber) {
+                  storyPublicId = rawStoryId.toString();
+                } else {
+                  throw BadArgumentsException(
+                      'The "story_id" field must be a string or number, but received a ${rawStoryId.typeName()}');
+                }
+                dataMap = dataMap.remove(ScString('story_id'));
+                dataMap = dataMap.remove(ScDottedSymbol('story_id'));
+                entity = waitOn(env.client.createComment(
+                    env,
+                    storyPublicId,
+                    scExprToValue(dataMap,
+                        forJson: true, onlyEntityIds: true)));
+              }
+              break;
+            case 'epic comment':
+              final rawEpicId = dataMap[ScString('epic_id')] ??
+                  dataMap[ScDottedSymbol('epic_id')];
+              if (rawEpicId == null) {
+                throw BadArgumentsException(
+                    "To create an epic comment, you must include a \"epic_id\" entry.");
+              } else {
+                String epicPublicId;
+                if (rawEpicId is ScString) {
+                  epicPublicId = rawEpicId.value;
+                } else if (rawEpicId is ScNumber) {
+                  epicPublicId = rawEpicId.toString();
+                } else {
+                  throw BadArgumentsException(
+                      'The "epic_id" field must be a string or number, but received a ${rawEpicId.typeName()}');
+                }
+                dataMap = dataMap.remove(ScString('epic_id'));
+                dataMap = dataMap.remove(ScDottedSymbol('epic_id'));
+
+                final rawCommentId = dataMap[ScString('comment_id')] ??
+                    dataMap[ScString('epic_comment_id')] ??
+                    dataMap[ScDottedSymbol('comment_id')] ??
+                    dataMap[ScDottedSymbol('epic_comment_id')];
+                if (rawCommentId == null) {
+                  // Create Epic Comment
+                  entity = waitOn(env.client.createEpicComment(
+                      env,
+                      epicPublicId,
+                      scExprToValue(dataMap,
+                          forJson: true, onlyEntityIds: true)));
+                } else {
+                  // Create Epic Comment Comment
+                  String commentPublicId;
+                  if (rawCommentId is ScString) {
+                    commentPublicId = rawCommentId.value;
+                  } else if (rawCommentId is ScNumber) {
+                    commentPublicId = rawCommentId.toString();
+                  } else {
+                    throw BadArgumentsException(
+                        'The "comment_id" or "epic_comment_id" field must be a string or number, but received a ${rawCommentId.typeName()}');
+                  }
+                  dataMap = dataMap.remove(ScString('comment_id'));
+                  dataMap = dataMap.remove(ScDottedSymbol('comment_id'));
+                  dataMap = dataMap.remove(ScString('epic_comment_id'));
+                  dataMap = dataMap.remove(ScDottedSymbol('epic_comment_id'));
+                  entity = waitOn(env.client.createEpicCommentComment(
+                      env,
+                      epicPublicId,
+                      commentPublicId,
+                      scExprToValue(dataMap,
+                          forJson: true, onlyEntityIds: true)));
+                }
+              }
+              break;
             default:
               throw UnimplementedError();
           }
@@ -5554,6 +5677,195 @@ class ScFnCreateStory extends ScBaseInvocable {
     } else {
       throw BadArgumentsException(
           "The `create-story` function expects 1 argument: a data map.");
+    }
+  }
+}
+
+class ScFnCreateComment extends ScBaseInvocable {
+  static final ScFnCreateComment _instance = ScFnCreateComment._internal();
+  ScFnCreateComment._internal();
+  factory ScFnCreateComment() => _instance;
+
+  @override
+  String get help =>
+      'Create a comment for the given story or epic (or parent, if within a story or epic).';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty) {
+      if (env.parentEntity != null) {
+        final pe = env.parentEntity!;
+        if (pe is ScStory) {
+          final tempFile = newTempFile();
+          final fields = ScComment.fieldsForCreate.toList();
+          fields.sort();
+          final formatted = fields.join(', ');
+          tempFile.writeAsStringSync(
+              ';; Fields: $formatted\n{.text "COMMENT_TEXT"}');
+          execOpenInEditor(env, existingFile: tempFile);
+          env.out.writeln(env.style(
+              "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-comment ${pe.idString} _\n",
+              styleInfo));
+          return ScFile(tempFile);
+        } else if (pe is ScComment) {
+          final tempFile = newTempFile();
+          final fields = ScComment.fieldsForCreate.toList();
+          fields.sort();
+          final formatted = fields.join(', ');
+          tempFile.writeAsStringSync(
+              ';; Fields: $formatted\n{.text "COMMENT_TEXT\n .parent_id ${pe.idString}"}');
+          execOpenInEditor(env, existingFile: tempFile);
+          env.out.writeln(env.style(
+              "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-comment ${pe.storyId.value} _\n",
+              styleInfo));
+          return ScFile(tempFile);
+        } else if (pe is ScEpic) {
+          final tempFile = newTempFile();
+          final fields = ScEpicComment.fieldsForCreate.toList();
+          fields.sort();
+          final formatted = fields.join(', ');
+          tempFile.writeAsStringSync(
+              ';; Fields: $formatted\n{.text "COMMENT_TEXT"}');
+          execOpenInEditor(env, existingFile: tempFile);
+          env.out.writeln(env.style(
+              "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-comment ${pe.idString} _\n",
+              styleInfo));
+          return ScFile(tempFile);
+        } else if (pe is ScEpicComment) {
+          final epicId = pe.epicId;
+          final tempFile = newTempFile();
+          final fields = ScEpicComment.fieldsForCreate.toList();
+          fields.sort();
+          final formatted = fields.join(', ');
+          tempFile.writeAsStringSync(
+              ';; Fields: $formatted\n{.text "COMMENT_TEXT"}');
+          execOpenInEditor(env, existingFile: tempFile);
+          env.out.writeln(env.style(
+              "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-comment ${epicId.value} ${pe.idString} _\n",
+              styleInfo));
+          return ScFile(tempFile);
+        } else {
+          throw BadArgumentsException(
+              "The `create-comment` function expects you to be within a parent story, story comment, epic, or epic comment if no arguments are supplied, but the parent entity is a ${pe.typeName()}");
+        }
+      } else {
+        throw BadArgumentsException(
+            "The `create-comment` function expects you to be within a parent story, story comment, epic, or epic comment if no arguments are supplied, but no parent entity found.");
+      }
+    } else if (args.length == 2) {
+      // All but Epic Comment Comment
+      ScString? storyId;
+      ScString? epicId;
+      final entityId = args[0];
+      if (entityId is ScStory) {
+        storyId = ScString(entityId.idString);
+      } else if (entityId is ScEpic) {
+        epicId = ScString(entityId.idString);
+      } else if (entityId is ScString) {
+        final entity = waitOn(fetchId(env, entityId.value));
+        if (entity is ScStory) {
+          storyId = ScString(entity.idString);
+        } else if (entity is ScEpic) {
+          epicId = ScString(entity.idString);
+        } else {
+          throw BadArgumentsException(
+              "The `create-comment` function expects a story or epic (or and ID for one) as its first argument, but received an ${entity.typeName()}");
+        }
+      } else if (entityId is ScNumber) {
+        final entity = waitOn(fetchId(env, entityId.toString()));
+        if (entity is ScStory) {
+          storyId = ScString(entity.idString);
+        } else if (entity is ScEpic) {
+          epicId = ScString(entity.idString);
+        } else {
+          throw BadArgumentsException(
+              "The `create-comment` function expects a story or epic (or and ID for one) as its first argument, but received an ${entity.typeName()}");
+        }
+      }
+      final rawDataMap = args[1];
+      ScMap dataMap = ScMap({});
+
+      // NB: Support quick comment creation, just text
+      if (rawDataMap is ScString) {
+        dataMap[ScString('text')] = rawDataMap;
+      } else if (rawDataMap is ScMap) {
+        dataMap = rawDataMap;
+      } else {
+        throw BadArgumentsException(
+            "The `create-comment` function expects its second argument to be a map, but received a ${dataMap.typeName()}");
+      }
+
+      if (storyId != null) {
+        dataMap[ScString('type')] = ScString('comment');
+        dataMap[ScString('story_id')] = storyId;
+        final createFn = ScFnCreate(); // handles defaults, parentage
+        return createFn.invoke(env, ScList([dataMap]));
+      } else if (epicId != null) {
+        dataMap[ScString('type')] = ScString('epic comment');
+        dataMap[ScString('epic_id')] = epicId;
+        final createFn = ScFnCreate(); // handles defaults, parentage
+        return createFn.invoke(env, ScList([dataMap]));
+      } else {
+        throw BadArgumentsException(
+            "Only stories and epics can have comments, but `create-comment` received an ID that couldn't be resolved to either.");
+      }
+    } else if (args.length == 3) {
+      // Epic Comment Comment
+      final rawEpicId = args[0];
+      ScString? epicId;
+      if (rawEpicId is ScEpic) {
+        epicId = ScString(rawEpicId.idString);
+      } else if (rawEpicId is ScString) {
+        epicId = rawEpicId;
+      } else if (rawEpicId is ScNumber) {
+        epicId = ScString(rawEpicId.toString());
+      }
+
+      if (epicId == null) {
+        throw BadArgumentsException(
+            "The `create-comment` function with three arguments expects its first argument to be an epic or its ID, but received a ${rawEpicId.typeName()}");
+      } else {
+        final rawEpicCommentId = args[1];
+        ScString? epicCommentId;
+        if (rawEpicCommentId is ScEpicComment) {
+          epicCommentId = ScString(rawEpicCommentId.idString);
+        } else if (rawEpicCommentId is ScString) {
+          epicCommentId = rawEpicCommentId;
+        } else if (rawEpicCommentId is ScNumber) {
+          epicCommentId = ScString(rawEpicCommentId.toString());
+        }
+
+        if (epicCommentId == null) {
+          throw BadArgumentsException(
+              "The `create-comment` function with three arguments expects its second argument to be an epic comment or its ID, but received a ${rawEpicCommentId.typeName()}");
+        } else {
+          final rawDataMap = args[2];
+          ScMap dataMap = ScMap({});
+
+          // NB: Support quick comment creation, just text
+          if (rawDataMap is ScString) {
+            dataMap[ScString('text')] = rawDataMap;
+          } else if (rawDataMap is ScMap) {
+            dataMap = rawDataMap;
+          } else {
+            throw BadArgumentsException(
+                "The `create-comment` function with three arguments expects its third argument to be a map, but received a ${rawDataMap.typeName()}");
+          }
+
+          dataMap[ScString('type')] = ScString('epic comment');
+          dataMap[ScString('epic_id')] = epicId;
+          dataMap[ScString('epic_comment_id')] = epicCommentId;
+          final createFn = ScFnCreate(); // handles defaults, parentage
+          return createFn.invoke(env, ScList([dataMap]));
+        }
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `create-story` function expects 2 or 3 arguments, but received ${args.length} arguments.");
     }
   }
 }
@@ -6127,6 +6439,66 @@ class ScFnEpic extends ScBaseInvocable {
       }
       final epic = ScEpic(epicId as ScString);
       return waitOn(epic.fetch(env));
+    }
+  }
+}
+
+class ScFnEpicComment extends ScBaseInvocable {
+  static final ScFnEpicComment _instance = ScFnEpicComment._internal();
+  ScFnEpicComment._internal();
+  factory ScFnEpicComment() => _instance;
+
+  @override
+  String get help => 'Fetch an epic comment given its identifier.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty) {
+      throw UnimplementedError();
+    } else if (args.length == 1) {
+      if (env.parentEntity is ScEpic) {
+        final ScEpic epic = env.parentEntity! as ScEpic;
+        var commentId = args[0];
+        if (commentId is ScNumber) {
+          commentId = ScString(commentId.value.toString());
+        } else if (commentId is! ScString) {
+          throw BadArgumentsException(
+              "The `comment` function expects a comment ID that is a number or string, but received a ${commentId.typeName()}");
+        }
+        final epicComment =
+            ScEpicComment(ScString(epic.idString), commentId as ScString);
+        return waitOn(epicComment.fetch(env));
+      } else {
+        throw BadArgumentsException(
+            "The `comment` function expects two arguments, or just a comment ID and your parent entity to be a epic. Instead, it received one argument and the parent is _not_ a epic.");
+      }
+    } else if (args.length == 2) {
+      var epicId = args[0];
+      var epicCommentId = args[1];
+      if (epicId is ScNumber) {
+        epicId = ScString(epicId.toString());
+      } else if (epicId is ScEpic) {
+        epicId = epicId.id;
+      } else if (epicId is! ScString) {
+        throw BadArgumentsException(
+            "The epic ID must be a number, a string, or the epic itself, but received a ${epicId.typeName()}");
+      }
+      if (epicCommentId is ScNumber) {
+        epicCommentId = ScString(epicCommentId.toString());
+      } else if (epicCommentId is! ScString) {
+        throw BadArgumentsException(
+            "The comment ID must be a a number or string, but received a ${epicId.typeName()}");
+      }
+      final epicComment =
+          ScEpicComment(epicId as ScString, epicCommentId as ScString);
+      return waitOn(epicComment.fetch(env));
+    } else {
+      throw BadArgumentsException(
+          "The `comment` function does not support ${args.length} arguments.");
     }
   }
 }
@@ -7672,7 +8044,11 @@ class ScMember extends ScEntity {
 
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) async {
-    return ScList([this]);
+    final findStoriesFn = ScFnFindStories();
+    final findMap = ScMap({
+      ScString('owner_id'): ScString(idString),
+    });
+    return findStoriesFn.invoke(env, ScList([findMap])) as ScList;
   }
 
   @override
@@ -8217,9 +8593,7 @@ class ScEpic extends ScEntity {
         final numStoriesDone = stats[ScString('num_stories_done')];
         if (numStories is ScNumber) {
           if (numStoriesDone is ScNumber) {
-            // final numStoriesDoneStr = numStoriesDone.toString().padLeft(2);
             final numStoriesDoneStr = numStoriesDone.toString();
-            // final numStoriesStr = numStories.toString().padRight(2);
             final numStoriesStr = numStories.toString();
             storiesStr =
                 env.style("[$numStoriesDoneStr/${numStoriesStr}S]", styleStory);
@@ -8238,13 +8612,16 @@ class ScEpic extends ScEntity {
         }
       }
 
-      final prefix = "$epicStateStr$storiesStr$pointsStr";
+      String archivedStr = '';
+      if (isArchived.toBool()) {
+        archivedStr = env.style('[ARCHIVED]', styleError);
+      }
+
+      final prefix = "$epicStateStr$storiesStr$pointsStr$archivedStr";
       final lp = lParen(env);
       final rp = rParen(env);
       final readable = "$lp$epicFnName $epicId$rp";
-      // .padRight(39); // adjusted for ANSI codes
       final epicStr = "$readable $cmt $prefix $epicName";
-      // TODO Use chalkdart instead
       if (isArchived.toBool()) {
         return env.style(epicStr, styleSubdued);
       } else {
@@ -8505,13 +8882,13 @@ class ScStory extends ScEntity {
         var ts = type.value;
         switch (ts) {
           case 'bug':
-            color = styleError;
+            color = styleBug;
             break;
           case 'chore':
-            color = styleSubdued;
+            color = styleChore;
             break;
           case 'feature':
-            color = styleTitle;
+            color = styleFeature;
             break;
         }
         final typeAbbrev = ts[0].toUpperCase();
@@ -8527,7 +8904,12 @@ class ScStory extends ScEntity {
         }
       }
 
-      final prefix = "$storyStateType$estimateStr$storyType";
+      String archivedStr = '';
+      if (isArchived.toBool()) {
+        archivedStr = env.style('[ARCHIVED]', styleError);
+      }
+
+      final prefix = "$storyStateType$estimateStr$storyType$archivedStr";
       final storyName = env.style(shortName, styleTitle);
       final storyFnName = env.style('st', this);
       final storyId = idString;
@@ -8826,6 +9208,15 @@ class ScComment extends ScEntity {
     return 'comment';
   }
 
+  static Set<String> fieldsForCreate = {
+    'author_id',
+    'created_at',
+    'external_id',
+    'parent_id',
+    'text',
+    'updated_at',
+  };
+
   factory ScComment.fromMap(
       ScEnv env, ScString storyId, Map<String, dynamic> data) {
     return ScComment(storyId, ScString(data['id'].toString())).addAll(env, data)
@@ -8920,6 +9311,14 @@ class ScEpicComment extends ScEntity {
   String typeName() {
     return 'epic comment';
   }
+
+  static Set<String> fieldsForCreate = {
+    'author_id',
+    'created_at',
+    'external_id',
+    'text',
+    'updated_at',
+  };
 
   factory ScEpicComment.fromMap(
       ScEnv env, ScString epicId, Map<String, dynamic> data,
@@ -10076,9 +10475,29 @@ ScEntity? entityFromEnvJson(Map<String, dynamic> json) {
   } else {
     final title = json['entityTitle'];
     switch (entityTypeString) {
+      case 'comment':
+        final storyId = json['entityContainerId'];
+        if (storyId != null) {
+          entity =
+              ScEpicComment(ScString(storyId.toString()), ScString(entityId));
+          entity.title = ScString(title);
+        } else {
+          entity = null;
+        }
+        break;
       case 'epic':
         entity = ScEpic(ScString(entityId));
         entity.title = ScString(title);
+        break;
+      case 'epic comment':
+        final epicId = json['entityContainerId'];
+        if (epicId != null) {
+          entity =
+              ScEpicComment(ScString(epicId.toString()), ScString(entityId));
+          entity.title = ScString(title);
+        } else {
+          entity = null;
+        }
         break;
       case 'epic workflow':
         entity = ScEpicWorkflow(ScString(entityId));
@@ -10103,6 +10522,15 @@ ScEntity? entityFromEnvJson(Map<String, dynamic> json) {
       case 'story':
         entity = ScStory(ScString(entityId));
         entity.title = ScString(title);
+        break;
+      case 'task':
+        final storyId = json['entityContainerId'];
+        if (storyId != null) {
+          entity = ScTask(ScString(storyId.toString()), ScString(entityId));
+          entity.title = ScString(title);
+        } else {
+          entity = null;
+        }
         break;
       case 'team':
         entity = ScTeam(ScString(entityId));

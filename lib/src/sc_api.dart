@@ -24,14 +24,20 @@ abstract class ScApiContract {
       String taskPublicId, Map<String, dynamic> updateMap);
   // bool deleteTask(String storyPublicId, String taskPublicId);
 
+  Future<ScComment> createComment(
+      ScEnv env, String storyPublicId, Map<String, dynamic> commentData);
   Future<ScComment> getComment(
       ScEnv env, String storyPublicId, String commentPublicId);
   Future<ScComment> updateComment(ScEnv env, String storyPublicId,
       String commentPublicId, Map<String, dynamic> updateMap);
 
-  Future<ScComment> getEpicComment(
+  Future<ScEpicComment> createEpicComment(
+      ScEnv env, String epicPublicId, Map<String, dynamic> commentData);
+  Future<ScEpicComment> createEpicCommentComment(ScEnv env, String epicPublicId,
+      String epicCommentPublicId, Map<String, dynamic> commentData);
+  Future<ScEpicComment> getEpicComment(
       ScEnv env, String epicPublicId, String commentPublicId);
-  Future<ScComment> updateEpicComment(ScEnv env, String epicPublicId,
+  Future<ScEpicComment> updateEpicComment(ScEnv env, String epicPublicId,
       String commentPublicId, Map<String, dynamic> updateMap);
 
   // ## Epics
@@ -287,6 +293,14 @@ class ScLiveClient extends ScClient {
   }
 
   @override
+  Future<ScComment> createComment(
+      ScEnv env, String storyPublicId, Map<String, dynamic> commentData) async {
+    final taba = await authedCall(env, "/stories/$storyPublicId/comments",
+        httpVerb: HttpVerb.post, body: commentData);
+    return taba.comment(env, storyPublicId);
+  }
+
+  @override
   Future<ScComment> getComment(
       ScEnv env, String storyPublicId, String commentPublicId) async {
     final taba = await authedCall(
@@ -304,20 +318,37 @@ class ScLiveClient extends ScClient {
   }
 
   @override
-  Future<ScComment> getEpicComment(
-      ScEnv env, String epicPublicId, String commentPublicId) async {
-    final taba =
-        await authedCall(env, "/epics/$epicPublicId/comments/$commentPublicId");
-    return taba.comment(env, epicPublicId);
+  Future<ScEpicComment> createEpicComment(
+      ScEnv env, String epicPublicId, Map<String, dynamic> commentData) async {
+    final taba = await authedCall(env, "/epics/$epicPublicId/comments",
+        httpVerb: HttpVerb.post, body: commentData);
+    return taba.epicComment(env, epicPublicId);
   }
 
   @override
-  Future<ScComment> updateEpicComment(ScEnv env, String epicPublicId,
+  Future<ScEpicComment> createEpicCommentComment(ScEnv env, String epicPublicId,
+      String epicCommentPublicId, Map<String, dynamic> commentData) async {
+    final taba = await authedCall(
+        env, "/epics/$epicPublicId/comments/$epicCommentPublicId",
+        httpVerb: HttpVerb.post, body: commentData);
+    return taba.epicComment(env, epicPublicId);
+  }
+
+  @override
+  Future<ScEpicComment> getEpicComment(
+      ScEnv env, String epicPublicId, String commentPublicId) async {
+    final taba =
+        await authedCall(env, "/epics/$epicPublicId/comments/$commentPublicId");
+    return taba.epicComment(env, epicPublicId);
+  }
+
+  @override
+  Future<ScEpicComment> updateEpicComment(ScEnv env, String epicPublicId,
       String commentPublicId, Map<String, dynamic> updateMap) async {
     final taba = await authedCall(
         env, "/epics/$epicPublicId/comments/$commentPublicId",
         httpVerb: HttpVerb.put, body: updateMap);
-    return taba.comment(env, epicPublicId);
+    return taba.epicComment(env, epicPublicId);
   }
 
   @override
@@ -608,6 +639,11 @@ class ThereAndBackAgain {
   ScComment comment(ScEnv env, String storyPublicId) {
     Map<String, dynamic> comment = objectBody();
     return ScComment.fromMap(env, ScString(storyPublicId), comment);
+  }
+
+  ScEpicComment epicComment(ScEnv env, String epicPublicId) {
+    Map<String, dynamic> epicComment = objectBody();
+    return ScEpicComment.fromMap(env, ScString(epicPublicId), epicComment);
   }
 
   ScMilestone milestone(ScEnv env) {
