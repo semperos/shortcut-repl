@@ -90,6 +90,7 @@ abstract class ScApiContract {
   // bool deleteIteration(String iterationPublicId);
 
   // # Labels
+  Future<ScLabel> createLabel(ScEnv env, Map<String, dynamic> labelData);
   Future<ScLabel> getLabel(ScEnv env, String labelPublicId);
   Future<ScList> getLabels(ScEnv env);
   Future<ScLabel> updateLabel(
@@ -202,6 +203,13 @@ class ScLiveClient extends ScClient {
     final taba = await authedCall(env, "/stories",
         httpVerb: HttpVerb.post, body: storyData);
     return taba.story(env);
+  }
+
+  @override
+  Future<ScLabel> createLabel(ScEnv env, Map<String, dynamic> labelData) async {
+    final taba = await authedCall(env, "/labels",
+        httpVerb: HttpVerb.post, body: labelData);
+    return taba.label(env);
   }
 
   @override

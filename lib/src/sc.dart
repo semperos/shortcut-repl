@@ -251,6 +251,7 @@ class ScEnv {
     ScSymbol('create-comment'): ScFnCreateComment(),
     ScSymbol('create-epic'): ScFnCreateEpic(),
     ScSymbol('create-iteration'): ScFnCreateIteration(),
+    ScSymbol('create-label'): ScFnCreateLabel(),
     ScSymbol('create-milestone'): ScFnCreateMilestone(),
     ScSymbol('create-story'): ScFnCreateStory(),
     ScSymbol('create-task'): ScFnCreateTask(),
@@ -258,6 +259,7 @@ class ScEnv {
     ScSymbol('new-comment'): ScFnCreateComment(),
     ScSymbol('new-epic'): ScFnCreateEpic(),
     ScSymbol('new-iteration'): ScFnCreateIteration(),
+    ScSymbol('new-label'): ScFnCreateLabel(),
     ScSymbol('new-milestone'): ScFnCreateMilestone(),
     ScSymbol('new-story'): ScFnCreateStory(),
     ScSymbol('new-task'): ScFnCreateTask(),
@@ -6782,6 +6784,60 @@ class ScFnCreateEpic extends ScBaseInvocable {
   }
 }
 
+class ScFnCreateLabel extends ScBaseInvocable {
+  static final ScFnCreateLabel _instance = ScFnCreateLabel._internal();
+  ScFnCreateLabel._internal();
+  factory ScFnCreateLabel() => _instance;
+
+  @override
+  String get canonicalName => 'new-label';
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["label-map"],
+      };
+
+  @override
+  String get help => "Create a Shortcut label given a data map.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty) {
+      final tempFile = newTempFile();
+      final fields = ScLabel.fieldsForCreate.toList();
+      fields.sort();
+      final formatted = fields.join(', ');
+      tempFile.writeAsStringSync(';; Fields: $formatted\n{.name "LABEL_NAME"}');
+      execOpenInEditor(env, existingFile: tempFile);
+      env.out.writeln(env.style(
+          "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | $canonicalName\n",
+          styleInfo));
+      return ScFile(tempFile);
+    } else if (args.length == 1) {
+      final rawDataMap = args[0];
+      ScMap dataMap = ScMap({});
+      if (rawDataMap is ScString) {
+        dataMap[ScString('name')] = rawDataMap;
+      } else if (rawDataMap is ScMap) {
+        dataMap = rawDataMap;
+      } else {
+        throw BadArgumentsException(
+            "The `$canonicalName` function expects a string or map argument, but received a ${rawDataMap.typeName()}");
+      }
+      return waitOn(env.client.createLabel(
+          env, scExprToValue(dataMap, forJson: true, onlyEntityIds: true)));
+    } else {
+      throw BadArgumentsException(
+          "The `$canonicalName` function expects 1 argument, but received ${args.length} arguments.");
+    }
+  }
+}
+
 class ScFnCreateMilestone extends ScBaseInvocable {
   static final ScFnCreateMilestone _instance = ScFnCreateMilestone._internal();
   ScFnCreateMilestone._internal();
@@ -7860,7 +7916,7 @@ class ScFnLabel extends ScBaseInvocable {
       }
       return waitOn(label.fetch(env));
     } else {
-      // TODO Implement label creation
+      // TODO Implement interactive label creation
       throw UnimplementedError();
     }
   }
@@ -9722,7 +9778,7 @@ class ScEpic extends ScEntity {
     return 'epic';
   }
 
-  static Set<String> fieldsForCreate = {
+  static final Set<String> fieldsForCreate = {
     'completed_at_override',
     'created_at',
     'deadline',
@@ -9983,7 +10039,7 @@ class ScStory extends ScEntity {
   @override
   String get shortFnName => 'st';
 
-  static Set<String> fieldsForCreate = {
+  static final Set<String> fieldsForCreate = {
     'archived',
     'comments',
     'completed_at_override',
@@ -10431,7 +10487,7 @@ class ScComment extends ScEntity {
     return 'comment';
   }
 
-  static Set<String> fieldsForCreate = {
+  static final Set<String> fieldsForCreate = {
     'author_id',
     'created_at',
     'external_id',
@@ -10535,7 +10591,7 @@ class ScEpicComment extends ScEntity {
     return 'epic comment';
   }
 
-  static Set<String> fieldsForCreate = {
+  static final Set<String> fieldsForCreate = {
     'author_id',
     'created_at',
     'external_id',
@@ -10858,6 +10914,13 @@ class ScLabel extends ScEntity {
 
   @override
   String get shortFnName => 'lb';
+
+  static final Set<String> fieldsForCreate = {
+    'color',
+    'description',
+    'external_id',
+    'name',
+  };
 
   factory ScLabel.fromMap(ScEnv env, Map<String, dynamic> data) {
     return ScLabel(ScString(data['id'].toString())).addAll(env, data)
