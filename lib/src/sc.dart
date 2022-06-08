@@ -4035,16 +4035,19 @@ class ScFnCwd extends ScBaseInvocable {
 
   @override
   // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+
+This function re-fetches the current parent entity, so you can quickly evaluate `.` to pull down the most recent data from Shortcut.""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
       if (env.parentEntity != null) {
         final pe = env.parentEntity!;
-        if (pe.data.isEmpty) {
-          waitOn(pe.fetch(env));
-        }
+        waitOn(pe.fetch(env));
         return pe;
       } else {
         env.out.writeln(env.style(cwdHelp, styleInfo));
@@ -5928,7 +5931,6 @@ class ScFnNextState extends ScBaseInvocable {
   String get canonicalName => 'next-state';
 
   @override
-  // TODO: implement arities
   Set<List<String>> get arities => {
         [],
         ["entity"]
@@ -6496,15 +6498,14 @@ class ScFnCreateComment extends ScBaseInvocable {
   @override
   Set<List<String>> get arities => {
         [],
-        // TODO See below, this should be ["comment-map"] that uses the parent if story or epic
-        ["story-or-epic", "comment-map"],
-        // TODO Should probably support this arity for stories as well, since it's natural for specifying parentage/reply-to
-        ["epic" "comment" "comment-map"]
+        ["comment-map-or-string"],
+        ["story-or-epic-or-comment", "comment-map-or-string"],
+        ["epic" "comment" "comment-map-or-string"]
       };
 
   @override
   String get help =>
-      'Create a comment for the given story or epic (or parent, if within a story or epic).';
+      'Create a comment for the given story or epic (or parent, if within a story, comment, epic, or epic comment).';
 
   @override
   // TODO: implement helpFull
@@ -6533,7 +6534,7 @@ class ScFnCreateComment extends ScBaseInvocable {
           fields.sort();
           final formatted = fields.join(', ');
           tempFile.writeAsStringSync(
-              ';; Fields: $formatted\n{.text "COMMENT_TEXT\n .parent_id ${pe.idString}"}');
+              ';; Fields: $formatted\n{.text "COMMENT_TEXT"\n .parent_id ${pe.idString}}');
           execOpenInEditor(env, existingFile: tempFile);
           env.out.writeln(env.style(
               "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-comment ${pe.storyId.value} _\n",
@@ -6572,8 +6573,51 @@ class ScFnCreateComment extends ScBaseInvocable {
         throw BadArgumentsException(
             "The `create-comment` function expects you to be within a parent story, story comment, epic, or epic comment if no arguments are supplied, but no parent entity found.");
       }
+    } else if (args.length == 1) {
+      if (env.parentEntity != null) {
+        final rawDataMap = args[0];
+        ScMap dataMap = ScMap({});
+        if (rawDataMap is ScMap) {
+          dataMap = rawDataMap;
+        } else if (rawDataMap is ScString) {
+          dataMap[ScString('text')] = rawDataMap;
+        } else {
+          throw BadArgumentsException(
+              "The `$canonicalName` function taking 1 argument expects a map, but received a ${dataMap.typeName()}");
+        }
+
+        final pe = env.parentEntity!;
+        if (pe is ScStory) {
+          dataMap[ScString('type')] = ScString('comment');
+          dataMap[ScString('story_id')] = pe.id;
+          final createFn = ScFnCreate();
+          return createFn.invoke(env, ScList([dataMap]));
+        } else if (pe is ScComment) {
+          dataMap[ScString('type')] = ScString('comment');
+          dataMap[ScString('story_id')] = pe.storyId;
+          dataMap[ScString('parent_id')] = pe.id;
+          final createFn = ScFnCreate();
+          return createFn.invoke(env, ScList([dataMap]));
+        } else if (pe is ScEpic) {
+          dataMap[ScString('type')] = ScString('epic comment');
+          dataMap[ScString('epic_id')] = pe.id;
+          final createFn = ScFnCreate();
+          return createFn.invoke(env, ScList([dataMap]));
+        } else if (pe is ScEpicComment) {
+          dataMap[ScString('type')] = ScString('epic comment');
+          dataMap[ScString('epic_id')] = pe.epicId;
+          dataMap[ScString('epic_comment_id')] = pe.id;
+          final createFn = ScFnCreate();
+          return createFn.invoke(env, ScList([dataMap]));
+        } else {
+          throw BadArgumentsException(
+              "The `$canonicalName` function can leverage a parent entity that is a story, comment, epic, or epic comment, but it does not support a parent entity of type ${pe.typeName()}");
+        }
+      } else {
+        throw BadArgumentsException(
+            "The `$canonicalName` function expects you to be within a parent story or epic if only 1 argument is supplied, but parent entity is null.");
+      }
     } else if (args.length == 2) {
-      // TODO args.length == 1 of the comment data map and a parent entity that is either story or epic
       // All but Epic Comment Comment
       ScString? storyId;
       ScString? epicId;
@@ -6744,7 +6788,6 @@ class ScFnCreateMilestone extends ScBaseInvocable {
   factory ScFnCreateMilestone() => _instance;
 
   @override
-  // TODO: implement primaryName
   String get canonicalName => 'new-milestone';
 
   @override
@@ -10507,8 +10550,7 @@ class ScEpicComment extends ScEntity {
     ScList epicComments = ScList([]);
     if (epicCommentsData.isNotEmpty) {
       epicComments = ScList(List<ScExpr>.from(epicCommentsData.map(
-          (commentMap) => ScEpicComment.fromMap(
-              env, ScString(data['id'].toString()), commentMap,
+          (commentMap) => ScEpicComment.fromMap(env, epicId, commentMap,
               commentLevel: commentLevel + 1))));
     }
     data.remove('comments');
