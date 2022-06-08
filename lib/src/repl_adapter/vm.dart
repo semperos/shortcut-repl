@@ -526,7 +526,7 @@ class ReplAdapter {
 String calculateSharedPrefix(
     String autoCompletePrefix, Iterable<String> autoCompletions) {
   final initLength = autoCompletePrefix.length;
-  String workingPrefix = autoCompletions.first.substring(initLength);
+  String workingPrefix = autoCompletions.first.substring(0, initLength);
   for (final autoCompletion in autoCompletions.skip(1)) {
     String s = autoCompletion.substring(initLength);
     if (workingPrefix.length <= s.length) {

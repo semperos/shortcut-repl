@@ -6299,15 +6299,6 @@ class ScFnCreate extends ScBaseInvocable {
                   scExprToValue(dataMap, forJson: true, onlyEntityIds: true)));
               break;
             case 'milestone':
-              final defaultFn = ScFnDefault();
-              if (!dataMap.containsKey(ScString('group_id'))) {
-                final defaultTeam =
-                    defaultFn.invoke(env, ScList([ScString('group_id')]));
-                if (defaultTeam is ScTeam) {
-                  dataMap[ScString('group_id')] = defaultTeam.id;
-                }
-              }
-
               entity = waitOn(env.client.createMilestone(env,
                   scExprToValue(dataMap, forJson: true, onlyEntityIds: true)));
               break;
@@ -6861,19 +6852,35 @@ class ScFnCreateMilestone extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.length == 1) {
-      final dataMap = args[0];
-      if (dataMap is ScMap) {
-        final createFn = ScFnCreate();
-        dataMap[ScString('type')] = ScString('milestone');
-        return createFn.invoke(env, ScList([dataMap]));
+    if (args.isEmpty) {
+      final tempFile = newTempFile();
+      final fields = ScMilestone.fieldsForCreate.toList();
+      fields.sort();
+      final formatted = fields.join(', ');
+      tempFile
+          .writeAsStringSync(';; Fields: $formatted\n{.name "MILESTONE_NAME"}');
+      execOpenInEditor(env, existingFile: tempFile);
+      env.out.writeln(env.style(
+          "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Milestone:\n\n    load *1 | $canonicalName\n",
+          styleInfo));
+      return ScFile(tempFile);
+    } else if (args.length == 1) {
+      final rawDataMap = args[0];
+      ScMap dataMap = ScMap({});
+      if (rawDataMap is ScMap) {
+        dataMap = rawDataMap;
+      } else if (rawDataMap is ScString) {
+        dataMap[ScString('name')] = rawDataMap;
       } else {
         throw BadArgumentsException(
             "The `$canonicalName` function expects its argument to be a map, but received ${dataMap.typeName()}");
       }
+      final createFn = ScFnCreate();
+      dataMap[ScString('type')] = ScString('milestone');
+      return createFn.invoke(env, ScList([dataMap]));
     } else {
-      // TODO This should open up editor with default milestone map
-      throw UnimplementedError();
+      throw BadArgumentsException(
+          "The `$canonicalName` function expects 0 or 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -9690,6 +9697,15 @@ class ScMilestone extends ScEntity {
   String get shortFnName => 'mi';
 
   static final states = ["to do", "in progress", "done"];
+
+  static final Set<String> fieldsForCreate = {
+    'categories',
+    'completed_at_override',
+    'description',
+    'name',
+    'started_at_override',
+    'state',
+  };
 
   @override
   String typeName() {
