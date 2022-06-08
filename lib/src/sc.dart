@@ -6463,7 +6463,7 @@ class ScFnCreateStory extends ScBaseInvocable {
       tempFile.writeAsStringSync(';; Fields: $formatted\n{.name "STORY_NAME"}');
       execOpenInEditor(env, existingFile: tempFile);
       env.out.writeln(env.style(
-          "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-story\n",
+          "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | $canonicalName\n",
           styleInfo));
       return ScFile(tempFile);
     } else if (args.length == 1) {
@@ -6528,7 +6528,7 @@ class ScFnCreateComment extends ScBaseInvocable {
               ';; Fields: $formatted\n{.text "COMMENT_TEXT"}');
           execOpenInEditor(env, existingFile: tempFile);
           env.out.writeln(env.style(
-              "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-comment ${pe.idString} _\n",
+              "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | $canonicalName ${pe.idString} _\n",
               styleInfo));
           return ScFile(tempFile);
         } else if (pe is ScComment) {
@@ -6540,7 +6540,7 @@ class ScFnCreateComment extends ScBaseInvocable {
               ';; Fields: $formatted\n{.text "COMMENT_TEXT"\n .parent_id ${pe.idString}}');
           execOpenInEditor(env, existingFile: tempFile);
           env.out.writeln(env.style(
-              "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-comment ${pe.storyId.value} _\n",
+              "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | $canonicalName ${pe.storyId.value} _\n",
               styleInfo));
           return ScFile(tempFile);
         } else if (pe is ScEpic) {
@@ -6552,7 +6552,7 @@ class ScFnCreateComment extends ScBaseInvocable {
               ';; Fields: $formatted\n{.text "COMMENT_TEXT"}');
           execOpenInEditor(env, existingFile: tempFile);
           env.out.writeln(env.style(
-              "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-comment ${pe.idString} _\n",
+              "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | $canonicalName ${pe.idString} _\n",
               styleInfo));
           return ScFile(tempFile);
         } else if (pe is ScEpicComment) {
@@ -6565,7 +6565,7 @@ class ScFnCreateComment extends ScBaseInvocable {
               ';; Fields: $formatted\n{.text "COMMENT_TEXT"}');
           execOpenInEditor(env, existingFile: tempFile);
           env.out.writeln(env.style(
-              "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | create-comment ${epicId.value} ${pe.idString} _\n",
+              "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | $canonicalName ${epicId.value} ${pe.idString} _\n",
               styleInfo));
           return ScFile(tempFile);
         } else {
@@ -6765,7 +6765,7 @@ class ScFnCreateEpic extends ScBaseInvocable {
       tempFile.writeAsStringSync(';; Fields: $formatted\n{.name "EPIC_NAME"}');
       execOpenInEditor(env, existingFile: tempFile);
       env.out.writeln(env.style(
-          "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Epic:\n\n    load *1 | create-epic\n",
+          "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Epic:\n\n    load *1 | $canonicalName\n",
           styleInfo));
       return ScFile(tempFile);
     } else if (args.length == 1) {
@@ -6900,7 +6900,19 @@ class ScFnCreateIteration extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.length == 1) {
+    if (args.isEmpty) {
+      final tempFile = newTempFile();
+      final fields = ScIteration.fieldsForCreate.toList();
+      fields.sort();
+      final formatted = fields.join(', ');
+      tempFile.writeAsStringSync(
+          ';; Fields: $formatted\n{.name "ITERATION_NAME"\n .start_date ""\n .end_date ""}');
+      execOpenInEditor(env, existingFile: tempFile);
+      env.out.writeln(env.style(
+          "\n;; [HELP] Once you've saved the file in your editor, run the following to create your Story:\n\n    load *1 | $canonicalName\n",
+          styleInfo));
+      return ScFile(tempFile);
+    } else if (args.length == 1) {
       final dataMap = args[0];
       if (dataMap is ScMap) {
         final createFn = ScFnCreate();
@@ -7235,7 +7247,7 @@ class ScFnTeam extends ScBaseInvocable {
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
-      // TODO Implement team creation with this arity
+      // TODO Implement interactive team creation with this arity
       throw UnimplementedError();
     } else if (args.length == 1) {
       final teamId = args[0];
@@ -7431,7 +7443,7 @@ class ScFnComment extends ScBaseInvocable {
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
-      // TODO Implement comment creation with this arity
+      // TODO Implement interactive comment creation with this arity
       throw UnimplementedError();
     } else if (args.length == 1) {
       if (env.parentEntity is ScStory) {
@@ -7537,7 +7549,7 @@ class ScFnEpicComment extends ScBaseInvocable {
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
-      // TODO Implement epic comment creation with this arity
+      // TODO Implement interactive epic comment creation with this arity
       throw UnimplementedError();
     } else if (args.length == 1) {
       if (env.parentEntity is ScEpic) {
@@ -7647,6 +7659,7 @@ Use the `find-stories` function to use more fine-grained criteria for retrieving
         });
         return findStoriesFn.invoke(env, ScList([findMap]));
       } else {
+        // TODO Parent that is ScLabel
         throw BadArgumentsException(
             "The `$canonicalName` function expects an epic, iteration, team, or milestone argument, but received a ${entity.typeName()}");
       }
@@ -7700,6 +7713,7 @@ Warning: That last eventuality can be an expensive call.""";
       } else if (entity is ScMember) {
         return epicsForStoriesOwnedByMember(env, entity);
       } else {
+        // TODO Parent that is ScLabel
         return waitOn(env.client.getEpics(env));
       }
     }
@@ -10743,6 +10757,16 @@ class ScIteration extends ScEntity {
   String typeName() {
     return 'iteration';
   }
+
+  static final Set<String> fieldsForCreate = {
+    'description',
+    'end_date',
+    'follower_ids',
+    'group_ids',
+    'labels',
+    'name',
+    'start_date',
+  };
 
   factory ScIteration.fromMap(ScEnv env, Map<String, dynamic> data) {
     return ScIteration(ScString(data['id'].toString())).addAll(env, data)
