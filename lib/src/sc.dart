@@ -1279,6 +1279,7 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
     }
   }
 
+  /// Tip: Check for args.isEmpty && env.parentEntity == null before calling this where needed (e.g., for fns that can do meaningful work in the absence of both an explicit arg or a parent entity).
   ScEntity resolveArgEntity(ScList args, String fnName,
       {forceFetch = false, nthArg = 'first', forceParent = false}) {
     ScEntity entity;
@@ -1294,7 +1295,7 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
     } else if (args.isEmpty) {
       if (parentEntity == null) {
         throw BadArgumentsException(
-            "If calling the `$fnName` function with no arguments, a parent entity must be active (`cd` into one).");
+            "If calling The `$fnName` function with no arguments, a parent entity must be active (`cd` into one).");
       } else {
         entity = parentEntity!;
         if (entity.data.isEmpty && !forceFetch) waitOn(entity.fetch(this));
@@ -2047,7 +2048,7 @@ class ScFnIdentity extends ScBaseInvocable {
       return args.first;
     } else {
       throw BadArgumentsException(
-          "The `identity` functions expects 1 argument, but received ${args.length} arguments.");
+          "The `$canonicalName` functions expects 1 argument, but received ${args.length} arguments.");
     }
   }
 
@@ -2115,7 +2116,7 @@ class ScFnType extends ScBaseInvocable {
       return ScString(args[0].typeName());
     } else {
       throw BadArgumentsException(
-          "The `type` function expects one argument, but received ${args.length}");
+          "The `$canonicalName` function expects one argument, but received ${args.length}");
     }
   }
 }
@@ -2149,11 +2150,11 @@ class ScFnUndef extends ScBaseInvocable {
         env.removeBinding(ScSymbol(toUnbind._name));
       } else {
         throw BadArgumentsException(
-            "The `undef` function expects either a string or dotted symbol, but received a ${toUnbind.typeName()}");
+            "The `$canonicalName` function expects either a string or dotted symbol, but received a ${toUnbind.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `undef` function expects only 1 argument, but received ${args.length}");
+          "The `$canonicalName` function expects only 1 argument, but received ${args.length}");
     }
     return ScNil();
   }
@@ -2209,17 +2210,17 @@ https://api.dart.dev/stable/dart-core/DateTime/parse.html""";
         final dt = DateTime.tryParse(dateTimeString);
         if (dt == null) {
           throw BadArgumentsException(
-              "The `dt` function couldn't parse the string you provided: $dateTimeStr");
+              "The `$canonicalName` function couldn't parse the string you provided: $dateTimeStr");
         } else {
           return ScDateTime(dt);
         }
       } else {
         throw BadArgumentsException(
-            "The `dt` function's argument must be a string, but received a ${dateTimeStr.typeName()}");
+            "The `$canonicalName` function's argument must be a string, but received a ${dateTimeStr.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `dt` function expects a single string argument, which must be parseable by Dart's `DateTime.parse()` method.");
+          "The `$canonicalName` function expects a single string argument, which must be parseable by Dart's `DateTime.parse()` method.");
     }
   }
 }
@@ -2247,7 +2248,7 @@ class ScFnDateTimeNow extends ScBaseInvocable {
       return ScDateTime(DateTime.now());
     } else {
       throw BadArgumentsException(
-          "The `now` function expects 0 arguments, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 0 arguments, but received ${args.length} arguments.");
     }
   }
 }
@@ -2288,11 +2289,11 @@ class ScFnDateTimeToUtc extends ScBaseInvocable {
         }
       } else {
         throw BadArgumentsException(
-            "The `to-utc` function expects a date-time argument, but received a ${dateTime.typeName()}");
+            "The `$canonicalName` function expects a date-time argument, but received a ${dateTime.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `to-utc` function expects 1 argument, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -2333,11 +2334,11 @@ class ScFnDateTimeToLocal extends ScBaseInvocable {
         }
       } else {
         throw BadArgumentsException(
-            "The `to-local` function expects a date-time argument, but received a ${dateTime.typeName()}");
+            "The `$canonicalName` function expects a date-time argument, but received a ${dateTime.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `to-local` function expects 1 argument, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -2375,15 +2376,15 @@ class ScFnDateTimeIsBefore extends ScBaseInvocable {
           return ScBoolean.fromBool(dt1.isBefore(dt2));
         } else {
           throw BadArgumentsException(
-              "The `before?` function's second argument must be a date-time, but received a ${dateTime1.typeName()}");
+              "The `$canonicalName` function's second argument must be a date-time, but received a ${dateTime1.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `before?` function's first argument must be a date-time, but received a ${dateTime1.typeName()}");
+            "The `$canonicalName` function's first argument must be a date-time, but received a ${dateTime1.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `before?` function expects 2 arguments, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 2 arguments, but received ${args.length} arguments.");
     }
   }
 }
@@ -2420,15 +2421,15 @@ class ScFnDateTimeIsAfter extends ScBaseInvocable {
           return ScBoolean.fromBool(dt1.isAfter(dt2));
         } else {
           throw BadArgumentsException(
-              "The `after?` function's second argument must be a date-time, but received a ${dateTime1.typeName()}");
+              "The `$canonicalName` function's second argument must be a date-time, but received a ${dateTime1.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `after?` function's first argument must be a date-time, but received a ${dateTime1.typeName()}");
+            "The `$canonicalName` function's first argument must be a date-time, but received a ${dateTime1.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `after?` function expects 2 arguments, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 2 arguments, but received ${args.length} arguments.");
     }
   }
 }
@@ -2680,7 +2681,7 @@ class ScFnDateTimeUntil extends ScBaseInvocable {
         return dateTimeDifference(dtA, dtB, unit, mustNegate: true);
       } else {
         throw BadArgumentsException(
-            "The `*-until` functions expect only date-time values, but received a first argument of type ${dtB.typeName()}");
+            "The `$canonicalName` function expects only date-time values, but received a first argument of type ${dtB.typeName()}");
       }
     } else if (args.length == 2) {
       final dtA = args[0];
@@ -2690,15 +2691,15 @@ class ScFnDateTimeUntil extends ScBaseInvocable {
           return dateTimeDifference(dtA, dtB, unit, mustNegate: true);
         } else {
           throw BadArgumentsException(
-              "The `*-until` functions expect only date-time values, but received a second argument of type ${dtB.typeName()}");
+              "The `$canonicalName` function expects only date-time values, but received a second argument of type ${dtB.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `*-until` functions expect only date-time values, but received a first argument of type ${dtB.typeName()}");
+            "The `$canonicalName` function expects only date-time values, but received a first argument of type ${dtB.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `*-until` functions expect 1 or 2 date-time arguments, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 1 or 2 date-time arguments, but received ${args.length} arguments.");
     }
   }
 }
@@ -2772,7 +2773,7 @@ class ScFnDateTimeSince extends ScBaseInvocable {
         return dateTimeDifference(dtA, dtB, unit);
       } else {
         throw BadArgumentsException(
-            "The `*-since` functions expect only date-time values, but received a first argument of type ${dtB.typeName()}");
+            "The `$canonicalName` function expects only date-time values, but received a first argument of type ${dtB.typeName()}");
       }
     } else if (args.length == 2) {
       final dtA = args[0];
@@ -2782,15 +2783,15 @@ class ScFnDateTimeSince extends ScBaseInvocable {
           return dateTimeDifference(dtA, dtB, unit);
         } else {
           throw BadArgumentsException(
-              "The `*-since` functions expect only date-time values, but received a second argument of type ${dtB.typeName()}");
+              "The `$canonicalName` function expects only date-time values, but received a second argument of type ${dtB.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `*-since` functions expect only date-time values, but received a first argument of type ${dtB.typeName()}");
+            "The `$canonicalName` function expects only date-time values, but received a first argument of type ${dtB.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `*-since` functions expect 1 or 2 date-time arguments, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 1 or 2 date-time arguments, but received ${args.length} arguments.");
     }
   }
 }
@@ -2942,18 +2943,18 @@ class ScFnIf extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length != 3) {
       throw BadArgumentsException(
-          "The `if` function expects 3 arguments: a truthy value, a 'then' function, and an 'else' function.");
+          "The `$canonicalName` function expects 3 arguments: a truthy value, a 'then' function, and an 'else' function.");
     } else {
       final ScExpr truthy = args.first;
       final ScExpr thenInv = args[1];
       final ScExpr elseInv = args[2];
       if (thenInv is! ScBaseInvocable) {
         throw BadArgumentsException(
-            "The `if` function expects its second argument to be a function, but received a ${thenInv.typeName()}");
+            "The `$canonicalName` function expects its second argument to be a function, but received a ${thenInv.typeName()}");
       }
       if (elseInv is! ScBaseInvocable) {
         throw BadArgumentsException(
-            "The `if` function expects its third argument to be a function, but received a ${thenInv.typeName()}");
+            "The `$canonicalName` function expects its third argument to be a function, but received a ${thenInv.typeName()}");
       }
       if (truthy == ScBoolean.falsitas() || truthy == ScNil()) {
         // Else
@@ -3004,7 +3005,7 @@ class ScFnAssert extends ScBaseInvocable {
       }
     } else {
       throw BadArgumentsException(
-          "The `assert` function expects 2 arguments, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 2 arguments, but received ${args.length} arguments.");
     }
   }
 }
@@ -3044,16 +3045,16 @@ class ScFnSelect extends ScBaseInvocable {
         sourceMap = pe;
       } else {
         throw BadArgumentsException(
-            "The `select` function expects either an explicit map or entity as its first argument, or that you have `cd`ed into an entity. Received a selector but no source to select from.");
+            "The `$canonicalName` function expects either an explicit map or entity as its first argument, or that you have `cd`ed into an entity. Received a selector but no source to select from.");
       }
     } else {
       throw BadArgumentsException(
-          "The `select` function takes at most 2 arguments (a map/entity and a selector list), but received ${args.length} arguments.");
+          "The `$canonicalName` function takes at most 2 arguments (a map/entity and a selector list), but received ${args.length} arguments.");
     }
 
     if (selector is! ScList) {
       throw BadArgumentsException(
-          "The `select` function's second argument must be a list of keys to select.");
+          "The `$canonicalName` function's second argument must be a list of keys to select.");
     } else {
       if (sourceMap is ScMap) {
         final getFn = ScFnGet();
@@ -3079,7 +3080,7 @@ class ScFnSelect extends ScBaseInvocable {
         return targetMap;
       } else {
         throw BadArgumentsException(
-            "The `select` function expects a map/entity and a list of keys to select out of it.");
+            "The `$canonicalName` function expects a map/entity and a list of keys to select out of it.");
       }
     }
   }
@@ -3106,7 +3107,7 @@ class ScFnWhere extends ScBaseInvocable {
   String get helpFull =>
       help +
       '\n\n' +
-      r"""The `where` or `filter` function is a tool for finding items in collections.
+      r"""This function is a tool for finding items in collections.
 
 = If the first argument is a list: =
 
@@ -3136,7 +3137,7 @@ The second argument is expected to be a function that takes two arguments: a key
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length != 2) {
       throw BadArgumentsException(
-          "The `where` function expects two arguments: a collection and a map of where clauses.");
+          "The `$canonicalName` function expects two arguments: a collection and a map of where clauses.");
     }
     final ScExpr coll = args[0];
     final ScExpr notFound = ScSymbol("__sc_not-found");
@@ -3177,12 +3178,12 @@ The second argument is expected to be a function that takes two arguments: a key
             return ScBoolean.fromBool(allMatch);
           } else {
             throw BadArgumentsException(
-                "The `where` function using a map spec requires that each item in your list be a map, but found ${expr.typeName()}");
+                "The `$canonicalName` function using a map spec requires that each item in your list be a map, but found ${expr.typeName()}");
           }
         });
       } else {
         throw BadArgumentsException(
-            "The `where` function's second argument must be a function when passing a list as the first argument.");
+            "The `$canonicalName` function's second argument must be a function when passing a list as the first argument.");
       }
     } else if (coll is ScMap) {
       final secondArg = args[1];
@@ -3198,11 +3199,11 @@ The second argument is expected to be a function that takes two arguments: a key
         });
       } else {
         throw BadArgumentsException(
-            "The `where` function's second argument must be a function when passing a map as the first argument.");
+            "The `$canonicalName` function's second argument must be a function when passing a map as the first argument.");
       }
     } else {
       throw BadArgumentsException(
-          "The `where` function's first argument must be either a list or map, but received ${coll.typeName()}");
+          "The `$canonicalName` function's first argument must be either a list or map, but received ${coll.typeName()}");
     }
   }
 }
@@ -3236,7 +3237,7 @@ If provided a function, this behaves as a "take while", returning as many items 
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length != 2) {
       throw BadArgumentsException(
-          "The `limit` or `take` function expects two arguments: a collection and a limit of how many items to return.");
+          "The `$canonicalName` function expects two arguments: a collection and a limit of how many items to return.");
     }
     final ScExpr coll = args.first;
     if (coll is ScList) {
@@ -3255,15 +3256,15 @@ If provided a function, this behaves as a "take while", returning as many items 
           }
         } else {
           throw BadArgumentsException(
-              "The `limit` or `take` function's second argument must be an integer.");
+              "The `$canonicalName` function's second argument must be an integer.");
         }
       } else {
         throw BadArgumentsException(
-            "The `limit` or `take` function's second argument must be an integer.");
+            "The `$canonicalName` function's second argument must be an integer.");
       }
     } else {
       throw BadArgumentsException(
-          "The `limit` or `take` function's first argument must be either a list, but received ${coll.typeName()}");
+          "The `$canonicalName` function's first argument must be either a list, but received ${coll.typeName()}");
     }
   }
 }
@@ -3296,7 +3297,7 @@ If provided a function, this behaves as a "skip while", skipping as many items a
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length != 2) {
       throw BadArgumentsException(
-          "The `skip` or `drop` function expects two arguments: a collection and a number of items to skip.");
+          "The `$canonicalName` function expects two arguments: a collection and a number of items to skip.");
     }
     final ScExpr coll = args.first;
     if (coll is ScList) {
@@ -3315,15 +3316,15 @@ If provided a function, this behaves as a "skip while", skipping as many items a
           }
         } else {
           throw BadArgumentsException(
-              "The `skip` or `drop` function's second argument must be an integer.");
+              "The `$canonicalName` function's second argument must be an integer.");
         }
       } else {
         throw BadArgumentsException(
-            "The `skip` or `drop` function's second argument must be an integer.");
+            "The `$canonicalName` function's second argument must be an integer.");
       }
     } else {
       throw BadArgumentsException(
-          "The `skip` or `drop` function's first argument must be either a list, but received ${coll.typeName()}");
+          "The `$canonicalName` function's first argument must be either a list, but received ${coll.typeName()}");
     }
   }
 }
@@ -3363,11 +3364,11 @@ class ScFnDistinct extends ScBaseInvocable {
         return l;
       } else {
         throw BadArgumentsException(
-            "The `distinct` or `uniq` function expects a list argument, but received a ${coll.typeName()}");
+            "The `$canonicalName` function expects a list argument, but received a ${coll.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `distinct` or `uniq` function expects 1 argument, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -3552,7 +3553,7 @@ class ScFnPrStr extends ScBaseInvocable {
       return ScString(exprStr);
     } else {
       throw BadArgumentsException(
-          "The `pr-str` function expects 1 argument, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -3591,7 +3592,7 @@ class ScFnDefaults extends ScBaseInvocable {
       return m;
     } else {
       throw BadArgumentsException(
-          "The `defaults` function expects 0 arguments, but received ${args.length}");
+          "The `$canonicalName` function expects 0 arguments, but received ${args.length}");
     }
   }
 }
@@ -3653,7 +3654,7 @@ Identifiers are:
         id = identifier._name;
       } else {
         throw BadArgumentsException(
-            "The `default` function's first argument must be a string or dotted symbol of one of ${identifiers.join(', ')}");
+            "The `$canonicalName` function's first argument must be a string or dotted symbol of one of ${identifiers.join(', ')}");
       }
 
       if (identifiers.contains(id)) {
@@ -3694,7 +3695,7 @@ Identifiers are:
         }
       } else {
         throw BadArgumentsException(
-            "The `default` function's first argument must be a string or dotted symbol of one of ${identifiers.join(', ')}");
+            "The `$canonicalName` function's first argument must be a string or dotted symbol of one of ${identifiers.join(', ')}");
       }
     } else if (args.length == 2) {
       final identifier = args[0];
@@ -3705,7 +3706,7 @@ Identifiers are:
         id = identifier._name;
       } else {
         throw BadArgumentsException(
-            "The `default` function's first argument must be a string or dotted symbol of one of ${identifiers.join(', ')}");
+            "The `$canonicalName` function's first argument must be a string or dotted symbol of one of ${identifiers.join(', ')}");
       }
 
       if (identifiers.contains(id)) {
@@ -3740,7 +3741,7 @@ Identifiers are:
         return v;
       } else {
         throw BadArgumentsException(
-            "The `default` function's first argument must be a string or dotted symbol of one of ${identifiers.join(', ')}");
+            "The `$canonicalName` function's first argument must be a string or dotted symbol of one of ${identifiers.join(', ')}");
       }
     } else {
       throw UnimplementedError();
@@ -3775,7 +3776,7 @@ After supplying the ID of the workflow you want as your default, it will prompt 
 
 After supplying that default workflow state ID, it will show you all the teams defined in your workspace and ask you to enter the ID of the one that should be your default when creating stories, epics, iterations, and milestones.
 
-Note: These defaults are only meaningful for the quick, interactive entity creation functions. If you use the `create-*` or `new-*` functions and supply a full map as the body of the request, you have complete control over the entity's workflow state and team.
+Note: These defaults are only meaningful for the quick, interactive entity creation functions. If you use The `new-*` functions and supply a full map as the body of the request, you have complete control over the entity's workflow state and team.
 """;
 
   @override
@@ -3784,7 +3785,8 @@ Note: These defaults are only meaningful for the quick, interactive entity creat
       env.interactivityState = ScInteractivityState.startSetup;
       return ScNil();
     } else {
-      throw BadArgumentsException("The `setup` function expects no arguments.");
+      throw BadArgumentsException(
+          "The `$canonicalName` function expects no arguments.");
     }
   }
 }
@@ -3860,11 +3862,11 @@ You can `cd` into an entity to make that entity your current "parent entity." Ma
         }
       } else {
         throw BadArgumentsException(
-            'The argument to `cd` must be a Shortcut entity or ID.');
+            'The argument to `$canonicalName` must be a Shortcut entity or ID.');
       }
     } else {
       throw BadArgumentsException(
-          'The `cd` function expects an entity to move into.');
+          'The `$canonicalName` function expects an entity to move into.');
     }
   }
 }
@@ -3896,7 +3898,7 @@ Note that Shortcut tasks can be `cd`ed into, but at this time are not persisted 
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isNotEmpty) {
       throw BadArgumentsException(
-          "The `history` function takes no arguments, but received ${args.length}");
+          "The `$canonicalName` function takes no arguments, but received ${args.length}");
     } else {
       return ScList(env.parentEntityHistory.reversed.toList());
     }
@@ -3943,7 +3945,7 @@ class ScFnBackward extends ScBaseInvocable {
       }
     } else {
       throw BadArgumentsException(
-          "The `backward` function expects no arguments, but received ${args.length}");
+          "The `$canonicalName` function expects no arguments, but received ${args.length}");
     }
   }
 }
@@ -3984,7 +3986,7 @@ class ScFnForward extends ScBaseInvocable {
       }
     } else {
       throw BadArgumentsException(
-          "The `forward` function expects no arguments, but received ${args.length}");
+          "The `$canonicalName` function expects no arguments, but received ${args.length}");
     }
   }
 }
@@ -4012,7 +4014,7 @@ class ScFnLs extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    ScEntity entity = env.resolveArgEntity(args, 'ls');
+    ScEntity entity = env.resolveArgEntity(args, canonicalName);
     return waitOn(entity.ls(env));
   }
 }
@@ -4057,7 +4059,7 @@ This function re-fetches the current parent entity, so you can quickly evaluate 
       }
     } else {
       throw BadArgumentsException(
-          "The `cwd` function doesn't take any arguments.");
+          "The `$canonicalName` function doesn't take any arguments.");
     }
   }
 }
@@ -4097,7 +4099,7 @@ class ScFnPwd extends ScBaseInvocable {
       }
     } else {
       throw BadArgumentsException(
-          "The `pwd` function doesn't take any arguments.");
+          "The `$canonicalName` function doesn't take any arguments.");
     }
   }
 }
@@ -4127,11 +4129,11 @@ class ScFnMv extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length != 2) {
       throw BadArgumentsException(
-          "The `mv` function expects 2 arguments: a child entity and a new parent entity to move it to, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 2 arguments: a child entity and a new parent entity to move it to, but received ${args.length} arguments.");
     } else {
-      ScEntity childEntity = env.resolveArgEntity(args, 'mv');
+      ScEntity childEntity = env.resolveArgEntity(args, canonicalName);
       ScEntity parentEntity =
-          env.resolveArgEntity(args, 'mv', nthArg: 'second');
+          env.resolveArgEntity(args, canonicalName, nthArg: 'second');
 
       // Mv logic
       if (childEntity is ScStory) {
@@ -4203,7 +4205,7 @@ class ScFnData extends ScBaseInvocable {
       }
     } else if (args.length > 1) {
       throw BadArgumentsException(
-          "The `data` function expects either a single entity as argument, or you can invoke it with no arguments if you've already `cd`ed into an entity.");
+          "The `$canonicalName` function expects either a single entity as argument, or you can invoke it with no arguments if you've already `cd`ed into an entity.");
     } else {
       final ScExpr entity = args.first;
       if (entity is ScEntity) {
@@ -4252,7 +4254,7 @@ class ScFnDetails extends ScBaseInvocable {
       }
     } else if (args.length > 1) {
       throw BadArgumentsException(
-          "The `details` function expects either a single entity as argument, or you can invoke it with no arguments if you've already `cd`ed into an entity.");
+          "The `$canonicalName` function expects either a single entity as argument, or you can invoke it with no arguments if you've already `cd`ed into an entity.");
     } else {
       final ScExpr entity = args.first;
       if (entity is ScEntity) {
@@ -4288,7 +4290,7 @@ class ScFnSummary extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    ScEntity entity = env.resolveArgEntity(args, 'summary');
+    ScEntity entity = env.resolveArgEntity(args, canonicalName);
     if (entity.data.isEmpty) waitOn(entity.fetch(env));
     return entity.printSummary(env);
   }
@@ -4323,8 +4325,6 @@ class ScFnInvoke extends ScBaseInvocable {
 - A function evaluated as an item in a list
 - A function evaluated as a key or value in a map
 
-It's actually tough to discover a position where functions _aren't_ invoked (hint: see the examples for the `identity` function).
-
 If you find yourself needing to invoke a function in a position it's otherwise treated as a value, you can use this `invoke` function to do so.""";
 
   @override
@@ -4344,7 +4344,7 @@ If you find yourself needing to invoke a function in a position it's otherwise t
       return invocable.invoke(env, argsForInvocable);
     } else {
       throw BadArgumentsException(
-          "The `invoke` function expects its first argument to be a function, but received a ${invocable.typeName()}");
+          "The `$canonicalName` function expects its first argument to be a function, but received a ${invocable.typeName()}");
     }
   }
 }
@@ -4379,15 +4379,15 @@ class ScFnApply extends ScBaseInvocable {
           return invocable.invoke(env, itsArgs);
         } else {
           throw BadArgumentsException(
-              "The `apply` function expects its second argument to be a function, but received a ${invocable.typeName()}");
+              "The `$canonicalName` function expects its second argument to be a function, but received a ${invocable.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `apply` function expects its first argument to be a list, but received a ${itsArgs.typeName()}");
+            "The `$canonicalName` function expects its first argument to be a list, but received a ${itsArgs.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `apply` function expects 2 arguments: a list of args and an function to invoke with them.");
+          "The `$canonicalName` function expects 2 arguments: a list of args and an function to invoke with them.");
     }
   }
 }
@@ -4417,7 +4417,7 @@ class ScFnMap extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length != 2) {
       throw BadArgumentsException(
-          "The `map` or `for-each` function expects 2 arguments: a list and a function.");
+          "The `$canonicalName` function expects 2 arguments: a list and a function.");
     } else {
       final list = args[0];
       final invocable = args[1];
@@ -4480,7 +4480,7 @@ NB: Although Piped Lisp does not support implementing your own multi-arity funct
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length < 2 || args.length > 3) {
       throw BadArgumentsException(
-          "The `reduce` function expects 2 or 3 arguments: a list, an optional starting accumulator, and a function of (acc, item), but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 2 or 3 arguments: a list, an optional starting accumulator, and a function of (acc, item), but received ${args.length} arguments.");
     } else {
       final list = args[0];
       if (list is ScList) {
@@ -4495,7 +4495,7 @@ NB: Although Piped Lisp does not support implementing your own multi-arity funct
                 return defaultValue;
               } catch (e) {
                 throw BadArgumentsException(
-                    "The `reduce` function expects a starting accumulator or a function that can be invoked with zero arguments when the collection passed in is empty. The collection is empty, no accumulator was passed, and the function threw an exception.");
+                    "The `$canonicalName` function expects a starting accumulator or a function that can be invoked with zero arguments when the collection passed in is empty. The collection is empty, no accumulator was passed, and the function threw an exception.");
               }
             }
             return list.reduce(
@@ -4574,7 +4574,7 @@ class ScFnConcat extends ScBaseInvocable {
             l.addAll(coll.innerList);
           } else {
             throw BadArgumentsException(
-                "The `concat` function can concatenate lists, but all arguments must then be lists; received a ${coll.typeName()}");
+                "The `$canonicalName` function can concatenate lists, but all arguments must then be lists; received a ${coll.typeName()}");
           }
         }
         return ScList(l);
@@ -4585,13 +4585,13 @@ class ScFnConcat extends ScBaseInvocable {
             m.addMapMutable(coll);
           } else {
             throw BadArgumentsException(
-                "The `concat` function can concatenate maps, but all arguments must then be maps; received a ${coll.typeName()}");
+                "The `$canonicalName` function can concatenate maps, but all arguments must then be maps; received a ${coll.typeName()}");
           }
         }
         return m;
       } else {
         throw BadArgumentsException(
-            "The `concat` function can concatenate strings, lists, and maps, but received a ${sample.typeName()}");
+            "The `$canonicalName` function can concatenate strings, lists, and maps, but received a ${sample.typeName()}");
       }
     }
   }
@@ -4619,7 +4619,7 @@ class ScFnExtend extends ScBaseInvocable {
   String get helpFull =>
       help +
       '\n\n' +
-      r"""The `concat` function naively concatenates its arguments. The `extend` function works (1) exclusively with maps, and (2) _extends_ map values via concatenation, recursively.
+      r"""This function works only with maps, and concatenates values recursively as shown in the examples below.
 
 Compare:
 
@@ -4654,13 +4654,13 @@ concat {.a [1 2]} {.a [3 4]} => {.a [3 4]}
             }
           } else {
             throw BadArgumentsException(
-                "The `extend` function can extend maps, but received a ${coll.typeName()}");
+                "The `$canonicalName` function can extend maps, but received a ${coll.typeName()}");
           }
         }
         return m;
       } else {
         throw BadArgumentsException(
-            "The `extend` function can extend maps, but received a ${sample.typeName()}");
+            "The `$canonicalName` function can extend maps, but received a ${sample.typeName()}");
       }
     }
   }
@@ -4705,7 +4705,7 @@ class ScFnKeys extends ScBaseInvocable {
         return ScList(arg.data.innerMap.keys.toList());
       } else {
         throw BadArgumentsException(
-            "The `keys` function expects a map or entity argument, but received ${arg.typeName()}");
+            "The `$canonicalName` function expects a map or entity argument, but received ${arg.typeName()}");
       }
     }
   }
@@ -4744,7 +4744,7 @@ class ScFnWhenNil extends ScBaseInvocable {
       }
     } else {
       throw BadArgumentsException(
-          "The `when-nil` function expects two arguments: a possibly-nil value and a default to return if it is nil.");
+          "The `$canonicalName` function expects two arguments: a possibly-nil value and a default to return if it is nil.");
     }
   }
 }
@@ -4774,7 +4774,7 @@ class ScFnGet extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length < 2) {
       throw BadArgumentsException(
-          "The `get` function expects at least two arguments: `get <key> <source> [<default if missing>]`");
+          "The `$canonicalName` function expects at least two arguments: `get <key> <source> [<default if missing>]`");
     }
     final source = args[0];
     final key = args[1];
@@ -4842,7 +4842,7 @@ class ScFnSecond extends ScBaseInvocable {
       }
     } else {
       throw BadArgumentsException(
-          "The `second` function expects 1 argument, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -4872,13 +4872,13 @@ class ScFnGetIn extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length < 2) {
       throw BadArgumentsException(
-          "The `get-in` function expects at least two arguments: `get-in <source> <selector> [<default if missing>]`");
+          "The `$canonicalName` function expects at least two arguments: `get-in <source> <selector> [<default if missing>]`");
     }
     final source = args[0];
     final selector = args[1];
     if (selector is! ScList) {
       throw BadArgumentsException(
-          "The `get-in` function's second argument must be a list of keys to get out of the map, but received a ${selector.typeName()}");
+          "The `$canonicalName` function's second argument must be a list of keys to get out of the map, but received a ${selector.typeName()}");
     }
     final missingDefault = args.length > 2 ? args[2] : ScNil();
     if (source is ScEntity) {
@@ -4915,7 +4915,7 @@ class ScFnContains extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length < 2) {
       throw BadArgumentsException(
-          "The `contains?` function expects 2 arguments: a collection (or string) and an item (or substring).");
+          "The `$canonicalName` function expects 2 arguments: a collection (or string) and an item (or substring).");
     }
     final source = args[0];
     final key = args[1];
@@ -4940,7 +4940,7 @@ class ScFnContains extends ScBaseInvocable {
       return ScBoolean.fromBool(source.value.contains(strKey.value));
     } else {
       throw BadArgumentsException(
-          "The `contains?` function's first argument must be a collection or string, but received ${source.typeName()}");
+          "The `$canonicalName` function's first argument must be a collection or string, but received ${source.typeName()}");
     }
   }
 }
@@ -4981,14 +4981,14 @@ class ScFnIsSubset extends ScBaseInvocable {
           return ScBoolean.veritas();
         } else {
           throw BadArgumentsException(
-              "The `subset?` function expects both arguments to be of the same type, received one list and one ${superset.typeName()}");
+              "The `$canonicalName` function expects both arguments to be of the same type, received one list and one ${superset.typeName()}");
         }
       } else if (subset is ScString) {
         if (superset is ScString) {
           return ScBoolean.fromBool(superset.value.contains(subset.value));
         } else {
           throw BadArgumentsException(
-              "The `subset?` function expects both arguments to be of the same type, received one string and one ${superset.typeName()}");
+              "The `$canonicalName` function expects both arguments to be of the same type, received one string and one ${superset.typeName()}");
         }
       } else if (subset is ScMap) {
         if (superset is ScMap) {
@@ -5000,15 +5000,15 @@ class ScFnIsSubset extends ScBaseInvocable {
           return ScBoolean.veritas();
         } else {
           throw BadArgumentsException(
-              "The `subset?` function expects both arguments to be of the same type, received one map and one ${superset.typeName()}");
+              "The `$canonicalName` function expects both arguments to be of the same type, received one map and one ${superset.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `subset?` function does not support values of type ${subset.typeName()}");
+            "The `$canonicalName` function does not support values of type ${subset.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `subset?` function expects to receive 2 arguments, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects to receive 2 arguments, but received ${args.length} arguments.");
     }
   }
 }
@@ -5038,7 +5038,7 @@ class ScFnCount extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
       throw BadArgumentsException(
-          'The `count` or `length` function expects one argument: a collection.');
+          'The `$canonicalName` function expects one argument: a collection.');
     } else {
       final coll = args.first;
       if (coll is ScList) {
@@ -5049,7 +5049,7 @@ class ScFnCount extends ScBaseInvocable {
         return ScNumber(coll.value.length);
       } else {
         throw BadArgumentsException(
-            'The `count` or `length` function expects its argument to be a collection, but received a ${coll.typeName()}');
+            'The `$canonicalName` function expects its argument to be a collection, but received a ${coll.typeName()}');
       }
     }
   }
@@ -5103,7 +5103,7 @@ Pass an additional function (or dotted symbol) to sort using a custom comparator
             "Sorting a string is not supported at this time.");
       } else {
         throw BadArgumentsException(
-            "The `sort` function's first argument must be a collection, but received a ${coll.typeName()}");
+            "The `$canonicalName` function's first argument must be a collection, but received a ${coll.typeName()}");
       }
     } else if (args.length == 2) {
       final coll = args[0];
@@ -5136,15 +5136,15 @@ Pass an additional function (or dotted symbol) to sort using a custom comparator
               "Sorting a string is not supported at this time.");
         } else {
           throw BadArgumentsException(
-              "The `sort` function's first argument must be a collection, but received a ${coll.typeName()}");
+              "The `$canonicalName` function's first argument must be a collection, but received a ${coll.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `sort` function's second argument must be a function, but received a ${fn.typeName()}");
+            "The `$canonicalName` function's second argument must be a function, but received a ${fn.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          'The `sort` function expects either 1 or 2 arguments: a collection, and an optional sorting function.');
+          'The `$canonicalName` function expects either 1 or 2 arguments: a collection, and an optional sorting function.');
     }
   }
 }
@@ -5178,7 +5178,7 @@ If no separator is given, defaults to splitting by newlines (\n).""";
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty || args.length > 2) {
       throw BadArgumentsException(
-          'The `split` function expects one or two arguments: a collection and an optional separator (default is newline), but received ${args.length} arguments.');
+          'The `$canonicalName` function expects one or two arguments: a collection and an optional separator (default is newline), but received ${args.length} arguments.');
     } else {
       final coll = args.first;
       ScString sep;
@@ -5188,7 +5188,7 @@ If no separator is given, defaults to splitting by newlines (\n).""";
           sep = argSep;
         } else {
           throw BadArgumentsException(
-              'The `split` function expects its second argument to be a string, but received a ${argSep.typeName()}');
+              'The `$canonicalName` function expects its second argument to be a string, but received a ${argSep.typeName()}');
         }
       } else {
         sep = ScString('\n');
@@ -5198,7 +5198,7 @@ If no separator is given, defaults to splitting by newlines (\n).""";
         return coll.split(separator: sep);
       } else {
         throw BadArgumentsException(
-            'The `split` function currently only supports splitting strings, received a ${coll.typeName()}');
+            'The `$canonicalName` function currently only supports splitting strings, received a ${coll.typeName()}');
       }
     }
   }
@@ -5234,7 +5234,7 @@ If no separator is given, defaults to joining with newlines (\n).""";
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
       throw BadArgumentsException(
-          'The `join` function expects one or two arguments: a collection and an optional separator (default is newline)');
+          'The `$canonicalName` function expects one or two arguments: a collection and an optional separator (default is newline)');
     } else {
       final coll = args[0];
       ScString sep;
@@ -5244,7 +5244,7 @@ If no separator is given, defaults to joining with newlines (\n).""";
           sep = argSep;
         } else {
           throw BadArgumentsException(
-              'The `join` function expects its second argument to be a string, but received a ${argSep.typeName()}');
+              'The `$canonicalName` function expects its second argument to be a string, but received a ${argSep.typeName()}');
         }
       } else {
         sep = ScString('\n');
@@ -5254,7 +5254,7 @@ If no separator is given, defaults to joining with newlines (\n).""";
         return coll.join(separator: sep);
       } else {
         throw BadArgumentsException(
-            'The `join` function currently only supports joining lists, received a ${coll.typeName()}');
+            'The `$canonicalName` function currently only supports joining lists, received a ${coll.typeName()}');
       }
     }
   }
@@ -5297,7 +5297,7 @@ class ScFnFile extends ScBaseInvocable {
       }
     } else {
       throw BadArgumentsException(
-          "The `file` function expects 0 or 1 argument, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 0 or 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -5333,11 +5333,11 @@ class ScFnReadFile extends ScBaseInvocable {
         return ScFile(fileFile).readAsStringSync();
       } else {
         throw BadArgumentsException(
-            'The `read-file` function expects a file argument, but received a ${file.typeName()}');
+            'The `$canonicalName` function expects a file argument, but received a ${file.typeName()}');
       }
     } else {
       throw BadArgumentsException(
-          'The `read-file` function expects one argument: the file to read.');
+          'The `$canonicalName` function expects one argument: the file to read.');
     }
   }
 }
@@ -5373,7 +5373,7 @@ class ScFnWriteFile extends ScBaseInvocable {
         file = resolveFile(env, maybeFile.value);
       } else {
         throw BadArgumentsException(
-            'The `write-file` function expects its first argument to be a file, but received a ${maybeFile.typeName()}');
+            'The `$canonicalName` function expects its first argument to be a file, but received a ${maybeFile.typeName()}');
       }
       final content = args[1];
       String contentStr;
@@ -5390,7 +5390,7 @@ class ScFnWriteFile extends ScBaseInvocable {
       return ScNil();
     } else {
       throw BadArgumentsException(
-          'The `write-file` function expects two arguments: the file to write and content to write to it.');
+          'The `$canonicalName` function expects two arguments: the file to write and content to write to it.');
     }
   }
 }
@@ -5449,7 +5449,7 @@ class ScFnClipboard extends ScBaseInvocable {
       return ScString(contentStr);
     } else {
       throw BadArgumentsException(
-          "The `clip` function only accepts 1 argument, but received ${args.length} arguments.");
+          "The `$canonicalName` function only accepts 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -5484,11 +5484,11 @@ class ScFnInterpret extends ScBaseInvocable {
             '<string from console>', sourceString.value.split('\n'));
       } else {
         throw BadArgumentsException(
-            "The `interpret` function only accepts a string argument, but received a ${sourceString.typeName()}");
+            "The `$canonicalName` function only accepts a string argument, but received a ${sourceString.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `interpret` function expects 1 argument: a string of source code to interpret.");
+          "The `$canonicalName` function expects 1 argument: a string of source code to interpret.");
     }
   }
 }
@@ -5524,13 +5524,13 @@ class ScFnLoad extends ScBaseInvocable {
         sourceFile = resolveFile(env, (args.first as ScString).value);
       } else {
         throw BadArgumentsException(
-            "The `load` function expects a string argument, but received a ${sourceFilePath.typeName()}");
+            "The `$canonicalName` function expects a string argument, but received a ${sourceFilePath.typeName()}");
       }
       final sourceLines = sourceFile.readAsLinesSync();
       return env.interpretAll(sourceFile.absolute.path, sourceLines);
     } else {
       throw BadArgumentsException(
-          "The `load` function expects one argument: the path of the file to load.");
+          "The `$canonicalName` function expects one argument: the path of the file to load.");
     }
   }
 }
@@ -5572,10 +5572,10 @@ Caveat: Only Linux and macOS supported, this function shells out to `xdg-open` o
         execOpenInBrowser(url.value);
       } else {
         throw BadArgumentsException(
-            'Could not find a URL at "app_url" or "url" to open in the map passed to the `open` function.');
+            'Could not find a URL at "app_url" or "url" to open in the map passed to the `$canonicalName` function.');
       }
     } else {
-      ScEntity entity = env.resolveArgEntity(args, 'open');
+      ScEntity entity = env.resolveArgEntity(args, canonicalName);
       final appUrl = entity.data[ScString('app_url')];
       if (appUrl is ScString) {
         execOpenInBrowser(appUrl.value);
@@ -5631,7 +5631,7 @@ class ScFnEdit extends ScBaseInvocable {
       }
     } else {
       throw BadArgumentsException(
-          "The `edit` function does not take any arguments, but received ${args.length} arguments.");
+          "The `$canonicalName` function does not take any arguments, but received ${args.length} arguments.");
     }
   }
 }
@@ -5702,7 +5702,7 @@ is:archived  project:
         queryStr = query.value;
       } else {
         throw BadArgumentsException(
-            "The `search` function when passed 2 arguments expects its second to be a string (for now), but received a ${query.typeName()}");
+            "The `$canonicalName` function when passed 2 arguments expects its second to be a string (for now), but received a ${query.typeName()}");
       }
       final jsonEncoder = JsonEncoder();
       if (coll is ScList) {
@@ -5724,11 +5724,11 @@ is:archived  project:
         });
       } else {
         throw BadArgumentsException(
-            "The `search` function when passed 2 arguments expects its first to be a list, but received a ${coll.typeName()}");
+            "The `$canonicalName` function when passed 2 arguments expects its first to be a list, but received a ${coll.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `search` function expects 1 or 2 arguments: a query/search string, or a collection and a query.");
+          "The `$canonicalName` function expects 1 or 2 arguments: a query/search string, or a collection and a query.");
     }
   }
 }
@@ -5780,11 +5780,11 @@ Visit API docs for more details: https://shortcut.com/api/rest/v3#Search-Stories
             env, scExprToValue(findMap, forJson: true, onlyEntityIds: true)));
       } else {
         throw BadArgumentsException(
-            "The `find-stories` function's first argument must be a map, but recevied a ${findMap.typeName()}");
+            "The `$canonicalName` function's first argument must be a map, but recevied a ${findMap.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `find-stories` function expects 1 argument: a map of parameters to search by.");
+          "The `$canonicalName` function expects 1 argument: a map of parameters to search by.");
     }
   }
 }
@@ -5812,7 +5812,8 @@ class ScFnFetch extends ScBaseInvocable {
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    ScEntity entity = env.resolveArgEntity(args, 'fetch', forceFetch: true);
+    ScEntity entity =
+        env.resolveArgEntity(args, canonicalName, forceFetch: true);
     return entity;
   }
 }
@@ -5846,7 +5847,7 @@ class ScFnFetchAll extends ScBaseInvocable {
       return ScNil();
     } else {
       throw BadArgumentsException(
-          "The `fetch-all` function takes no arguments. Use `fetch` to fetch an individual entity.");
+          "The `$canonicalName` function takes no arguments. Use `fetch` to fetch an individual entity.");
     }
   }
 }
@@ -5876,7 +5877,7 @@ class ScFnUpdate extends ScBaseInvocable {
       help +
       '\n\n' +
       r"""
-The `!` or `update!` function supports a couple of calling signatures:
+This function supports a couple of calling signatures:
 
     ! .owner_ids [me]
 
@@ -5892,7 +5893,7 @@ Both of these signatures support a first argument that is an entity, so that you
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isNotEmpty) {
-      ScEntity entity = env.resolveArgEntity(args, 'update!',
+      ScEntity entity = env.resolveArgEntity(args, canonicalName,
           forceParent: (args[0] is ScMap ||
               args[0] is ScString ||
               args[0] is ScDottedSymbol));
@@ -5909,17 +5910,17 @@ Both of these signatures support a first argument that is an entity, so that you
           updateMap = ScMap({updateKey: updateValue});
         } else {
           throw BadArgumentsException(
-              "The `update!` function expects either a map or separate string/symbol key value pairs to update the entity; received a key, but no value.");
+              "The `$canonicalName` function expects either a map or separate string/symbol key value pairs to update the entity; received a key, but no value.");
         }
       } else {
         throw BadArgumentsException(
-            "The `update!` function expects either a map or separate string/symbol key value pairs to update the entity, but received ${maybeUpdateMap.typeName()}");
+            "The `$canonicalName` function expects either a map or separate string/symbol key value pairs to update the entity, but received ${maybeUpdateMap.typeName()}");
       }
       return waitOn(entity.update(
           env, scExprToValue(updateMap, forJson: true, onlyEntityIds: true)));
     } else {
       throw BadArgumentsException(
-          "The `update!` function expects either a map or separate string/symbol key value pairs to update the entity, but received no arguments.");
+          "The `$canonicalName` function expects either a map or separate string/symbol key value pairs to update the entity, but received no arguments.");
     }
   }
 }
@@ -5958,7 +5959,7 @@ NB: Iterations are not included in this list, because their "state" is based sol
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    ScEntity entity = env.resolveArgEntity(args, 'next-state');
+    ScEntity entity = env.resolveArgEntity(args, canonicalName);
 
     if (entity is ScStory) {
       final workflow = entity.data[ScString('workflow_id')] as ScWorkflow;
@@ -6089,7 +6090,7 @@ NB: Iterations are not included in this list, because their "state" is based sol
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    ScEntity entity = env.resolveArgEntity(args, 'previous');
+    ScEntity entity = env.resolveArgEntity(args, canonicalName);
 
     if (entity is ScStory) {
       final workflow = entity.data[ScString('workflow_id')] as ScWorkflow;
@@ -6426,7 +6427,7 @@ class ScFnCreate extends ScBaseInvocable {
       return entity ?? ScNil();
     } else {
       throw BadArgumentsException(
-          "The `create` function expects 0 or 1 argument, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 0 or 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -6476,7 +6477,7 @@ class ScFnCreateStory extends ScBaseInvocable {
         dataMap = rawDataMap;
       } else {
         throw BadArgumentsException(
-            "The `create-story` function expects its argument to be a map, but received ${dataMap.typeName()}");
+            "The `$canonicalName` function expects its argument to be a map, but received ${dataMap.typeName()}");
       }
 
       dataMap[ScString('type')] = ScString('story');
@@ -6484,7 +6485,7 @@ class ScFnCreateStory extends ScBaseInvocable {
       return createFn.invoke(env, ScList([dataMap]));
     } else {
       throw BadArgumentsException(
-          "The `create-story` function expects 1 argument: a data map.");
+          "The `$canonicalName` function expects 1 argument: a data map.");
     }
   }
 }
@@ -6569,11 +6570,11 @@ class ScFnCreateComment extends ScBaseInvocable {
           return ScFile(tempFile);
         } else {
           throw BadArgumentsException(
-              "The `create-comment` function expects you to be within a parent story, story comment, epic, or epic comment if no arguments are supplied, but the parent entity is a ${pe.typeName()}");
+              "The `$canonicalName` function expects you to be within a parent story, story comment, epic, or epic comment if no arguments are supplied, but the parent entity is a ${pe.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `create-comment` function expects you to be within a parent story, story comment, epic, or epic comment if no arguments are supplied, but no parent entity found.");
+            "The `$canonicalName` function expects you to be within a parent story, story comment, epic, or epic comment if no arguments are supplied, but no parent entity found.");
       }
     } else if (args.length == 1) {
       if (env.parentEntity != null) {
@@ -6636,7 +6637,7 @@ class ScFnCreateComment extends ScBaseInvocable {
           epicId = ScString(entity.idString);
         } else {
           throw BadArgumentsException(
-              "The `create-comment` function expects a story or epic (or and ID for one) as its first argument, but received an ${entity.typeName()}");
+              "The `$canonicalName` function expects a story or epic (or and ID for one) as its first argument, but received an ${entity.typeName()}");
         }
       } else if (entityId is ScNumber) {
         final entity = waitOn(fetchId(env, entityId.toString()));
@@ -6646,7 +6647,7 @@ class ScFnCreateComment extends ScBaseInvocable {
           epicId = ScString(entity.idString);
         } else {
           throw BadArgumentsException(
-              "The `create-comment` function expects a story or epic (or and ID for one) as its first argument, but received an ${entity.typeName()}");
+              "The `$canonicalName` function expects a story or epic (or and ID for one) as its first argument, but received an ${entity.typeName()}");
         }
       }
       final rawDataMap = args[1];
@@ -6659,7 +6660,7 @@ class ScFnCreateComment extends ScBaseInvocable {
         dataMap = rawDataMap;
       } else {
         throw BadArgumentsException(
-            "The `create-comment` function expects its second argument to be a map, but received a ${dataMap.typeName()}");
+            "The `$canonicalName` function expects its second argument to be a map, but received a ${dataMap.typeName()}");
       }
 
       if (storyId != null) {
@@ -6690,7 +6691,7 @@ class ScFnCreateComment extends ScBaseInvocable {
 
       if (epicId == null) {
         throw BadArgumentsException(
-            "The `create-comment` function with three arguments expects its first argument to be an epic or its ID, but received a ${rawEpicId.typeName()}");
+            "The `$canonicalName` function with three arguments expects its first argument to be an epic or its ID, but received a ${rawEpicId.typeName()}");
       } else {
         final rawEpicCommentId = args[1];
         ScString? epicCommentId;
@@ -6704,7 +6705,7 @@ class ScFnCreateComment extends ScBaseInvocable {
 
         if (epicCommentId == null) {
           throw BadArgumentsException(
-              "The `create-comment` function with three arguments expects its second argument to be an epic comment or its ID, but received a ${rawEpicCommentId.typeName()}");
+              "The `$canonicalName` function with three arguments expects its second argument to be an epic comment or its ID, but received a ${rawEpicCommentId.typeName()}");
         } else {
           final rawDataMap = args[2];
           ScMap dataMap = ScMap({});
@@ -6716,7 +6717,7 @@ class ScFnCreateComment extends ScBaseInvocable {
             dataMap = rawDataMap;
           } else {
             throw BadArgumentsException(
-                "The `create-comment` function with three arguments expects its third argument to be a map, but received a ${rawDataMap.typeName()}");
+                "The `$canonicalName` function with three arguments expects its third argument to be a map, but received a ${rawDataMap.typeName()}");
           }
 
           dataMap[ScString('type')] = ScString('epic comment');
@@ -6728,7 +6729,7 @@ class ScFnCreateComment extends ScBaseInvocable {
       }
     } else {
       throw BadArgumentsException(
-          "The `create-story` function expects 2 or 3 arguments, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 2 or 3 arguments, but received ${args.length} arguments.");
     }
   }
 }
@@ -6775,11 +6776,11 @@ class ScFnCreateEpic extends ScBaseInvocable {
         return createFn.invoke(env, ScList([dataMap]));
       } else {
         throw BadArgumentsException(
-            "The `create-epic` function expects its argument to be a map, but received ${dataMap.typeName()}");
+            "The `$canonicalName` function expects its argument to be a map, but received ${dataMap.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `create-epic` function expects 0 or 1 argument, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 0 or 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -6868,7 +6869,7 @@ class ScFnCreateMilestone extends ScBaseInvocable {
         return createFn.invoke(env, ScList([dataMap]));
       } else {
         throw BadArgumentsException(
-            "The `create-milestone` function expects its argument to be a map, but received ${dataMap.typeName()}");
+            "The `$canonicalName` function expects its argument to be a map, but received ${dataMap.typeName()}");
       }
     } else {
       // TODO This should open up editor with default milestone map
@@ -6907,7 +6908,7 @@ class ScFnCreateIteration extends ScBaseInvocable {
         return createFn.invoke(env, ScList([dataMap]));
       } else {
         throw BadArgumentsException(
-            "The `create-iteration` function expects its argument to be a map, but received ${dataMap.typeName()}");
+            "The `$canonicalName` function expects its argument to be a map, but received ${dataMap.typeName()}");
       }
     } else {
       // TODO This should open editor with default iteration map
@@ -6940,7 +6941,7 @@ class ScFnCreateTask extends ScBaseInvocable {
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isNotEmpty) {
-      ScEntity story = env.resolveArgEntity(args, 'create-task',
+      ScEntity story = env.resolveArgEntity(args, canonicalName,
           forceParent: (args[0] is ScMap || args[0] is ScString));
       if (args.length == 1) {
         final dataMap = args[0];
@@ -6958,11 +6959,11 @@ class ScFnCreateTask extends ScBaseInvocable {
           return createFn.invoke(env, ScList([dataMap]));
         } else {
           throw BadArgumentsException(
-              "The `create-task` function expects its second argument to be a map, but received ${dataMap.typeName()}");
+              "The `$canonicalName` function expects its second argument to be a map, but received ${dataMap.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `create-task` function expects either an entity and a create map, or just a create map and a parent entity that is a story.");
+            "The `$canonicalName` function expects either an entity and a create map, or just a create map and a parent entity that is a story.");
       }
     } else {
       // TODO This should open up user's editor with default task map.
@@ -7026,11 +7027,11 @@ class ScFnMember extends ScBaseInvocable {
         return waitOn(env.client.getMember(env, memberId.value));
       } else {
         throw BadArgumentsException(
-            "The `member` function's argument must be a string, but received a ${memberId.typeName()}");
+            "The `$canonicalName` function's argument must be a string, but received a ${memberId.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `member` function expects 1 argument, but received ${args.length}.");
+          "The `$canonicalName` function expects 1 argument, but received ${args.length}.");
     }
   }
 }
@@ -7062,7 +7063,7 @@ class ScFnMembers extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length > 1) {
       throw BadArgumentsException(
-          "The `members` function expects 0 or 1 argument, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 0 or 1 argument, but received ${args.length} arguments.");
     }
 
     ScTeam? team;
@@ -7079,7 +7080,7 @@ class ScFnMembers extends ScBaseInvocable {
         waitOn(team.fetch(env));
       } else {
         throw BadArgumentsException(
-            "The `members` function expects its first argument to be a team or its ID, but received a ${rawTeam.typeName()}");
+            "The `$canonicalName` function expects its first argument to be a team or its ID, but received a ${rawTeam.typeName()}");
       }
     }
     if (team != null) {
@@ -7135,11 +7136,11 @@ A workspace can have multiple workflows defined, but a given story falls only wi
         return waitOn(env.client.getWorkflow(env, workflowId.toString()));
       } else {
         throw BadArgumentsException(
-            "The `workflow` function's first argument must be the workflow's ID, but received a ${workflowId.typeName()}.");
+            "The `$canonicalName` function's first argument must be the workflow's ID, but received a ${workflowId.typeName()}.");
       }
     } else {
       throw BadArgumentsException(
-          "The `workflow` function expects 1 argument: the workflow ID.");
+          "The `$canonicalName` function expects 1 argument: the workflow ID.");
     }
   }
 }
@@ -7170,7 +7171,7 @@ You can interactively set a default workflow by running the `setup` function."""
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isNotEmpty) {
       throw BadArgumentsException(
-          "The `workflows` function takes no arguments.");
+          "The `$canonicalName` function takes no arguments.");
     } else {
       return waitOn(env.client.getWorkflows(env));
     }
@@ -7206,7 +7207,7 @@ This function fetches the epic workflow defined for the workspace, along with it
       return waitOn(env.client.getEpicWorkflow(env));
     } else {
       throw BadArgumentsException(
-          "The `epic-workflow` function doesn't accept any arguments, but received ${args.length}");
+          "The `$canonicalName` function doesn't accept any arguments, but received ${args.length}");
     }
   }
 }
@@ -7242,11 +7243,11 @@ class ScFnTeam extends ScBaseInvocable {
         return waitOn(env.client.getTeam(env, teamId.value));
       } else {
         throw BadArgumentsException(
-            "The `team` function's first argument must be a string of the team's ID, but received a ${teamId.typeName()}");
+            "The `$canonicalName` function's first argument must be a string of the team's ID, but received a ${teamId.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `team` function expects 1 argument, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -7286,12 +7287,12 @@ class ScFnTeams extends ScBaseInvocable {
         return waitOn(env.client.getTeams(env));
       }
     } else if (args.length == 1) {
-      final member = env.resolveArgEntity(args, 'teams');
+      final member = env.resolveArgEntity(args, canonicalName);
       if (member is ScMember) {
         return teamsOfMember(env, member);
       } else {
         throw BadArgumentsException(
-            "The `teams` function expects either 0 arguments or 1 member argument, but received a ${member.typeName()}");
+            "The `$canonicalName` function expects either 0 arguments or 1 member argument, but received a ${member.typeName()}");
       }
     } else {
       return waitOn(env.client.getTeams(env));
@@ -7371,14 +7372,14 @@ class ScFnTask extends ScBaseInvocable {
           taskId = ScString(taskId.value.toString());
         } else if (taskId is! ScString) {
           throw BadArgumentsException(
-              "The `task` function expects a task ID that is a number or string, but received a ${taskId.typeName()}");
+              "The `$canonicalName` function expects a task ID that is a number or string, but received a ${taskId.typeName()}");
         }
         // TODO Clean up places like this ^ and this v that can now be simplified by ScExpr id type.
         final task = ScTask(ScString(story.idString), taskId as ScString);
         return waitOn(task.fetch(env));
       } else {
         throw BadArgumentsException(
-            "The `task` function expects two arguments, or just a task ID and your parent entity to be a story. Instead, it received one argument and the parent is _not_ a story.");
+            "The `$canonicalName` function expects two arguments, or just a task ID and your parent entity to be a story. Instead, it received one argument and the parent is _not_ a story.");
       }
     } else if (args.length == 2) {
       var storyId = args[0];
@@ -7401,7 +7402,7 @@ class ScFnTask extends ScBaseInvocable {
       return waitOn(task.fetch(env));
     } else {
       throw BadArgumentsException(
-          "The `task` function does not support ${args.length} arguments.");
+          "The `$canonicalName` function does not support ${args.length} arguments.");
     }
   }
 }
@@ -7440,14 +7441,14 @@ class ScFnComment extends ScBaseInvocable {
           commentId = ScString(commentId.value.toString());
         } else if (commentId is! ScString) {
           throw BadArgumentsException(
-              "The `comment` function expects a comment ID that is a number or string, but received a ${commentId.typeName()}");
+              "The `$canonicalName` function expects a comment ID that is a number or string, but received a ${commentId.typeName()}");
         }
         final comment =
             ScComment(ScString(story.idString), commentId as ScString);
         return waitOn(comment.fetch(env));
       } else {
         throw BadArgumentsException(
-            "The `comment` function expects two arguments, or just a comment ID and your parent entity to be a story. Instead, it received one argument and the parent is _not_ a story.");
+            "The `$canonicalName` function expects two arguments, or just a comment ID and your parent entity to be a story. Instead, it received one argument and the parent is _not_ a story.");
       }
     } else if (args.length == 2) {
       var storyId = args[0];
@@ -7470,7 +7471,7 @@ class ScFnComment extends ScBaseInvocable {
       return waitOn(comment.fetch(env));
     } else {
       throw BadArgumentsException(
-          "The `comment` function does not support ${args.length} arguments.");
+          "The `$canonicalName` function does not support ${args.length} arguments.");
     }
   }
 }
@@ -7546,14 +7547,14 @@ class ScFnEpicComment extends ScBaseInvocable {
           commentId = ScString(commentId.value.toString());
         } else if (commentId is! ScString) {
           throw BadArgumentsException(
-              "The `comment` function expects a comment ID that is a number or string, but received a ${commentId.typeName()}");
+              "The `$canonicalName` function expects a comment ID that is a number or string, but received a ${commentId.typeName()}");
         }
         final epicComment =
             ScEpicComment(ScString(epic.idString), commentId as ScString);
         return waitOn(epicComment.fetch(env));
       } else {
         throw BadArgumentsException(
-            "The `comment` function expects two arguments, or just a comment ID and your parent entity to be a epic. Instead, it received one argument and the parent is _not_ a epic.");
+            "The `$canonicalName` function expects two arguments, or just a comment ID and your parent entity to be a epic. Instead, it received one argument and the parent is _not_ a epic.");
       }
     } else if (args.length == 2) {
       var epicId = args[0];
@@ -7577,7 +7578,7 @@ class ScFnEpicComment extends ScBaseInvocable {
       return waitOn(epicComment.fetch(env));
     } else {
       throw BadArgumentsException(
-          "The `comment` function does not support ${args.length} arguments.");
+          "The `$canonicalName` function does not support ${args.length} arguments.");
     }
   }
 }
@@ -7604,7 +7605,7 @@ class ScFnStories extends ScBaseInvocable {
   String get helpFull =>
       help +
       '\n\n' +
-      r"""If no arguments are provided, the `stories` function checks the current parent entity:
+      r"""If no arguments are provided, this function checks the current parent entity:
 
 - If an epic, returns stories within the epic.
 - If a milestone, returns stories within epics attached to that milestone.
@@ -7621,9 +7622,9 @@ Use the `find-stories` function to use more fine-grained criteria for retrieving
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty && env.parentEntity == null) {
       throw BadArgumentsException(
-          "The `stories` function expects a parent entity, or 1 argument that is an epic, iteration, team, member, or milestone.");
+          "The `$canonicalName` function expects a parent entity, or 1 argument that is an epic, iteration, team, member, or milestone.");
     } else {
-      ScEntity entity = env.resolveArgEntity(args, 'epics');
+      ScEntity entity = env.resolveArgEntity(args, canonicalName);
       if (entity is ScEpic) {
         return waitOn(env.client.getStoriesInEpic(env, entity.idString));
       } else if (entity is ScIteration) {
@@ -7647,7 +7648,7 @@ Use the `find-stories` function to use more fine-grained criteria for retrieving
         return findStoriesFn.invoke(env, ScList([findMap]));
       } else {
         throw BadArgumentsException(
-            "The `stories` function expects an epic, iteration, team, or milestone argument, but received a ${entity.typeName()}");
+            "The `$canonicalName` function expects an epic, iteration, team, or milestone argument, but received a ${entity.typeName()}");
       }
     }
   }
@@ -7675,7 +7676,7 @@ class ScFnEpics extends ScBaseInvocable {
   String get helpFull =>
       help +
       '\n\n' +
-      r"""If no arguments are provided, the `epics` function checks the current parent entity:
+      r"""If no arguments are provided, this function checks the current parent entity:
 
 - If a milestone, returns only epics attached to that milestone.
 - If an iteration, returns only epics for stories that are part of the iteration.
@@ -7685,10 +7686,11 @@ Warning: That last eventuality can be an expensive call.""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
-    if (args.isEmpty) {
+    if (args.isEmpty && env.parentEntity == null) {
+      env.err.writeln(env.style('[WARN] Fetching all epics...', styleWarn));
       return waitOn(env.client.getEpics(env));
     } else {
-      ScEntity entity = env.resolveArgEntity(args, 'epics');
+      ScEntity entity = env.resolveArgEntity(args, canonicalName);
       if (entity is ScMilestone) {
         return epicsInMilestone(env, entity);
       } else if (entity is ScIteration) {
@@ -7773,10 +7775,12 @@ class ScFnMilestones extends ScBaseInvocable {
       } else if (env.parentEntity is ScTeam) {
         final team = env.parentEntity as ScTeam;
         return milestonesInTeam(env, team);
+      } else if (env.parentEntity is ScMember) {
+        final member = env.parentEntity as ScMember;
+        final epics = epicsForStoriesOwnedByMember(env, member);
+        return uniqueMilestonesAcrossEpics(env, epics);
       } else {
-        // TODO Milestones for ScMember also make sense
-        final milestones = waitOn(env.client.getMilestones(env));
-        return milestones;
+        return waitOn(env.client.getMilestones(env));
       }
     } else if (args.length == 1) {
       final entity = args[0];
@@ -7784,14 +7788,16 @@ class ScFnMilestones extends ScBaseInvocable {
         return milestonesInIteration(env, entity);
       } else if (entity is ScTeam) {
         return milestonesInTeam(env, entity);
+      } else if (entity is ScMember) {
+        final epics = epicsForStoriesOwnedByMember(env, entity);
+        return uniqueMilestonesAcrossEpics(env, epics);
       } else {
-        // TODO Milestones for ScMember also make sense
         throw BadArgumentsException(
-            "The `milestones` function doesn't know how to find milestones in a ${entity.typeName()}.");
+            "The `$canonicalName` function doesn't know how to find milestones in a ${entity.typeName()}.");
       }
     } else {
       throw BadArgumentsException(
-          "The `milestones` function expects 0 or 1 argument, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects 0 or 1 argument, but received ${args.length} arguments.");
     }
   }
 }
@@ -7862,21 +7868,46 @@ class ScFnIterations extends ScBaseInvocable {
         if (env.parentEntity is ScTeam) {
           final team = env.parentEntity as ScTeam;
           return iterationsOfTeam(env, team, prefetchedIterations: iterations);
+        } else if (env.parentEntity is ScMember) {
+          final member = env.parentEntity as ScMember;
+          final teams = member.data[ScString('group_ids')];
+          if (teams is ScList) {
+            final allIterations = ScList([]);
+            for (final team in teams.innerList) {
+              ScTeam t;
+              if (team is ScString) {
+                t = ScTeam(team);
+              } else if (team is ScTeam) {
+                t = team;
+              } else {
+                throw BadArgumentsException(
+                    "Found a ${team.typeName()} where a string or team was expected.");
+              }
+              final iterations = iterationsOfTeam(env, t);
+              allIterations.innerList.addAll(iterations.innerList);
+            }
+            return allIterations;
+          } else {
+            env.err.writeln(env.style(
+                '[WARN] You probably need to run `.` to re-fetch your parent entity, no teams found.',
+                styleWarn));
+            return ScList([]);
+          }
         } else {
           return iterations;
         }
       }
     } else if (args.length == 1) {
-      final entity = env.resolveArgEntity(args, 'iterations');
+      final entity = env.resolveArgEntity(args, canonicalName);
       if (entity is ScTeam) {
         return iterationsOfTeam(env, entity);
       } else {
         throw BadArgumentsException(
-            "The `iterations` function expects no arguments, or a team, but received a ${entity.typeName()}");
+            "The `$canonicalName` function expects no arguments, or a team, but received a ${entity.typeName()}");
       }
     } else {
       throw BadArgumentsException(
-          "The `iterations` function expects no arguments or a single team, but received ${args.length} arguments.");
+          "The `$canonicalName` function expects no arguments or a single team, but received ${args.length} arguments.");
     }
   }
 }
@@ -7912,7 +7943,7 @@ class ScFnLabel extends ScBaseInvocable {
         label = ScLabel(labelId);
       } else {
         throw BadArgumentsException(
-            "The `label` function expects a string or number for the label ID, but received a ${labelId.typeName()}");
+            "The `$canonicalName` function expects a string or number for the label ID, but received a ${labelId.typeName()}");
       }
       return waitOn(label.fetch(env));
     } else {
@@ -7946,7 +7977,7 @@ class ScFnLabels extends ScBaseInvocable {
       return waitOn(env.client.getLabels(env));
     } else {
       throw BadArgumentsException(
-          "The `labels` function expects no arguments, but received ${args.length}.");
+          "The `$canonicalName` function expects no arguments, but received ${args.length}.");
     }
   }
 }
@@ -7975,7 +8006,7 @@ class ScFnMax extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
       throw UnsupportedError(
-          "The `max` function expects at least one argument.");
+          "The `$canonicalName` function expects at least one argument.");
     } else {
       final arg = args[0];
       ScList list;
@@ -7990,7 +8021,7 @@ class ScFnMax extends ScBaseInvocable {
           return value > a ? value : a;
         } else {
           throw BadArgumentsException(
-              "The `max` function only works with numbers, but received a ${value.typeName()}");
+              "The `$canonicalName` function only works with numbers, but received a ${value.typeName()}");
         }
       });
     }
@@ -8021,7 +8052,7 @@ class ScFnMin extends ScBaseInvocable {
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
       throw BadArgumentsException(
-          "The `min` function expects at least one argument.");
+          "The `$canonicalName` function expects at least one argument.");
     } else {
       final arg = args[0];
       ScList list;
@@ -8036,7 +8067,7 @@ class ScFnMin extends ScBaseInvocable {
           return value < a ? value : a;
         } else {
           throw BadArgumentsException(
-              "The `max` function only works with numbers, but received a ${value.typeName()}");
+              "The `$canonicalName` function only works with numbers, but received a ${value.typeName()}");
         }
       });
     }
@@ -8451,11 +8482,11 @@ class ScFnModulo extends ScBaseInvocable {
           return ScNumber(a.value % b.value);
         } else {
           throw BadArgumentsException(
-              "The `mod` function's second argument must be a number, but received a ${b.typeName()}");
+              "The `$canonicalName` function's second argument must be a number, but received a ${b.typeName()}");
         }
       } else {
         throw BadArgumentsException(
-            "The `mod` function's first argument must be a number, but received a ${b.typeName()}");
+            "The `$canonicalName` function's first argument must be a number, but received a ${b.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -10423,7 +10454,7 @@ class ScTask extends ScEntity {
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) {
     throw OperationNotSupported(
-        "The `ls` function doesn't have a meaningful purpose for tasks. Try `details` for a subset or `data` if you want to see everything about your task.");
+        "Tasks have nothing meaningful to list. Try `${ScFnDetails().canonicalName}` for a subset or `${ScFnData().canonicalName}` if you want to see everything about your task.");
   }
 
   @override
@@ -10505,7 +10536,7 @@ class ScComment extends ScEntity {
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) {
     throw OperationNotSupported(
-        "The `ls` function doesn't have a meaningful purpose for comments. Try `details` for a subset or `data` if you want to see everything about your comment.");
+        "Comments have nothing meaningful to list. Try `${ScFnDetails().canonicalName}` for a subset or `${ScFnData().canonicalName}` if you want to see everything about your task.");
   }
 
   @override
@@ -10620,7 +10651,7 @@ class ScEpicComment extends ScEntity {
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) {
     throw OperationNotSupported(
-        "The `ls` function doesn't have a meaningful purpose for epic comments. Try `details` for a subset or `data` if you want to see everything about your comment.");
+        "Epic comments have nothing meaningful to list. Try `${ScFnDetails().canonicalName}` for a subset or `${ScFnData().canonicalName}` if you want to see everything about your task.");
   }
 
   @override
@@ -11186,8 +11217,8 @@ class ScWorkflowState extends ScEntity {
 
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) async {
-    env.err
-        .writeln("The `ls` function is not supported within workflow states.");
+    env.err.writeln(
+        "Workflow states have nothing meaningful to list. Try `${ScFnDetails().canonicalName}` for a subset or `${ScFnData().canonicalName}` if you want to see everything about your task.");
     return ScList([]);
   }
 
@@ -11413,7 +11444,7 @@ class ScEpicWorkflowState extends ScEntity {
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) async {
     env.err.writeln(env.style(
-        "[WARN] The `ls` function is not supported within epic workflow states.",
+        "[WARN] Epic workflow states have nothing meaningful to list. Try `${ScFnDetails().canonicalName}` for a subset or `${ScFnData().canonicalName}` if you want to see everything about your task.",
         styleWarn));
     return ScList([]);
   }
@@ -11747,14 +11778,10 @@ ScEntity? entityFromEnvJson(Map<String, dynamic> json) {
   ScEntity? entity;
   final entityTypeString = json['entityType'];
   if (entityTypeString == null) {
-    // err.writeln(
-    //     "Your ${getEnvFile().path} is malformed at the \"parent\" key.");
     entity = null;
   }
   final entityId = json['entityId'] as String?;
   if (entityId == null) {
-    // err.writeln(
-    //     "Your ${getEnvFile().path} is malformed at the \"parent\" key.");
     entity = null;
   } else {
     final title = json['entityTitle'];
@@ -11892,8 +11919,7 @@ ScList uniqueEpicsAcrossStories(ScEnv env, ScList stories) {
   return ScList(epics);
 }
 
-ScList milestonesInIteration(ScEnv env, ScIteration iteration) {
-  final epics = epicsInIteration(env, iteration);
+ScList uniqueMilestonesAcrossEpics(ScEnv env, ScList epics) {
   final Set<ScString> milestoneIds = {};
   for (final epic in epics.innerList) {
     final e = epic as ScEpic;
@@ -11910,6 +11936,11 @@ ScList milestonesInIteration(ScEnv env, ScIteration iteration) {
     milestones.add(waitOn(env.client.getMilestone(env, milestoneId.value)));
   }
   return ScList(milestones);
+}
+
+ScList milestonesInIteration(ScEnv env, ScIteration iteration) {
+  final epics = epicsInIteration(env, iteration);
+  return uniqueMilestonesAcrossEpics(env, epics);
 }
 
 ScList milestonesInTeam(ScEnv env, ScTeam team) {
