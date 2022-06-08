@@ -71,6 +71,7 @@ class ScEnv {
   late List<ScEntity> parentEntityHistory;
   int parentEntityHistoryCursor = 0;
 
+  // TODO These keys need to be derived from primaryName and additional aliases need to be added to the classes that need them.
   /// IDEA Have the functions here mapped to their _classes_ so that debug mode can re-construct them with each evaluation for better code reloading support.
   /// The default bindings of this [ScEnv] give identifiers values in code.
   static Map<ScSymbol, dynamic> defaultBindings = {
@@ -182,10 +183,10 @@ class ScEnv {
     ScSymbol('select'): ScFnSelect(),
     ScSymbol('where'): ScFnWhere(),
     ScSymbol('filter'): ScFnWhere(),
-    ScSymbol('limit'): ScFnLimit(),
-    ScSymbol('take'): ScFnLimit(),
-    ScSymbol('skip'): ScFnSkip(),
-    ScSymbol('drop'): ScFnSkip(),
+    ScSymbol('limit'): ScFnTake(),
+    ScSymbol('take'): ScFnTake(),
+    ScSymbol('skip'): ScFnDrop(),
+    ScSymbol('drop'): ScFnDrop(),
     ScSymbol('distinct'): ScFnDistinct(),
     ScSymbol('uniq'): ScFnDistinct(),
 
@@ -1800,6 +1801,11 @@ When used within a structure that gets serialized to JSON and sent to Shortcut, 
     ["map-or-entity"],
     ["map-or-entity" "default-if-missing"]
   };
+
+  @override
+
+  /// This should never be used.
+  String primaryName = '<dotted symbol>';
 }
 
 class ScFile extends ScExpr {
@@ -1834,8 +1840,7 @@ class ScFile extends ScExpr {
 // ScFns
 
 abstract class ScBaseInvocable extends ScExpr {
-  // ScBaseInvocable(this.name);
-  // final String name;
+  String primaryName = '<fn>';
 
   Set<List<String>> arities = {};
 
@@ -1857,10 +1862,14 @@ abstract class ScBaseInvocable extends ScExpr {
 
 /// Class of functions defined in Piped Lisp using `fn`
 class ScFunction extends ScBaseInvocable {
-  ScFunction(String name, this.env, this.params, this.bodyExprs) : super();
+  ScFunction(this.name, this.env, this.params, this.bodyExprs) : super();
+  final String name;
   final ScEnv env;
   final ScList params;
   final ScList bodyExprs;
+
+  @override
+  String get primaryName => name;
 
   @override
   Set<List<String>> get arities =>
@@ -1926,11 +1935,14 @@ A future extension to the language either for help or arbitrary metadata may be 
 }
 
 class ScAnonymousFunction extends ScBaseInvocable {
-  ScAnonymousFunction(String name, this.env, this.numArgs, this.exprs)
-      : super();
+  ScAnonymousFunction(this.name, this.env, this.numArgs, this.exprs) : super();
+  final String name;
   final ScEnv env;
   final int numArgs;
   final ScList exprs;
+
+  @override
+  String get primaryName => name;
 
   @override
   Set<List<String>> get arities {
@@ -2020,6 +2032,9 @@ class ScFnIdentity extends ScBaseInvocable {
   factory ScFnIdentity() => _instance;
 
   @override
+  String get primaryName => 'identity';
+
+  @override
   Set<List<String>> get arities => {
         ["value"]
       };
@@ -2047,6 +2062,13 @@ def add identity +""";
 }
 
 class ScFnType extends ScBaseInvocable {
+  static final ScFnType _instance = ScFnType._internal();
+  ScFnType._internal();
+  factory ScFnType() => _instance;
+
+  @override
+  String get primaryName => 'type';
+
   @override
   Set<List<String>> get arities => {
         ["value"]
@@ -2097,6 +2119,13 @@ class ScFnType extends ScBaseInvocable {
 }
 
 class ScFnUndef extends ScBaseInvocable {
+  static final ScFnUndef _instance = ScFnUndef._internal();
+  ScFnUndef._internal();
+  factory ScFnUndef() => _instance;
+
+  @override
+  String get primaryName => 'undef';
+
   @override
   Set<List<String>> get arities => {
         ["symbol"]
@@ -2132,6 +2161,9 @@ class ScFnDateTime extends ScBaseInvocable {
   static final ScFnDateTime _instance = ScFnDateTime._internal();
   ScFnDateTime._internal();
   factory ScFnDateTime() => _instance;
+
+  @override
+  String get primaryName => 'date-time';
 
   @override
   Set<List<String>> get arities => {
@@ -2196,6 +2228,9 @@ class ScFnDateTimeNow extends ScBaseInvocable {
   factory ScFnDateTimeNow() => _instance;
 
   @override
+  String get primaryName => 'now';
+
+  @override
   Set<List<String>> get arities => {[]};
 
   @override
@@ -2219,6 +2254,9 @@ class ScFnDateTimeToUtc extends ScBaseInvocable {
   static final ScFnDateTimeToUtc _instance = ScFnDateTimeToUtc._internal();
   ScFnDateTimeToUtc._internal();
   factory ScFnDateTimeToUtc() => _instance;
+
+  @override
+  String get primaryName => 'to-utc';
 
   @override
   Set<List<String>> get arities => {
@@ -2261,6 +2299,9 @@ class ScFnDateTimeToLocal extends ScBaseInvocable {
   static final ScFnDateTimeToLocal _instance = ScFnDateTimeToLocal._internal();
   ScFnDateTimeToLocal._internal();
   factory ScFnDateTimeToLocal() => _instance;
+
+  @override
+  String get primaryName => 'to-local';
 
   @override
   Set<List<String>> get arities => {
@@ -2306,6 +2347,9 @@ class ScFnDateTimeIsBefore extends ScBaseInvocable {
   factory ScFnDateTimeIsBefore() => _instance;
 
   @override
+  String get primaryName => 'before?';
+
+  @override
   Set<List<String>> get arities => {
         ["date-time-earlier", "date-time-later"]
       };
@@ -2346,6 +2390,9 @@ class ScFnDateTimeIsAfter extends ScBaseInvocable {
   static final ScFnDateTimeIsAfter _instance = ScFnDateTimeIsAfter._internal();
   ScFnDateTimeIsAfter._internal();
   factory ScFnDateTimeIsAfter() => _instance;
+
+  @override
+  String get primaryName => 'after?';
 
   @override
   Set<List<String>> get arities => {
@@ -2406,6 +2453,26 @@ class ScFnDateTimePlus extends ScBaseInvocable {
   ScFnDateTimePlus._internalWeeks() : unit = ScDateTimeUnit.weeks;
 
   factory ScFnDateTimePlus(ScDateTimeUnit unit) => _instances[unit]!;
+
+  @override
+  String get primaryName {
+    switch (unit) {
+      case ScDateTimeUnit.microseconds:
+        return 'plus-microseconds';
+      case ScDateTimeUnit.milliseconds:
+        return 'plus-milliseconds';
+      case ScDateTimeUnit.seconds:
+        return 'plus-seconds';
+      case ScDateTimeUnit.minutes:
+        return 'plus-minutes';
+      case ScDateTimeUnit.hours:
+        return 'plus-hours';
+      case ScDateTimeUnit.days:
+        return 'plus-days';
+      case ScDateTimeUnit.weeks:
+        return 'plus-weeks';
+    }
+  }
 
   @override
   Set<List<String>> get arities => {
@@ -2478,6 +2545,26 @@ class ScFnDateTimeMinus extends ScBaseInvocable {
   factory ScFnDateTimeMinus(ScDateTimeUnit unit) => _instances[unit]!;
 
   @override
+  String get primaryName {
+    switch (unit) {
+      case ScDateTimeUnit.microseconds:
+        return 'minus-microseconds';
+      case ScDateTimeUnit.milliseconds:
+        return 'minus-milliseconds';
+      case ScDateTimeUnit.seconds:
+        return 'minus-seconds';
+      case ScDateTimeUnit.minutes:
+        return 'minus-minutes';
+      case ScDateTimeUnit.hours:
+        return 'minus-hours';
+      case ScDateTimeUnit.days:
+        return 'minus-days';
+      case ScDateTimeUnit.weeks:
+        return 'minus-weeks';
+    }
+  }
+
+  @override
   Set<List<String>> get arities => {
         ["date-time", "number"]
       };
@@ -2546,6 +2633,26 @@ class ScFnDateTimeUntil extends ScBaseInvocable {
   ScFnDateTimeUntil._internalWeeks() : unit = ScDateTimeUnit.weeks;
 
   factory ScFnDateTimeUntil(ScDateTimeUnit unit) => _instances[unit]!;
+
+  @override
+  String get primaryName {
+    switch (unit) {
+      case ScDateTimeUnit.microseconds:
+        return 'microseconds-until';
+      case ScDateTimeUnit.milliseconds:
+        return 'milliseconds-until';
+      case ScDateTimeUnit.seconds:
+        return 'seconds-until';
+      case ScDateTimeUnit.minutes:
+        return 'minutes-until';
+      case ScDateTimeUnit.hours:
+        return 'hours-until';
+      case ScDateTimeUnit.days:
+        return 'days-until';
+      case ScDateTimeUnit.weeks:
+        return 'weeks-until';
+    }
+  }
 
   @override
   Set<List<String>> get arities => {
@@ -2618,6 +2725,26 @@ class ScFnDateTimeSince extends ScBaseInvocable {
   ScFnDateTimeSince._internalWeeks() : unit = ScDateTimeUnit.weeks;
 
   factory ScFnDateTimeSince(ScDateTimeUnit unit) => _instances[unit]!;
+
+  @override
+  String get primaryName {
+    switch (unit) {
+      case ScDateTimeUnit.microseconds:
+        return 'microseconds-since';
+      case ScDateTimeUnit.milliseconds:
+        return 'milliseconds-since';
+      case ScDateTimeUnit.seconds:
+        return 'seconds-since';
+      case ScDateTimeUnit.minutes:
+        return 'minutes-since';
+      case ScDateTimeUnit.hours:
+        return 'hours-since';
+      case ScDateTimeUnit.days:
+        return 'days-since';
+      case ScDateTimeUnit.weeks:
+        return 'weeks-since';
+    }
+  }
 
   @override
   Set<List<String>> get arities => {
@@ -2699,6 +2826,32 @@ class ScFnDateTimeField extends ScBaseInvocable {
 
   factory ScFnDateTimeField(ScDateTimeFormat format) => _instances[format]!;
 
+  @override
+  String get primaryName {
+    switch (format) {
+      case ScDateTimeFormat.year:
+        return 'year';
+      case ScDateTimeFormat.month:
+        return 'month';
+      case ScDateTimeFormat.weekOfYear:
+        return 'week-of-year';
+      case ScDateTimeFormat.dateOfMonth:
+        return 'date-of-month';
+      case ScDateTimeFormat.dayOfWeek:
+        return 'day-of-week';
+      case ScDateTimeFormat.hour:
+        return 'hour';
+      case ScDateTimeFormat.minute:
+        return 'minute';
+      case ScDateTimeFormat.second:
+        return 'second';
+      case ScDateTimeFormat.millisecond:
+        return 'millisecond';
+      case ScDateTimeFormat.microsecond:
+        return 'microsecond';
+    }
+  }
+
   static final weekdays = {
     1: ScString('Monday'),
     2: ScString('Tuesday'),
@@ -2766,6 +2919,9 @@ class ScFnIf extends ScBaseInvocable {
   factory ScFnIf() => _instance;
 
   @override
+  String get primaryName => 'if';
+
+  @override
   Set<List<String>> get arities => {
         ["condition", "then-nullary-function", "else-nullary-function"]
       };
@@ -2813,6 +2969,9 @@ class ScFnAssert extends ScBaseInvocable {
   factory ScFnAssert() => _instance;
 
   @override
+  String get primaryName => 'assert';
+
+  @override
   Set<List<String>> get arities => {
         ["condition", "failure-message"]
       };
@@ -2852,6 +3011,9 @@ class ScFnSelect extends ScBaseInvocable {
   static final ScFnSelect _instance = ScFnSelect._internal();
   ScFnSelect._internal();
   factory ScFnSelect() => _instance;
+
+  @override
+  String get primaryName => 'select';
 
   @override
   String get help =>
@@ -2925,6 +3087,9 @@ class ScFnWhere extends ScBaseInvocable {
   static final ScFnWhere _instance = ScFnWhere._internal();
   ScFnWhere._internal();
   factory ScFnWhere() => _instance;
+
+  @override
+  String get primaryName => 'where';
 
   @override
   Set<List<String>> get arities => {
@@ -3040,10 +3205,13 @@ The second argument is expected to be a function that takes two arguments: a key
   }
 }
 
-class ScFnLimit extends ScBaseInvocable {
-  static final ScFnLimit _instance = ScFnLimit._internal();
-  ScFnLimit._internal();
-  factory ScFnLimit() => _instance;
+class ScFnTake extends ScBaseInvocable {
+  static final ScFnTake _instance = ScFnTake._internal();
+  ScFnTake._internal();
+  factory ScFnTake() => _instance;
+
+  @override
+  String get primaryName => 'take';
 
   @override
   Set<List<String>> get arities => {
@@ -3098,10 +3266,13 @@ If provided a function, this behaves as a "take while", returning as many items 
   }
 }
 
-class ScFnSkip extends ScBaseInvocable {
-  static final ScFnSkip _instance = ScFnSkip._internal();
-  ScFnSkip._internal();
-  factory ScFnSkip() => _instance;
+class ScFnDrop extends ScBaseInvocable {
+  static final ScFnDrop _instance = ScFnDrop._internal();
+  ScFnDrop._internal();
+  factory ScFnDrop() => _instance;
+
+  @override
+  String get primaryName => 'drop';
 
   @override
   Set<List<String>> get arities => {
@@ -3161,6 +3332,9 @@ class ScFnDistinct extends ScBaseInvocable {
   factory ScFnDistinct() => _instance;
 
   @override
+  String get primaryName => 'distinct';
+
+  @override
   Set<List<String>> get arities => {
         ["collection"]
       };
@@ -3202,6 +3376,9 @@ class ScFnHelp extends ScBaseInvocable {
   factory ScFnHelp() => _instance;
 
   @override
+  String get primaryName => '?';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["fn-or-string"]
@@ -3233,12 +3410,19 @@ class ScFnHelp extends ScBaseInvocable {
           final arities = query.arities.toList();
           arities.sort((la, lb) => la.length.compareTo(lb.length));
           for (final arity in query.arities) {
-            String params = arity.join(' ');
+            final wrapped = arity.map((e) {
+              if (e == '...') {
+                return e;
+              } else {
+                return "<$e>";
+              }
+            });
+            String params = wrapped.join(' ');
             if (params.isNotEmpty) {
               params = ' $params';
             }
-            // TODO Re-introduce String name as a required [ScBaseInvocable] field.
-            env.out.writeln(env.style('  (λ$params)', 'title'));
+            final fnName = query.primaryName;
+            env.out.writeln(env.style('  $fnName$params', 'title'));
           }
         }
         env.out.writeln();
@@ -3306,6 +3490,9 @@ class ScFnPrint extends ScBaseInvocable {
   String strToAppend;
 
   @override
+  String get primaryName => 'print';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["value", "..."]
@@ -3336,6 +3523,9 @@ class ScFnPrStr extends ScBaseInvocable {
   static final ScFnPrStr _instance = ScFnPrStr._internal();
   ScFnPrStr._internal();
   factory ScFnPrStr() => _instance;
+
+  @override
+  String get primaryName => 'pr-str';
 
   @override
   Set<List<String>> get arities => {
@@ -3369,6 +3559,9 @@ class ScFnDefaults extends ScBaseInvocable {
   static final ScFnDefaults _instance = ScFnDefaults._internal();
   ScFnDefaults._internal();
   factory ScFnDefaults() => _instance;
+
+  @override
+  String get primaryName => 'defaults';
 
   @override
   Set<List<String>> get arities => {[]};
@@ -3405,6 +3598,9 @@ class ScFnDefault extends ScBaseInvocable {
   static final ScFnDefault _instance = ScFnDefault._internal();
   ScFnDefault._internal();
   factory ScFnDefault() => _instance;
+
+  @override
+  String get primaryName => 'default';
 
   @override
   Set<List<String>> get arities => {
@@ -3556,6 +3752,9 @@ class ScFnSetup extends ScBaseInvocable {
   factory ScFnSetup() => _instance;
 
   @override
+  String get primaryName => 'setup';
+
+  @override
   Set<List<String>> get arities => {[]};
 
   @override
@@ -3592,6 +3791,9 @@ class ScFnCd extends ScBaseInvocable {
   static final ScFnCd _instance = ScFnCd._internal();
   ScFnCd._internal();
   factory ScFnCd() => _instance;
+
+  @override
+  String get primaryName => 'cd';
 
   @override
   Set<List<String>> get arities => {
@@ -3671,6 +3873,9 @@ class ScFnHistory extends ScBaseInvocable {
   factory ScFnHistory() => _instance;
 
   @override
+  String get primaryName => 'history';
+
+  @override
   Set<List<String>> get arities => {[]};
 
   @override
@@ -3700,6 +3905,9 @@ class ScFnBackward extends ScBaseInvocable {
   static final ScFnBackward _instance = ScFnBackward._internal();
   ScFnBackward._internal();
   factory ScFnBackward() => _instance;
+
+  @override
+  String get primaryName => 'backward';
 
   @override
   Set<List<String>> get arities => {[]};
@@ -3744,6 +3952,9 @@ class ScFnForward extends ScBaseInvocable {
   factory ScFnForward() => _instance;
 
   @override
+  String get primaryName => 'forward';
+
+  @override
   Set<List<String>> get arities => {[]};
 
   @override
@@ -3782,6 +3993,9 @@ class ScFnLs extends ScBaseInvocable {
   factory ScFnLs() => _instance;
 
   @override
+  String get primaryName => 'ls';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["entity"]
@@ -3805,6 +4019,9 @@ class ScFnCwd extends ScBaseInvocable {
   static final ScFnCwd _instance = ScFnCwd._internal();
   ScFnCwd._internal();
   factory ScFnCwd() => _instance;
+
+  @override
+  String get primaryName => 'cwd';
 
   @override
   Set<List<String>> get arities => {[]};
@@ -3846,6 +4063,9 @@ class ScFnPwd extends ScBaseInvocable {
   factory ScFnPwd() => _instance;
 
   @override
+  String get primaryName => 'pwd';
+
+  @override
   Set<List<String>> get arities => {[]};
 
   @override
@@ -3881,6 +4101,9 @@ class ScFnMv extends ScBaseInvocable {
   static final ScFnMv _instance = ScFnMv._internal();
   ScFnMv._internal();
   factory ScFnMv() => _instance;
+
+  @override
+  String get primaryName => 'mv!';
 
   @override
   Set<List<String>> get arities => {
@@ -3945,6 +4168,9 @@ class ScFnData extends ScBaseInvocable {
   factory ScFnData() => _instance;
 
   @override
+  String get primaryName => 'data';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["entity"]
@@ -3989,6 +4215,9 @@ class ScFnDetails extends ScBaseInvocable {
   static final ScFnDetails _instance = ScFnDetails._internal();
   ScFnDetails._internal();
   factory ScFnDetails() => _instance;
+
+  @override
+  String get primaryName => 'details';
 
   @override
   Set<List<String>> get arities => {
@@ -4037,6 +4266,9 @@ class ScFnSummary extends ScBaseInvocable {
   factory ScFnSummary() => _instance;
 
   @override
+  String get primaryName => 'summary';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["entity"]
@@ -4061,6 +4293,9 @@ class ScFnInvoke extends ScBaseInvocable {
   static final ScFnInvoke _instance = ScFnInvoke._internal();
   ScFnInvoke._internal();
   factory ScFnInvoke() => _instance;
+
+  @override
+  String get primaryName => 'invoke';
 
   @override
   Set<List<String>> get arities => {
@@ -4115,6 +4350,9 @@ class ScFnApply extends ScBaseInvocable {
   factory ScFnApply() => _instance;
 
   @override
+  String get primaryName => 'apply';
+
+  @override
   Set<List<String>> get arities => {
         ["function", "list-of-args"]
       };
@@ -4153,6 +4391,9 @@ class ScFnMap extends ScBaseInvocable {
   static final ScFnMap _instance = ScFnMap._internal();
   ScFnMap._internal();
   factory ScFnMap() => _instance;
+
+  @override
+  String get primaryName => 'map';
 
   @override
   Set<List<String>> get arities => {
@@ -4196,6 +4437,9 @@ class ScFnReduce extends ScBaseInvocable {
   static final ScFnReduce _instance = ScFnReduce._internal();
   ScFnReduce._internal();
   factory ScFnReduce() => _instance;
+
+  @override
+  String get primaryName => 'reduce';
 
   @override
   Set<List<String>> get arities => {
@@ -4287,6 +4531,9 @@ class ScFnConcat extends ScBaseInvocable {
   factory ScFnConcat() => _instance;
 
   @override
+  String get primaryName => 'concat';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["collection", "..."]
@@ -4349,6 +4596,9 @@ class ScFnExtend extends ScBaseInvocable {
   static final ScFnExtend _instance = ScFnExtend._internal();
   ScFnExtend._internal();
   factory ScFnExtend() => _instance;
+
+  @override
+  String get primaryName => 'extend';
 
   @override
   Set<List<String>> get arities => {
@@ -4417,6 +4667,9 @@ class ScFnKeys extends ScBaseInvocable {
   factory ScFnKeys() => _instance;
 
   @override
+  String get primaryName => 'keys';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["map-or-entity"]
@@ -4459,6 +4712,9 @@ class ScFnWhenNil extends ScBaseInvocable {
   factory ScFnWhenNil() => _instance;
 
   @override
+  String get primaryName => 'when-nil';
+
+  @override
   Set<List<String>> get arities => {
         ["possibly-nil-value", "replacement-value"]
       };
@@ -4492,6 +4748,9 @@ class ScFnGet extends ScBaseInvocable {
   static final ScFnGet _instance = ScFnGet._internal();
   ScFnGet._internal();
   factory ScFnGet() => _instance;
+
+  @override
+  String get primaryName => 'get';
 
   @override
   Set<List<String>> get arities => {
@@ -4550,6 +4809,9 @@ class ScFnSecond extends ScBaseInvocable {
   factory ScFnSecond() => _instance;
 
   @override
+  String get primaryName => 'second';
+
+  @override
   Set<List<String>> get arities => {
         ["collection-or-date-time"]
       };
@@ -4584,6 +4846,9 @@ class ScFnGetIn extends ScBaseInvocable {
   static final ScFnGetIn _instance = ScFnGetIn._internal();
   ScFnGetIn._internal();
   factory ScFnGetIn() => _instance;
+
+  @override
+  String get primaryName => 'get-in';
 
   @override
   Set<List<String>> get arities => {
@@ -4625,6 +4890,9 @@ class ScFnContains extends ScBaseInvocable {
   static final ScFnContains _instance = ScFnContains._internal();
   ScFnContains._internal();
   factory ScFnContains() => _instance;
+
+  @override
+  String get primaryName => 'contains?';
 
   @override
   Set<List<String>> get arities => {
@@ -4676,6 +4944,9 @@ class ScFnIsSubset extends ScBaseInvocable {
   static final ScFnIsSubset _instance = ScFnIsSubset._internal();
   ScFnIsSubset._internal();
   factory ScFnIsSubset() => _instance;
+
+  @override
+  String get primaryName => 'subset?';
 
   @override
   Set<List<String>> get arities => {
@@ -4743,6 +5014,9 @@ class ScFnCount extends ScBaseInvocable {
   factory ScFnCount() => _instance;
 
   @override
+  String get primaryName => 'count';
+
+  @override
   Set<List<String>> get arities => {
         ["collection"]
       };
@@ -4780,6 +5054,9 @@ class ScFnSort extends ScBaseInvocable {
   static final ScFnSort _instance = ScFnSort._internal();
   ScFnSort._internal();
   factory ScFnSort() => _instance;
+
+  @override
+  String get primaryName => 'sort';
 
   @override
   Set<List<String>> get arities => {
@@ -4873,6 +5150,9 @@ class ScFnSplit extends ScBaseInvocable {
   factory ScFnSplit() => _instance;
 
   @override
+  String get primaryName => 'split';
+
+  @override
   Set<List<String>> get arities => {
         ["collection"],
         ["collection", "separator"]
@@ -4923,6 +5203,9 @@ class ScFnJoin extends ScBaseInvocable {
   static final ScFnJoin _instance = ScFnJoin._internal();
   ScFnJoin._internal();
   factory ScFnJoin() => _instance;
+
+  @override
+  String get primaryName => 'join';
 
   @override
   Set<List<String>> get arities => {
@@ -4978,6 +5261,9 @@ class ScFnFile extends ScBaseInvocable {
   factory ScFnFile() => _instance;
 
   @override
+  String get primaryName => 'file';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["file-name"]
@@ -5017,6 +5303,9 @@ class ScFnReadFile extends ScBaseInvocable {
   factory ScFnReadFile() => _instance;
 
   @override
+  String get primaryName => 'read-file';
+
+  @override
   Set<List<String>> get arities => {
         ["file-or-file-name"]
       };
@@ -5052,6 +5341,9 @@ class ScFnWriteFile extends ScBaseInvocable {
   static final ScFnWriteFile _instance = ScFnWriteFile._internal();
   ScFnWriteFile._internal();
   factory ScFnWriteFile() => _instance;
+
+  @override
+  String get primaryName => 'write-file';
 
   @override
   Set<List<String>> get arities => {
@@ -5102,6 +5394,9 @@ class ScFnClipboard extends ScBaseInvocable {
   static final ScFnClipboard _instance = ScFnClipboard._internal();
   ScFnClipboard._internal();
   factory ScFnClipboard() => _instance;
+
+  @override
+  String get primaryName => 'clip';
 
   @override
   Set<List<String>> get arities => {
@@ -5160,6 +5455,9 @@ class ScFnInterpret extends ScBaseInvocable {
   factory ScFnInterpret() => _instance;
 
   @override
+  String get primaryName => 'interpret';
+
+  @override
   Set<List<String>> get arities => {
         ["string"]
       };
@@ -5194,6 +5492,9 @@ class ScFnLoad extends ScBaseInvocable {
   static final ScFnLoad _instance = ScFnLoad._internal();
   ScFnLoad._internal();
   factory ScFnLoad() => _instance;
+
+  @override
+  String get primaryName => 'load';
 
   @override
   Set<List<String>> get arities => {
@@ -5233,6 +5534,9 @@ class ScFnOpen extends ScBaseInvocable {
   static final ScFnOpen _instance = ScFnOpen._internal();
   ScFnOpen._internal();
   factory ScFnOpen() => _instance;
+
+  @override
+  String get primaryName => 'open';
 
   @override
   Set<List<String>> get arities => {
@@ -5285,6 +5589,9 @@ class ScFnEdit extends ScBaseInvocable {
   factory ScFnEdit() => _instance;
 
   @override
+  String get primaryName => 'edit';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["content-or-file"]
@@ -5328,6 +5635,9 @@ class ScFnSearch extends ScBaseInvocable {
   static final ScFnSearch _instance = ScFnSearch._internal();
   ScFnSearch._internal();
   factory ScFnSearch() => _instance;
+
+  @override
+  String get primaryName => 'search';
 
   @override
   Set<List<String>> get arities => {
@@ -5424,6 +5734,9 @@ class ScFnFindStories extends ScBaseInvocable {
   factory ScFnFindStories() => _instance;
 
   @override
+  String get primaryName => 'find-stories';
+
+  @override
   Set<List<String>> get arities => {
         ["find-stories-query-map"]
       };
@@ -5477,6 +5790,9 @@ class ScFnFetch extends ScBaseInvocable {
   factory ScFnFetch() => _instance;
 
   @override
+  String get primaryName => 'fetch';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["entity-or-id"]
@@ -5500,6 +5816,9 @@ class ScFnFetchAll extends ScBaseInvocable {
   static final ScFnFetchAll _instance = ScFnFetchAll._internal();
   ScFnFetchAll._internal();
   factory ScFnFetchAll() => _instance;
+
+  @override
+  String get primaryName => 'fetch-all';
 
   @override
   Set<List<String>> get arities => {[]};
@@ -5531,6 +5850,9 @@ class ScFnUpdate extends ScBaseInvocable {
   static final ScFnUpdate _instance = ScFnUpdate._internal();
   ScFnUpdate._internal();
   factory ScFnUpdate() => _instance;
+
+  @override
+  String get primaryName => '!';
 
   @override
   Set<List<String>> get arities => {
@@ -5601,6 +5923,9 @@ class ScFnNextState extends ScBaseInvocable {
   static final ScFnNextState _instance = ScFnNextState._internal();
   ScFnNextState._internal();
   factory ScFnNextState() => _instance;
+
+  @override
+  String get primaryName => 'next-state';
 
   @override
   // TODO: implement arities
@@ -5732,6 +6057,9 @@ class ScFnPreviousState extends ScBaseInvocable {
   factory ScFnPreviousState() => _instance;
 
   @override
+  String get primaryName => 'previous-state';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["entity"]
@@ -5858,6 +6186,9 @@ class ScFnCreate extends ScBaseInvocable {
   static final ScFnCreate _instance = ScFnCreate._internal();
   ScFnCreate._internal();
   factory ScFnCreate() => _instance;
+
+  @override
+  String get primaryName => 'new';
 
   @override
   Set<List<String>> get arities => {
@@ -6102,6 +6433,9 @@ class ScFnCreateStory extends ScBaseInvocable {
   factory ScFnCreateStory() => _instance;
 
   @override
+  String get primaryName => 'new-story';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["story-map"]
@@ -6155,6 +6489,9 @@ class ScFnCreateComment extends ScBaseInvocable {
   static final ScFnCreateComment _instance = ScFnCreateComment._internal();
   ScFnCreateComment._internal();
   factory ScFnCreateComment() => _instance;
+
+  @override
+  String get primaryName => 'new-comment';
 
   @override
   Set<List<String>> get arities => {
@@ -6356,6 +6693,9 @@ class ScFnCreateEpic extends ScBaseInvocable {
   factory ScFnCreateEpic() => _instance;
 
   @override
+  String get primaryName => 'new-epic';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["epic-map"]
@@ -6404,6 +6744,10 @@ class ScFnCreateMilestone extends ScBaseInvocable {
   factory ScFnCreateMilestone() => _instance;
 
   @override
+  // TODO: implement primaryName
+  String get primaryName => 'new-milestone';
+
+  @override
   Set<List<String>> get arities => {
         ["milestone-map"]
       };
@@ -6440,6 +6784,9 @@ class ScFnCreateIteration extends ScBaseInvocable {
   factory ScFnCreateIteration() => _instance;
 
   @override
+  String get primaryName => 'new-iteration';
+
+  @override
   Set<List<String>> get arities => {
         ["iteration-map"]
       };
@@ -6474,6 +6821,9 @@ class ScFnCreateTask extends ScBaseInvocable {
   static final ScFnCreateTask _instance = ScFnCreateTask._internal();
   ScFnCreateTask._internal();
   factory ScFnCreateTask() => _instance;
+
+  @override
+  String get primaryName => 'new-task';
 
   @override
   Set<List<String>> get arities => {
@@ -6527,6 +6877,9 @@ class ScFnMe extends ScBaseInvocable {
   ScFnMe._internal();
   factory ScFnMe() => _instance;
 
+  @override
+  String get primaryName => 'me';
+
   static ScMember? me;
 
   @override
@@ -6550,6 +6903,9 @@ class ScFnMember extends ScBaseInvocable {
   static final ScFnMember _instance = ScFnMember._internal();
   ScFnMember._internal();
   factory ScFnMember() => _instance;
+
+  @override
+  String get primaryName => 'member';
 
   @override
   Set<List<String>> get arities => {
@@ -6584,6 +6940,9 @@ class ScFnMembers extends ScBaseInvocable {
   static final ScFnMembers _instance = ScFnMembers._internal();
   ScFnMembers._internal();
   factory ScFnMembers() => _instance;
+
+  @override
+  String get primaryName => 'members';
 
   @override
   Set<List<String>> get arities => {
@@ -6649,6 +7008,9 @@ class ScFnWorkflow extends ScBaseInvocable {
   factory ScFnWorkflow() => _instance;
 
   @override
+  String get primaryName => 'workflow';
+
+  @override
   Set<List<String>> get arities => {
         ["workflow-id"]
       };
@@ -6689,6 +7051,9 @@ class ScFnWorkflows extends ScBaseInvocable {
   factory ScFnWorkflows() => _instance;
 
   @override
+  String get primaryName => 'workflows';
+
+  @override
   Set<List<String>> get arities => {[]};
 
   @override
@@ -6717,6 +7082,9 @@ class ScFnEpicWorkflow extends ScBaseInvocable {
   static final ScFnEpicWorkflow _instance = ScFnEpicWorkflow._internal();
   ScFnEpicWorkflow._internal();
   factory ScFnEpicWorkflow() => _instance;
+
+  @override
+  String get primaryName => 'epic-workflow';
 
   @override
   Set<List<String>> get arities => {[]};
@@ -6748,6 +7116,9 @@ class ScFnTeam extends ScBaseInvocable {
   static final ScFnTeam _instance = ScFnTeam._internal();
   ScFnTeam._internal();
   factory ScFnTeam() => _instance;
+
+  @override
+  String get primaryName => 'team';
 
   @override
   Set<List<String>> get arities => {
@@ -6785,6 +7156,9 @@ class ScFnTeams extends ScBaseInvocable {
   static final ScFnTeams _instance = ScFnTeams._internal();
   ScFnTeams._internal();
   factory ScFnTeams() => _instance;
+
+  @override
+  String get primaryName => 'teams';
 
   @override
   Set<List<String>> get arities => {
@@ -6832,6 +7206,9 @@ class ScFnStory extends ScBaseInvocable {
   factory ScFnStory() => _instance;
 
   @override
+  String get primaryName => 'story';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["story-id"]
@@ -6864,6 +7241,9 @@ class ScFnTask extends ScBaseInvocable {
   static final ScFnTask _instance = ScFnTask._internal();
   ScFnTask._internal();
   factory ScFnTask() => _instance;
+
+  @override
+  String get primaryName => 'task';
 
   @override
   Set<List<String>> get arities => {
@@ -6933,6 +7313,9 @@ class ScFnComment extends ScBaseInvocable {
   factory ScFnComment() => _instance;
 
   @override
+  String get primaryName => 'comment';
+
+  @override
   Set<List<String>> get arities => {
         ["comment-id"],
         ["story", "comment-id"]
@@ -6999,6 +7382,9 @@ class ScFnEpic extends ScBaseInvocable {
   factory ScFnEpic() => _instance;
 
   @override
+  String get primaryName => 'epic';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["epic-id"]
@@ -7031,6 +7417,9 @@ class ScFnEpicComment extends ScBaseInvocable {
   static final ScFnEpicComment _instance = ScFnEpicComment._internal();
   ScFnEpicComment._internal();
   factory ScFnEpicComment() => _instance;
+
+  @override
+  String get primaryName => 'epic-comment';
 
   @override
   Set<List<String>> get arities => {
@@ -7098,6 +7487,9 @@ class ScFnStories extends ScBaseInvocable {
   static final ScFnStories _instance = ScFnStories._internal();
   ScFnStories._internal();
   factory ScFnStories() => _instance;
+
+  @override
+  String get primaryName => 'stories';
 
   @override
   Set<List<String>> get arities => {
@@ -7168,6 +7560,9 @@ class ScFnEpics extends ScBaseInvocable {
   factory ScFnEpics() => _instance;
 
   @override
+  String get primaryName => 'epics';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["entity"]
@@ -7216,6 +7611,9 @@ class ScFnMilestone extends ScBaseInvocable {
   factory ScFnMilestone() => _instance;
 
   @override
+  String get primaryName => 'milestone';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["milestone-id"]
@@ -7248,6 +7646,9 @@ class ScFnMilestones extends ScBaseInvocable {
   static final ScFnMilestones _instance = ScFnMilestones._internal();
   ScFnMilestones._internal();
   factory ScFnMilestones() => _instance;
+
+  @override
+  String get primaryName => 'milestones';
 
   @override
   Set<List<String>> get arities => {
@@ -7302,6 +7703,9 @@ class ScFnIteration extends ScBaseInvocable {
   factory ScFnIteration() => _instance;
 
   @override
+  String get primaryName => 'iteration';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["iteration-id"]
@@ -7334,6 +7738,9 @@ class ScFnIterations extends ScBaseInvocable {
   static final ScFnIterations _instance = ScFnIterations._internal();
   ScFnIterations._internal();
   factory ScFnIterations() => _instance;
+
+  @override
+  String get primaryName => 'iterations';
 
   @override
   Set<List<String>> get arities => {[]};
@@ -7376,6 +7783,13 @@ class ScFnIterations extends ScBaseInvocable {
 }
 
 class ScFnLabel extends ScBaseInvocable {
+  static final ScFnLabel _instance = ScFnLabel._internal();
+  ScFnLabel._internal();
+  factory ScFnLabel() => _instance;
+
+  @override
+  String get primaryName => 'label';
+
   @override
   String get help => "Fetch a specific Shortcut label (for stories, epics).";
 
@@ -7410,6 +7824,13 @@ class ScFnLabel extends ScBaseInvocable {
 }
 
 class ScFnLabels extends ScBaseInvocable {
+  static final ScFnLabels _instance = ScFnLabels._internal();
+  ScFnLabels._internal();
+  factory ScFnLabels() => _instance;
+
+  @override
+  String get primaryName => 'labels';
+
   @override
   String get help => "Fetch all Shortcut labels in your workspace.";
 
@@ -7435,6 +7856,9 @@ class ScFnMax extends ScBaseInvocable {
   static final ScFnMax _instance = ScFnMax._internal();
   ScFnMax._internal();
   factory ScFnMax() => _instance;
+
+  @override
+  String get primaryName => 'max';
 
   @override
   Set<List<String>> get arities => {
@@ -7480,6 +7904,9 @@ class ScFnMin extends ScBaseInvocable {
   factory ScFnMin() => _instance;
 
   @override
+  String get primaryName => 'min';
+
+  @override
   Set<List<String>> get arities => {
         ["number-a", "number-b"]
       };
@@ -7523,6 +7950,9 @@ class ScFnEquals extends ScBaseInvocable {
   factory ScFnEquals() => _instance;
 
   @override
+  String get primaryName => '=';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["number"],
@@ -7558,6 +7988,9 @@ class ScFnGreaterThan extends ScBaseInvocable {
   static final ScFnGreaterThan _instance = ScFnGreaterThan._internal();
   ScFnGreaterThan._internal();
   factory ScFnGreaterThan() => _instance;
+
+  @override
+  String get primaryName => '>';
 
   @override
   Set<List<String>> get arities => {
@@ -7596,6 +8029,9 @@ class ScFnLessThan extends ScBaseInvocable {
   static final ScFnLessThan _instance = ScFnLessThan._internal();
   ScFnLessThan._internal();
   factory ScFnLessThan() => _instance;
+
+  @override
+  String get primaryName => '<';
 
   @override
   Set<List<String>> get arities => {
@@ -7637,6 +8073,9 @@ class ScFnGreaterThanOrEqualTo extends ScBaseInvocable {
   factory ScFnGreaterThanOrEqualTo() => _instance;
 
   @override
+  String get primaryName => '>=';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["number"],
@@ -7674,6 +8113,9 @@ class ScFnLessThanOrEqualTo extends ScBaseInvocable {
       ScFnLessThanOrEqualTo._internal();
   ScFnLessThanOrEqualTo._internal();
   factory ScFnLessThanOrEqualTo() => _instance;
+
+  @override
+  String get primaryName => "<=";
 
   @override
   Set<List<String>> get arities => {
@@ -7714,6 +8156,9 @@ class ScFnAdd extends ScBaseInvocable {
   factory ScFnAdd() => _instance;
 
   @override
+  String get primaryName => "+";
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["number"],
@@ -7750,6 +8195,9 @@ class ScFnSubtract extends ScBaseInvocable {
   static final ScFnSubtract _instance = ScFnSubtract._internal();
   ScFnSubtract._internal();
   factory ScFnSubtract() => _instance;
+
+  @override
+  String get primaryName => '-';
 
   @override
   Set<List<String>> get arities => {
@@ -7791,6 +8239,9 @@ class ScFnMultiply extends ScBaseInvocable {
   factory ScFnMultiply() => _instance;
 
   @override
+  String get primaryName => '*';
+
+  @override
   Set<List<String>> get arities => {
         [],
         ["number"],
@@ -7826,6 +8277,9 @@ class ScFnDivide extends ScBaseInvocable {
   static final ScFnDivide _instance = ScFnDivide._internal();
   ScFnDivide._internal();
   factory ScFnDivide() => _instance;
+
+  @override
+  String get primaryName => '/';
 
   @override
   Set<List<String>> get arities => {
@@ -7873,6 +8327,9 @@ class ScFnModulo extends ScBaseInvocable {
   static final ScFnModulo _instance = ScFnModulo._internal();
   ScFnModulo._internal();
   factory ScFnModulo() => _instance;
+
+  @override
+  String get primaryName => 'mod';
 
   @override
   Set<List<String>> get arities => {
@@ -10354,7 +10811,6 @@ class ScLabel extends ScEntity {
 
   @override
   String typeName() {
-    // TODO: implement informalTypeName
     return 'label';
   }
 
