@@ -231,6 +231,8 @@ class ScEnv {
     ScSymbol('open'): ScFnOpen(),
     ScSymbol('edit'): ScFnEdit(),
 
+    ScSymbol('color'): ScFnColor(),
+
     // Entities
 
     ScSymbol('default'): ScFnDefault(),
@@ -304,6 +306,43 @@ class ScEnv {
     ScSymbol('workflows'): ScFnWorkflows(),
     ScSymbol('epic-workflow'): ScFnEpicWorkflow(),
     ScSymbol('ew'): ScFnEpicWorkflow(),
+  };
+
+  final Map<ScSymbol, ScString> runtimeHelp = {
+    ScSymbol('first'): ScString("Return the first element of a collection."),
+    ScSymbol('second'): ScString("Return the second element of a collection."),
+    ScSymbol('third'): ScString("Return the third element of a collection."),
+    ScSymbol('fourth'): ScString("Return the fourth element of a collection."),
+    ScSymbol('fifth'): ScString("Return the fifth element of a collection."),
+    ScSymbol('sixth'): ScString("Return the sixth element of a collection."),
+    ScSymbol('seventh'):
+        ScString("Return the seventh element of a collection."),
+    ScSymbol('eighth'): ScString("Return the eighth element of a collection."),
+    ScSymbol('ninth'): ScString("Return the ninth element of a collection."),
+    ScSymbol('tenth'): ScString("Return the tenth element of a collection."),
+    ScSymbol('not'): ScString("Return true if falsey; return false if truthy."),
+    ScSymbol('or'): ScString(
+        "Return the first argument that is truthy, or the last argument if none are truthy.`"),
+    ScSymbol('when'): ScString(
+        "If the condition is truthy, invokes the function provided, else returns `nil`."),
+    ScSymbol('first-where'): ScString(
+        "Return the first item of the collection where the map spec or function provided returns truthy."),
+    ScSymbol('sum'):
+        ScString("Return the sum of the numbers in the collection."),
+    ScSymbol('avg'): ScString(
+        "Return the arithmetic mean of the numbers in the collection."),
+    ScSymbol('mapcat'): ScString(
+        "Apply the function to every item in the collection, then concatenate all the resulting collections."),
+    ScSymbol('query-archived'): ScString(
+        "Use with `find-stories`, narrow results to archived stories."),
+    ScSymbol('query-not-archived'): ScString(
+        "Use with `find-stories`, narrow results to stories that aren't archived (default state of new stories)."),
+    ScSymbol('query-completed-at-start'): ScString(
+        "Use with `find-stories`, narrow results to stories completed after the given date-time."),
+    ScSymbol('query-completed-at-after'): ScString(
+        "Use with `find-stories`, narrow results to stories completed after the given date-time."),
+    ScSymbol('query-completed-after'): ScString(
+        "Use with `find-stories`, narrow results to stories completed after the given date-time."),
   };
 
   Map<ScSymbol, dynamic> bindings =
@@ -538,7 +577,6 @@ class ScEnv {
   /// have been implemented directly in Dart. These will have markedly worse
   /// error messages compared to those built-in ones.
   void loadPrelude() {
-    // TODO Don't make users pay the cost of interpretation. At present, it's pretty fast.
     final prelude = r'''
 ;; Accessors
 def first   value %(get % 0)
@@ -570,11 +608,12 @@ def mapcat value (fn [coll f] (apply (map coll f) concat))
 def query-archived     {.archived true}
 def query-not-archived {.archived false}
 
-def query-completed-at-start value (fn [dt]
+def query-completed-at-start value (fn query-completed-at-start [dt]
  (assert (= "date-time" (type dt))
          (concat "query-completed-at-start expects a date-time, but received a " (type dt)))
  {.completed_at_start dt})
 def query-completed-at-after value query-completed-at-start
+def query-completed-after value query-completed-at-start
 
 def query-completed-at-end value (fn [dt]
  (assert (= "date-time" (type dt))
@@ -1886,15 +1925,10 @@ class ScFunction extends ScBaseInvocable {
   }
 
   @override
-  String get help => "This is a standalone function; no help found.";
+  String get help => "";
 
   @override
-  String get helpFull =>
-      help +
-      '\n\n' +
-      r"""Standalone function definitions do not support storing help information at this time.
-
-A future extension to the language either for help or arbitrary metadata may be added.""";
+  String get helpFull => '';
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -1964,8 +1998,7 @@ class ScAnonymousFunction extends ScBaseInvocable {
   }
 
   @override
-  String get help =>
-      "No help found: Anonymous function definitions do not support help.";
+  String get help => "";
 
   @override
   String get helpFull =>
@@ -3394,10 +3427,13 @@ class ScFnHelp extends ScBaseInvocable {
       ScMap m = ScMap({});
       env.bindings.forEach((key, value) {
         if (value is ScBaseInvocable) {
-          m[key] = ScString(value.help);
-        } else if (value is ScExpr) {
-          m[key] = ScString("a ${value.typeName()} value");
+          final rawHelp = value.help;
+          if (rawHelp.isNotEmpty) {
+            m[key] = ScString(rawHelp);
+          }
         }
+        m[key] ??=
+            env.runtimeHelp[key] ?? ScString("a ${value.typeName()} value");
       });
       final ks = m.keys.toList();
       ks.sort();
@@ -3429,7 +3465,15 @@ class ScFnHelp extends ScBaseInvocable {
           }
         }
         env.out.writeln();
-        env.out.writeln(env.style(query.helpFull, 'title'));
+        final rawHelp = query.helpFull;
+        if (rawHelp.isEmpty) {
+          env.out.writeln(env.style(
+              env.runtimeHelp[ScSymbol(query.canonicalName)]?.value ??
+                  'No help found.',
+              'title'));
+        } else {
+          env.out.writeln(env.style(query.helpFull, 'title'));
+        }
       } else if (query is ScString) {
         final searchFn = ScFnSearch();
         final bindingsWithHelp = ScMap({});
@@ -5636,6 +5680,53 @@ class ScFnEdit extends ScBaseInvocable {
   }
 }
 
+class ScFnColor extends ScBaseInvocable {
+  static final ScFnColor _instance = ScFnColor._internal();
+  ScFnColor._internal();
+  factory ScFnColor() => _instance;
+
+  @override
+  String get canonicalName => 'color';
+
+  @override
+  Set<List<String>> get arities => {
+        ['color-name-or-number']
+      };
+
+  @override
+  String get help =>
+      "Print the color and return a hexadecimal representation of its RGB values.";
+
+  @override
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+
+If the color passed in is not recognized, black is printed and what you passed in is returned.""";
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final x = args[0];
+      if (x is ScString) {
+        String hex = x.value.toUpperCase();
+        if (!hex.startsWith('#')) {
+          hex = "#$hex";
+        }
+        env.out.writeln(env.style("$hex ⬛️", hex));
+        return ScString(hex);
+      } else {
+        throw BadArgumentsException(
+            "The `$canonicalName` function expects a string argument, but received a ${x.typeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `$canonicalName` expects 1 argument, but received ${args.length} arguments.");
+    }
+  }
+}
+
 class ScFnSearch extends ScBaseInvocable {
   static final ScFnSearch _instance = ScFnSearch._internal();
   ScFnSearch._internal();
@@ -6294,6 +6385,12 @@ class ScFnCreate extends ScBaseInvocable {
                   }
                 }
               }
+              if (!dataMap.containsKey(ScString('milestone_id'))) {
+                if (env.parentEntity is ScMilestone) {
+                  final milestone = env.parentEntity!;
+                  dataMap[ScString('milestone_id')] = milestone.id;
+                }
+              }
 
               entity = waitOn(env.client.createEpic(env,
                   scExprToValue(dataMap, forJson: true, onlyEntityIds: true)));
@@ -6303,6 +6400,12 @@ class ScFnCreate extends ScBaseInvocable {
                   scExprToValue(dataMap, forJson: true, onlyEntityIds: true)));
               break;
             case 'iteration':
+              if (!dataMap.containsKey(ScString('group_ids'))) {
+                if (env.parentEntity is ScTeam) {
+                  final team = env.parentEntity!;
+                  dataMap[ScString('group_ids')] = ScList([team]);
+                }
+              }
               entity = waitOn(env.client.createIteration(env,
                   scExprToValue(dataMap, forJson: true, onlyEntityIds: true)));
               break;
@@ -6760,15 +6863,19 @@ class ScFnCreateEpic extends ScBaseInvocable {
           styleInfo));
       return ScFile(tempFile);
     } else if (args.length == 1) {
-      final dataMap = args[0];
-      if (dataMap is ScMap) {
-        final createFn = ScFnCreate();
-        dataMap[ScString('type')] = ScString('epic');
-        return createFn.invoke(env, ScList([dataMap]));
+      final rawDataMap = args[0];
+      ScMap dataMap = ScMap({});
+      if (rawDataMap is ScMap) {
+        dataMap = rawDataMap;
+      } else if (rawDataMap is ScString) {
+        dataMap[ScString('name')] = rawDataMap;
       } else {
         throw BadArgumentsException(
             "The `$canonicalName` function expects its argument to be a map, but received ${dataMap.typeName()}");
       }
+      final createFn = ScFnCreate();
+      dataMap[ScString('type')] = ScString('epic');
+      return createFn.invoke(env, ScList([dataMap]));
     } else {
       throw BadArgumentsException(
           "The `$canonicalName` function expects 0 or 1 argument, but received ${args.length} arguments.");
@@ -8825,7 +8932,16 @@ class ScMap extends ScExpr {
     return ScMap(copy);
   }
 
-  bool containsKey(ScExpr key) => innerMap.containsKey(key);
+  bool containsKey(ScExpr key) {
+    if (key is ScString) {
+      final containsStringKey = innerMap.containsKey(key);
+      final containsDottedSymbolKey =
+          innerMap.containsKey(ScDottedSymbol(key.value));
+      return containsStringKey || containsDottedSymbolKey;
+    } else {
+      return innerMap.containsKey(key);
+    }
+  }
 
   @override
 

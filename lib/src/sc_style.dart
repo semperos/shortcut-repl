@@ -20,7 +20,12 @@ void previewAnsiCode(String name, List<AnsiCode> values, bool forScript) {
 
 String styleString(Map<String, String> palette, String paletteKey, String s,
     {List<String>? styles}) {
-  final hex = palette[paletteKey] ?? palette['__fallback']!;
+  String hex;
+  if (s.startsWith('#')) {
+    hex = s;
+  } else {
+    hex = palette[paletteKey] ?? palette['__fallback']!;
+  }
   return applyStringStyles(styles, chalk.hex(hex)(s));
 }
 
