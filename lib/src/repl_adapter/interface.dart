@@ -39,4 +39,5 @@ class ReplAdapter {
   FutureOr<void> exit() {}
 
   void rewriteBuffer() {}
+  void clearBuffer() {}
 }

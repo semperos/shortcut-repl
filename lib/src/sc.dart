@@ -755,6 +755,9 @@ def query-incomplete   query-unfinished
 def query-not-done     query-unfinished
 def query-not-finished query-unfinished
 
+def query-started     {.workflow_state_types ["started"]}
+def query-in-progress query-started
+
 def epic-is-unstarted   {.state "to do"}
 def epic-is-todo        {.state "to do"}
 def epic-is-in-progress {.state "in progress"}

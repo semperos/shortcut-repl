@@ -14,36 +14,6 @@ import 'package:sc_cli/src/sc_lang.dart';
 import 'package:sc_cli/src/sc_style.dart';
 
 mainEntryPoint(List<String> args, Function(Options options) isolateFn) async {
-  int numInterrupts = 0;
-  DateTime timeLastInterrupt = DateTime.now();
-  ProcessSignal.sigint.watch().listen((signal) {
-    final now = DateTime.now();
-    final duration = now.difference(timeLastInterrupt);
-    if (duration.inMilliseconds > 5000) {
-      numInterrupts = 0;
-    }
-
-    numInterrupts++;
-    timeLastInterrupt = DateTime.now();
-    if (numInterrupts == 1) {
-      stderr.writeln(r'''
-
-
-(!) Press Ctrl-c again to exit, or just press enter if you hit it by mistake.
-
-TAB autocompletes at cursor.
-
-Ctrl-a moves cursor to start of line.    Ctrl-e moves cursor to end of line.
-Ctrl-b moves cursor back one character.  Ctrl-f moves cursor forward one character.
-Ctrl-k kills text after cursor.          Ctrl-l clears the screen.
-Ctrl-w kills previous word.
-''');
-    } else if (numInterrupts >= 2) {
-      stderr.writeln('\nUntil next time! 👋');
-      exit(0);
-    }
-  });
-
   final options = parseOptions(args);
 
   if (options.help) {
@@ -148,12 +118,52 @@ Function startProdReplServerIsolateFn(Options options) {
         env: env);
     env.out.writeln(env.style(
         "\n;; [INFO] Loading caches from disk, some data may appear missing until finished...",
-        styleWarn));
+        styleInfo));
     unawaited(loadCaches(env, repl));
+
+    // Interrupt Handling
+    int numInterrupts = 0;
+    DateTime timeLastInterrupt = DateTime.now();
+    ProcessSignal.sigint.watch().listen((signal) {
+      final now = DateTime.now();
+      final duration = now.difference(timeLastInterrupt);
+      if (duration.inMilliseconds > 5000) {
+        numInterrupts = 0;
+      }
+
+      numInterrupts++;
+      timeLastInterrupt = DateTime.now();
+      if (numInterrupts == 1) {
+        repl.prompt = formatPrompt(env);
+        repl.clearBuffer();
+        env.out.write(env.style(r'''
+
+
+💡 Press Ctrl-c twice to exit.
+✅️ Press ENTER to get a fresh prompt.
+
+== Console Help ==
+
+TAB autocompletes at cursor.
+
+Ctrl-a moves cursor to start of line.    Ctrl-e moves cursor to end of line.
+Ctrl-b moves cursor back one character.  Ctrl-f moves cursor forward one character.
+Ctrl-k kills text after cursor.          Ctrl-l clears the screen.
+Ctrl-w kills previous word.
+''', styleWarn));
+      } else if (numInterrupts >= 2) {
+        leave(env);
+      }
+    });
     await for (final x in repl.runAsync()) {
       handleRepl(env, repl, sendPort, x);
     }
   };
+}
+
+void leave(ScEnv env) {
+  env.err.writeln(env.style('\nUntil next time! 👋', stylePrompt));
+  exit(0);
 }
 
 void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
@@ -162,8 +172,7 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
   if (trimmed.isEmpty) return;
   final lowered = trimmed.toLowerCase();
   if (lowered == 'exit' || lowered == 'quit') {
-    stdout.writeln('\nUntil next time! 👋');
-    exit(0);
+    leave(env);
   } else {
     try {
       // BEFORE EVAL
@@ -430,7 +439,7 @@ Future loadCaches(ScEnv env, Repl repl) async {
   try {
     await env.loadCachesFromDisk();
     env.out
-        .write(env.style("\n;; [INFO] Finished loading caches.\n", styleWarn));
+        .write(env.style("\n;; [INFO] Finished loading caches.\n", styleInfo));
     bindAllTheThings(env);
     repl.rewriteBuffer();
   } catch (_) {

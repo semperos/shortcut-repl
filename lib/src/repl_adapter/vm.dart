@@ -519,6 +519,11 @@ class ReplAdapter {
     write(String.fromCharCodes(buffer));
     moveCursor(cursor - buffer.length);
   }
+
+  clearBuffer() {
+    // NB: This resets all of the stateful things in this class.
+    startReadStatement();
+  }
 }
 
 /// Return shared further prefix for the given strings, so that autocomplete

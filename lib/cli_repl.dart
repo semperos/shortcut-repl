@@ -68,6 +68,7 @@ class Repl {
   FutureOr<void> exit() => _adapter.exit();
 
   void rewriteBuffer() => _adapter.rewriteBuffer();
+  void clearBuffer() => _adapter.clearBuffer();
 
   /// History is by line, not by statement.
   ///
