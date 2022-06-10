@@ -333,16 +333,53 @@ class ScEnv {
         "Return the arithmetic mean of the numbers in the collection."),
     ScSymbol('mapcat'): ScString(
         "Apply the function to every item in the collection, then concatenate all the resulting collections."),
+    // Archived
     ScSymbol('query-archived'): ScString(
         "Use with `find-stories`, narrow results to archived stories."),
     ScSymbol('query-not-archived'): ScString(
         "Use with `find-stories`, narrow results to stories that aren't archived (default state of new stories)."),
+    // Completed At
     ScSymbol('query-completed-at-start'): ScString(
         "Use with `find-stories`, narrow results to stories completed after the given date-time."),
     ScSymbol('query-completed-at-after'): ScString(
         "Use with `find-stories`, narrow results to stories completed after the given date-time."),
     ScSymbol('query-completed-after'): ScString(
         "Use with `find-stories`, narrow results to stories completed after the given date-time."),
+    ScSymbol('query-completed-at-end'): ScString(
+        "Use with `find-stories`, narrow results to stories completed before the given date-time."),
+    ScSymbol('query-completed-at-before'): ScString(
+        "Use with `find-stories`, narrow results to stories completed before the given date-time."),
+    ScSymbol('query-completed-before'): ScString(
+        "Use with `find-stories`, narrow results to stories completed before the given date-time."),
+    // Created At
+    ScSymbol('query-created-at-start'): ScString(
+        "Use with `find-stories`, narrow results to stories created after the given date-time."),
+    ScSymbol('query-created-at-after'): ScString(
+        "Use with `find-stories`, narrow results to stories created after the given date-time."),
+    ScSymbol('query-created-after'): ScString(
+        "Use with `find-stories`, narrow results to stories created after the given date-time."),
+    ScSymbol('query-created-at-end'): ScString(
+        "Use with `find-stories`, narrow results to stories created before the given date-time."),
+    ScSymbol('query-created-before'): ScString(
+        "Use with `find-stories`, narrow results to stories created before the given date-time."),
+    ScSymbol('query-created-before'): ScString(
+        "Use with `find-stories`, narrow results to stories created before the given date-time."),
+    ScSymbol('query-created-at-start'): ScString(
+        "Use with `find-stories`, narrow results to stories created after the given date-time."),
+    // Deadline
+    ScSymbol('query-deadline-end'): ScString(
+        "Use with `find-stories`, narrow results to stories with a deadline before the given date-time."),
+    ScSymbol('query-deadline-before'): ScString(
+        "Use with `find-stories`, narrow results to stories with a deadline before the given date-time."),
+    ScSymbol('query-deadline-start'): ScString(
+        "Use with `find-stories`, narrow results to stories with a deadline after the given date-time."),
+    ScSymbol('query-deadline-after'): ScString(
+        "Use with `find-stories`, narrow results to stories with a deadline after the given date-time."),
+    // Epic
+    ScSymbol('query-epic'): ScString(
+        "Use with `find-stories`, narrow results to stories in the given epic."),
+    ScSymbol('query-epics'): ScString(
+        "Use with `find-stories`, narrow results to stories in the given epics."),
   };
 
   Map<ScSymbol, dynamic> bindings =
@@ -620,30 +657,33 @@ def query-completed-at-end value (fn [dt]
          (concat "query-completed-at-start expects a date-time, but received a " (type dt)))
  {.completed_at_end dt})
 def query-completed-at-before value query-completed-at-end
+def query-completed-before value query-completed-at-end
 
 def query-created-at-start value (fn [dt]
  (assert (= "date-time" (type dt))
          (concat "query-created-at-start expects a date-time, but received a " (type dt)))
  {.created_at_start dt})
 def query-created-at-after value query-created-at-start
+def query-created-after value query-created-at-start
 
 def query-created-at-end value (fn [dt]
  (assert (= "date-time" (type dt))
          (concat "query-created-at-start expects a date-time, but received a " (type dt)))
  {.created_at_end dt})
 def query-created-at-before value query-created-at-end
+def query-created-before value query-created-at-end
 
-def query-deadline-at-start value (fn [dt]
+def query-deadline-start value (fn [dt]
  (assert (= "date-time" (type dt))
-         (concat "query-deadline-at-start expects a date-time, but received a " (type dt)))
- {.deadline_at_start dt})
-def query-deadline-at-after value query-deadline-at-start
+         (concat "query-deadline-start expects a date-time, but received a " (type dt)))
+ {.deadline_start dt})
+def query-deadline-after value query-deadline-start
 
-def query-deadline-at-end value (fn [dt]
+def query-deadline-end value (fn [dt]
  (assert (= "date-time" (type dt))
-         (concat "query-deadline-at-start expects a date-time, but received a " (type dt)))
- {.deadline_at_end dt})
-def query-deadline-at-before value query-deadline-at-end
+         (concat "query-deadline-end expects a date-time, but received a " (type dt)))
+ {.deadline_end dt})
+def query-deadline-before value query-deadline-end
 
 def query-epic  value (fn [epic] {.epic_id epic})
 def query-epics value (fn [epics] {.epic_ids epics})
@@ -1760,6 +1800,8 @@ class ScDottedSymbol extends ScExpr implements ScBaseInvocable {
 
   /// The name of the symbol.
   final String _name;
+
+  ScSymbol get scSymbol => ScSymbol(_name);
 
   /// Returns the string representation of the symbolic name.
   @override
@@ -3443,9 +3485,22 @@ class ScFnHelp extends ScBaseInvocable {
           styleInfo));
     } else {
       final query = args[0];
-      if (query is ScBaseInvocable) {
+      if (query is ScDottedSymbol) {
+        final value = env.bindings[query.scSymbol];
+        final rtHelp = env.runtimeHelp[query.scSymbol];
+        String typeName = '<unknown>';
+        if (value != null) {
+          typeName = (value as ScExpr).typeName();
+        }
+        if (rtHelp is ScString) {
+          env.out.writeln(env.style("[$typeName] ${rtHelp.value}", styleTitle));
+        } else {
+          env.out.writeln(env.style(
+              '$query <map-or-entity> [<default-if-nil>]', styleTitle));
+        }
+      } else if (query is ScBaseInvocable) {
         if (query.arities.isNotEmpty) {
-          env.out.writeln(env.style('Signatures: ', 'title'));
+          env.out.writeln(env.style('Function signatures: ', styleTitle));
           final arities = query.arities.toList();
           arities.sort((la, lb) => la.length.compareTo(lb.length));
           for (final arity in query.arities) {
@@ -3461,7 +3516,9 @@ class ScFnHelp extends ScBaseInvocable {
               params = ' $params';
             }
             final fnName = query.canonicalName;
-            env.out.writeln(env.style('  $fnName$params', 'title'));
+            if (fnName.isNotEmpty) {
+              env.out.writeln(env.style('  $fnName$params', styleTitle));
+            }
           }
         }
         env.out.writeln();
@@ -3469,10 +3526,10 @@ class ScFnHelp extends ScBaseInvocable {
         if (rawHelp.isEmpty) {
           env.out.writeln(env.style(
               env.runtimeHelp[ScSymbol(query.canonicalName)]?.value ??
-                  'No help found.',
-              'title'));
+                  '<No help found>',
+              styleTitle));
         } else {
-          env.out.writeln(env.style(query.helpFull, 'title'));
+          env.out.writeln(env.style(query.helpFull, styleTitle));
         }
       } else if (query is ScString) {
         final searchFn = ScFnSearch();
@@ -11143,7 +11200,7 @@ class ScLabel extends ScEntity {
 
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(env.style(' ${name.value}', 'title'));
+    sb.write(env.style(' ${name.value}', styleTitle));
 
     return sb.toString();
   }
