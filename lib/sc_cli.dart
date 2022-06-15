@@ -392,10 +392,16 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
         String? recoveryMessage;
         if (e is ExceptionWithMessage) {
           recoveryMessage = e.message;
+        } else if (e is UnimplementedError) {
+          recoveryMessage =
+              "What you just tried hasn't been implemented, but please file a bug report if you think it should be!";
         } else if (e is AsyncError) {
           final underlyingError = e.error;
           if (underlyingError is ExceptionWithMessage) {
             recoveryMessage = underlyingError.message;
+          } else if (underlyingError is UnimplementedError) {
+            recoveryMessage =
+                "What you just tried hasn't been implemented, but please file a bug report if you think it should be!";
           }
         }
         if (recoveryMessage != null) {
@@ -403,7 +409,7 @@ void handleRepl(ScEnv env, Repl repl, SendPort sendPort, String x) {
             stderr.write(
                 env.style("Assertion Failed: $recoveryMessage", styleError));
           } else {
-            stderr.write(env.style("Error! $recoveryMessage", styleError));
+            stderr.write(env.style("[!] $recoveryMessage", styleError));
           }
         } else {
           stderr.write("🔥 Something Broke 🔥\n$e\n$stacktrace");

@@ -875,6 +875,10 @@ def type-is-epic      value (fn [x] (= "epic" (type x)))
 def type-is-milestone value (fn [x] (= "milestone" (type x)))
 def type-is-iteration value (fn [x] (= "iteration" (type x)))
 
+;; Entities
+
+def comments value .comments
+
 ;; Entity States
 
 def story-states         value (fn [entity] (ls (.workflow_id (fetch entity))))
@@ -10286,6 +10290,7 @@ class ScEpic extends ScEntity {
     final lblMilestone = 'Milestone ';
     final lblStories = 'Stories ';
     final lblPoints = 'Points ';
+    final lblComments = 'Comments ';
     final labelWidth = maxPaddedLabelWidth([
       lblEpic,
       lblId,
@@ -10295,6 +10300,7 @@ class ScEpic extends ScEntity {
       lblMilestone,
       lblStories,
       lblPoints,
+      lblComments,
     ]);
     if (!data.containsKey(ScString('description'))) {
       waitOn(fetch(env));
@@ -10392,6 +10398,40 @@ class ScEpic extends ScEntity {
           sb.write("$numPointsDone/$numPoints points done");
           sb.writeln();
         }
+      }
+    }
+
+    final comments = data[ScString('comments')];
+    if (comments is ScList) {
+      if (comments.isNotEmpty) {
+        int numComments = 0;
+        ScDateTime? latestCommentDt;
+        for (final comment in comments.innerList) {
+          if (comment is ScEpicComment) {
+            numComments++;
+            final commentCreatedAt = comment.data[ScString('created_at')];
+            if (commentCreatedAt is ScDateTime) {
+              if (latestCommentDt == null) {
+                latestCommentDt = commentCreatedAt;
+              } else {
+                if (latestCommentDt.value.isBefore(commentCreatedAt.value)) {
+                  latestCommentDt = commentCreatedAt;
+                }
+              }
+            }
+          }
+        }
+        sb.write(env.style(lblComments.padLeft(labelWidth), this));
+        if (numComments == 1) {
+          sb.write("$numComments comment");
+        } else {
+          sb.write("$numComments comments");
+        }
+        if (latestCommentDt != null) {
+          sb.write(
+              ", latest ${ScFnDateTimeField.weekdays[latestCommentDt.value.weekday]!.value} $latestCommentDt");
+        }
+        sb.writeln();
       }
     }
 
@@ -10635,6 +10675,7 @@ class ScStory extends ScEntity {
     final lblEstimate = 'Estimate ';
     final lblDeadline = 'Deadline ';
     final lblLabels = 'Labels ';
+    final lblComments = 'Comments ';
     final lblTasks = 'Tasks ';
     final labelWidth = maxPaddedLabelWidth([
       lblStoryType,
@@ -10647,6 +10688,7 @@ class ScStory extends ScEntity {
       lblEstimate,
       lblDeadline,
       lblLabels,
+      lblComments,
       lblTasks,
     ]);
 
@@ -10762,6 +10804,40 @@ class ScStory extends ScEntity {
         }
       }
       sb.writeln();
+    }
+
+    final comments = data[ScString('comments')];
+    if (comments is ScList) {
+      if (comments.isNotEmpty) {
+        int numComments = 0;
+        ScDateTime? latestCommentDt;
+        for (final comment in comments.innerList) {
+          if (comment is ScComment) {
+            numComments++;
+            final commentCreatedAt = comment.data[ScString('created_at')];
+            if (commentCreatedAt is ScDateTime) {
+              if (latestCommentDt == null) {
+                latestCommentDt = commentCreatedAt;
+              } else {
+                if (latestCommentDt.value.isBefore(commentCreatedAt.value)) {
+                  latestCommentDt = commentCreatedAt;
+                }
+              }
+            }
+          }
+        }
+        sb.write(env.style(lblComments.padLeft(labelWidth), this));
+        if (numComments == 1) {
+          sb.write("$numComments comment");
+        } else {
+          sb.write("$numComments comments");
+        }
+        if (latestCommentDt != null) {
+          sb.write(
+              ", latest ${ScFnDateTimeField.weekdays[latestCommentDt.value.weekday]!.value} $latestCommentDt");
+        }
+        sb.writeln();
+      }
     }
 
     final tasks = data[ScString('tasks')];
