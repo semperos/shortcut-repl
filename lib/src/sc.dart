@@ -1506,6 +1506,11 @@ class ScNil extends ScExpr {
   String typeName() {
     return 'nil';
   }
+
+  @override
+  String printToString(ScEnv env) {
+    return env.style('nil', styleNil);
+  }
 }
 
 class ScBoolean extends ScExpr {
@@ -4246,6 +4251,11 @@ class ScFnPwd extends ScBaseInvocable {
         final pe = env.parentEntity!;
         waitOn(pe.fetch(env));
         pe.printSummary(env);
+        final description = pe.data[ScString('description')];
+        if (description is ScString && !description.isBlank()) {
+          env.out.writeln(env.style('-' * env.displayWidth, styleSubdued));
+          env.out.writeln(wrap(description.value, 80, ''));
+        }
         return ScNil();
       } else {
         env.out.writeln(env.style(ScFnCwd.cwdHelp, 'warn'));
@@ -9809,7 +9819,7 @@ class ScMember extends ScEntity {
       }
     }
 
-    env.out.writeln(sb.toString());
+    env.out.write(sb.toString());
     return ScNil();
   }
 
@@ -9945,7 +9955,7 @@ class ScTeam extends ScEntity {
       sb.writeln("@${mentionName.value}");
     }
 
-    env.out.writeln(sb.toString());
+    env.out.write(sb.toString());
     return ScNil();
   }
 
@@ -10113,7 +10123,7 @@ class ScMilestone extends ScEntity {
       sb.writeln(state.value);
     }
 
-    env.out.writeln(sb.toString());
+    env.out.write(sb.toString());
     return ScNil();
   }
 }
@@ -10435,7 +10445,7 @@ class ScEpic extends ScEntity {
       }
     }
 
-    env.out.writeln(sb.toString());
+    env.out.write(sb.toString());
     return ScNil();
   }
 }
@@ -10870,7 +10880,7 @@ class ScStory extends ScEntity {
       }
     }
 
-    env.out.writeln(sb.toString());
+    env.out.write(sb.toString());
     return ScNil();
   }
 }
@@ -11425,7 +11435,7 @@ class ScIteration extends ScEntity {
     }
     sb.writeln();
 
-    env.out.writeln(sb.toString());
+    env.out.write(sb.toString());
     return ScNil();
   }
 }
@@ -11540,7 +11550,7 @@ class ScLabel extends ScEntity {
       sb.writeln();
     }
 
-    env.out.writeln(sb.toString());
+    env.out.write(sb.toString());
 
     return ScNil();
   }
@@ -11688,7 +11698,7 @@ class ScWorkflow extends ScEntity {
       }
     }
 
-    env.out.writeln(sb.toString());
+    env.out.write(sb.toString());
     return ScNil();
   }
 }
@@ -11914,7 +11924,7 @@ class ScEpicWorkflow extends ScEntity {
       }
     }
 
-    env.out.writeln(sb.toString());
+    env.out.write(sb.toString());
     return ScNil();
   }
 }
@@ -12580,7 +12590,7 @@ void printTable(ScEnv env, List<ScExpr> ks, ScMap data) {
       sb.writeln(" $valueStr");
     }
   }
-  env.out.writeln(sb.toString());
+  env.out.write(sb.toString());
 }
 
 /// Convert a Dart value to an equivalent instance of [ScExpr].

@@ -66,6 +66,7 @@ final styleError = 'error';
 final styleFeature = 'feature';
 final styleInfo = 'info';
 final styleMemberMention = 'member';
+final styleNil = 'nil';
 final styleNumber = 'number';
 final stylePrompt = 'prompt';
 final styleRoleAdmin = 'role__admin';
@@ -104,6 +105,7 @@ final defaultDarkPalette = {
   'label': '#ad9865',
   'member': '#8bb771',
   'milestone': '#df8632',
+  'nil': '#8c8d8c',
   'number': '#71b259',
   // 'prompt': '#ad87f3',
   'prompt': '#58b1e4',
@@ -146,6 +148,7 @@ final colorBlindDarkPalette = {
   'label': '#ad9865',
   'member': '#22cf22',
   'milestone': '#db6d00',
+  'nil': '#676767',
   'number': '#22cf22',
   'prompt': '#006ddb',
   'role__admin': '#ffdf4d',
