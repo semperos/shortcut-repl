@@ -7,6 +7,7 @@ const envFilePath = 'env.json';
 const cacheMembersFilePath = 'cache_members.json';
 const cacheTeamsFilePath = 'cache_teams.json';
 const cacheWorkflowsFilePath = 'cache_workflows.json';
+const cacheCustomFieldsFilePath = 'cache_custom_fields.json';
 const cacheEpicWorkflowFilePath = 'cache_epic_workflow.json';
 const historyFilePath = 'history.log';
 
@@ -67,6 +68,16 @@ File getCacheTeamsFile(String baseConfigDirPath) {
 File getCacheWorkflowsFile(String baseConfigDirPath) {
   final cacheWorkflowsFile = File(
       [baseConfigDirPath, cacheWorkflowsFilePath].join(Platform.pathSeparator));
+  if (!cacheWorkflowsFile.existsSync()) {
+    cacheWorkflowsFile.parent.createSync(recursive: true);
+    cacheWorkflowsFile.writeAsStringSync('{}');
+  }
+  return cacheWorkflowsFile;
+}
+
+File getCacheCustomFieldsFile(String baseConfigDirPath) {
+  final cacheWorkflowsFile = File([baseConfigDirPath, cacheCustomFieldsFilePath]
+      .join(Platform.pathSeparator));
   if (!cacheWorkflowsFile.existsSync()) {
     cacheWorkflowsFile.parent.createSync(recursive: true);
     cacheWorkflowsFile.writeAsStringSync('{}');

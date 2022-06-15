@@ -96,6 +96,14 @@ abstract class ScApiContract {
   Future<ScLabel> updateLabel(
       ScEnv env, String labelPublicId, Map<String, dynamic> updateMap);
 
+  // # Custom Fields
+  Future<ScCustomField> createCustomField(
+      ScEnv env, Map<String, dynamic> customFieldData);
+  Future<ScCustomField> getCustomField(ScEnv env, String customFieldPublicId);
+  Future<ScCustomField> updateCustomField(
+      ScEnv env, String customFieldPublicId, Map<String, dynamic> updateMap);
+  Future<ScList> getCustomFields(ScEnv env);
+
   // # Listings
   Future<ScList> getEpicsInMilestone(ScEnv env, String milestonePublicId);
   Future<ScList> getStoriesInEpic(ScEnv env, String epicPublicId);
@@ -460,6 +468,35 @@ class ScLiveClient extends ScClient {
     return taba.label(env);
   }
 
+  @override
+  Future<ScCustomField> createCustomField(
+      ScEnv env, Map<String, dynamic> customFieldData) async {
+    final taba = await authedCall(env, "/custom-fields",
+        httpVerb: HttpVerb.post, body: customFieldData);
+    return taba.customField(env);
+  }
+
+  @override
+  Future<ScCustomField> getCustomField(
+      ScEnv env, String customFieldPublicId) async {
+    final taba = await authedCall(env, "/custom-fields/$customFieldPublicId");
+    return taba.customField(env);
+  }
+
+  @override
+  Future<ScList> getCustomFields(ScEnv env) async {
+    final taba = await authedCall(env, "/custom-fields");
+    return taba.customFields(env);
+  }
+
+  @override
+  Future<ScCustomField> updateCustomField(ScEnv env, String customFieldPublicId,
+      Map<String, dynamic> updateMap) async {
+    final taba = await authedCall(env, "/custom-fields/$customFieldPublicId",
+        httpVerb: HttpVerb.put, body: updateMap);
+    return taba.customField(env);
+  }
+
   Future<ThereAndBackAgain> authedCall(ScEnv env, String path,
       {HttpVerb httpVerb = HttpVerb.get, Map<String, dynamic>? body}) async {
     if (recordedCallsFile == null) {
@@ -722,6 +759,17 @@ class ThereAndBackAgain {
   ScList labels(ScEnv env) {
     List<dynamic> labels = arrayBody();
     return ScList(labels.map((e) => ScLabel.fromMap(env, e)).toList());
+  }
+
+  ScCustomField customField(ScEnv env) {
+    Map<String, dynamic> customField = objectBody();
+    return ScCustomField.fromMap(env, customField);
+  }
+
+  ScList customFields(ScEnv env) {
+    List<dynamic> customFields = arrayBody();
+    return ScList(
+        customFields.map((e) => ScCustomField.fromMap(env, e)).toList());
   }
 
   ScMap search(ScEnv env) {

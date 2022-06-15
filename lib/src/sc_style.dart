@@ -57,8 +57,11 @@ String applyStringStyles(List<String>? styles, String s) {
   }
 }
 
+final styleBoolean = 'boolean';
 final styleBug = 'bug';
 final styleChore = 'chore';
+final styleCustomField = 'custom field';
+final styleCustomFieldEnumValue = 'custom field enum value';
 final styleDateTime = 'date-time';
 final styleDone = 'done';
 final styleEpicWorkflowState = 'epic workflow state';
@@ -88,6 +91,8 @@ final defaultDarkPalette = {
   'bug': '#e75569',
   'chore': '#3895c9',
   'comment': '#8c8d8c',
+  'custom field': '#df8632',
+  'custom field enum value': '#3895c9',
   'date-time': '#97c6e8',
   'done': '#71b259',
   'dotted symbol': '#ad87f3',

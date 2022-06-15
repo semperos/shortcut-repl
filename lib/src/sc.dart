@@ -21,6 +21,7 @@ class ScEnv {
   ScMap teamsById = ScMap({});
   ScMap workflowsById = ScMap({});
   ScMap workflowStatesById = ScMap({});
+  ScMap customFieldsById = ScMap({});
   ScEpicWorkflow? epicWorkflow;
   late final String baseConfigDirPath;
 
@@ -302,6 +303,9 @@ class ScEnv {
     ScSymbol('label'): ScFnLabel(),
     ScSymbol('lb'): ScFnLabel(),
     ScSymbol('labels'): ScFnLabels(),
+    ScSymbol('custom-fields'): ScFnCustomFields(),
+    ScSymbol('custom-field'): ScFnCustomField(),
+    ScSymbol('cf'): ScFnCustomField(),
     ScSymbol('workflow'): ScFnWorkflow(),
     ScSymbol('wf'): ScFnWorkflow(),
     ScSymbol('workflows'): ScFnWorkflows(),
@@ -1135,6 +1139,13 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
       sink.write(json);
       sink.close();
     }
+    if (customFieldsById.isNotEmpty) {
+      final f = getCacheCustomFieldsFile(baseConfigDirPath);
+      final sink = f.openWrite(mode: FileMode.writeOnly);
+      final json = customFieldsById.toJson();
+      sink.write(json);
+      sink.close();
+    }
     if (epicWorkflow != null) {
       final f = getCacheEpicWorkflowFile(baseConfigDirPath);
       final sink = f.openWrite(mode: FileMode.writeOnly);
@@ -1298,6 +1309,15 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
     }
     workflowsById = m;
     workflowStatesById = statesM;
+  }
+
+  void cacheCustomFields(ScList customFields) {
+    ScMap m = ScMap({});
+    for (final customField in customFields.innerList) {
+      final customFieldId = (customField as ScCustomField).id;
+      m[customFieldId] = customField;
+    }
+    customFieldsById = m;
   }
 
   ScWorkflow resolveWorkflow(ScString workflowId) {
@@ -8266,6 +8286,76 @@ class ScFnLabels extends ScBaseInvocable {
   }
 }
 
+class ScFnCustomFields extends ScBaseInvocable {
+  static final ScFnCustomFields _instance = ScFnCustomFields._internal();
+  ScFnCustomFields._internal();
+  factory ScFnCustomFields() => _instance;
+
+  @override
+  String get canonicalName => 'custom-fields';
+
+  @override
+  String get help => "Fetch all Shortcut custom fields in your workspace.";
+
+  @override
+  Set<List<String>> get arities => {[]};
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty) {
+      return waitOn(env.client.getCustomFields(env));
+    } else {
+      throw BadArgumentsException(
+          "The `$canonicalName` function expects no arguments, but received ${args.length}.");
+    }
+  }
+}
+
+class ScFnCustomField extends ScBaseInvocable {
+  static final ScFnCustomField _instance = ScFnCustomField._internal();
+  ScFnCustomField._internal();
+  factory ScFnCustomField() => _instance;
+
+  @override
+  String get canonicalName => 'custom-field';
+
+  @override
+  String get help => "Fetch a specific Shortcut custom field.";
+
+  @override
+  Set<List<String>> get arities => {
+        ["custom-field-id"]
+      };
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final customFieldId = args[0];
+      ScCustomField customField;
+      if (customFieldId is ScNumber) {
+        customField = ScCustomField(ScString(customFieldId.value.toString()));
+      } else if (customFieldId is ScString) {
+        customField = ScCustomField(customFieldId);
+      } else {
+        throw BadArgumentsException(
+            "The `$canonicalName` function expects a string or number for the custom field ID, but received a ${customFieldId.typeName()}");
+      }
+      return waitOn(customField.fetch(env));
+    } else {
+      // TODO Implement interactive custom field creation
+      throw UnimplementedError();
+    }
+  }
+}
+
 class ScFnMax extends ScBaseInvocable {
   static final ScFnMax _instance = ScFnMax._internal();
   ScFnMax._internal();
@@ -9624,6 +9714,14 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
       } else {
         calculatedTitle = ScString('<No member data: run fetch>');
       }
+    } else if (this is ScCustomFieldEnumValue) {
+      final value = data[ScString('value')];
+      if (value is ScString) {
+        calculatedTitle = ScString(value.value);
+      } else {
+        calculatedTitle =
+            ScString('<No custom field enum value data: run fetch>');
+      }
     } else {
       final name = data[ScString('name')];
       if (name is ScString) {
@@ -9688,6 +9786,14 @@ class ScMember extends ScEntity {
   }
 
   @override
+  String readableString(ScEnv env) {
+    final lp = lParen(env);
+    final rp = rParen(env);
+    final fnName = env.style(shortFnName, this);
+    return "$lp$fnName $id$rp";
+  }
+
+  @override
   String printToString(ScEnv env) {
     if (env.isPrintJson) {
       return super.printToString(env);
@@ -9714,8 +9820,6 @@ class ScMember extends ScEntity {
       final memberFnName = env.style('mb', this);
       final memberId = id;
 
-      final lp = lParen(env);
-      final rp = rParen(env);
       var prefix = '';
       if (role is ScString) {
         String roleStr = role.value.capitalize();
@@ -9739,8 +9843,7 @@ class ScMember extends ScEntity {
       prefix = prefix + memberMentionName;
       // prefix = prefix.padRight(39); // some alignment better than none; was 48
       final memberName = env.style(shortName, styleTitle);
-      final readable =
-          "$lp$memberFnName $memberId$rp"; // No padding, IDs are UUIDS...
+      final readable = readableString(env);
       final memberStr = "$readable $cmt $prefix $memberName";
       return memberStr;
     }
@@ -9889,6 +9992,14 @@ class ScTeam extends ScEntity {
   }
 
   @override
+  String readableString(ScEnv env) {
+    final lp = lParen(env);
+    final rp = rParen(env);
+    final fnName = env.style(shortFnName, this);
+    return "$lp$fnName $id$rp";
+  }
+
+  @override
   String printToString(ScEnv env) {
     if (env.isPrintJson) {
       return super.printToString(env);
@@ -9902,13 +10013,9 @@ class ScTeam extends ScEntity {
       final teamMentionName =
           env.style("[@${mentionName.value}]", styleTeamMention);
       final teamName = env.style(shortName, styleTitle);
-      final teamId = id;
-
-      final lp = lParen(env);
-      final rp = rParen(env);
       final cmt = comment(env);
-      final teamFnName = env.style('tm', this);
-      final readable = "$lp$teamFnName $teamId$rp";
+
+      final readable = readableString(env);
 
       String numMembersStr = '';
       final memberIds = data[ScString('member_ids')];
@@ -10922,8 +11029,7 @@ class ScTask extends ScEntity {
 
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) {
-    throw OperationNotSupported(
-        "Tasks have nothing meaningful to list. Try `${ScFnDetails().canonicalName}` for a subset or `${ScFnData().canonicalName}` if you want to see everything about your task.");
+    throw UnimplementedError();
   }
 
   @override
@@ -11634,7 +11740,7 @@ class ScWorkflow extends ScEntity {
   ScExpr printSummary(ScEnv env) {
     final lblWorkflow = 'Workflow ';
     final lblId = 'Id ';
-    final lblDefaultState = 'Default State';
+    final lblDefaultState = 'Default State ';
     final lblStates = 'States ';
     int labelWidth = maxPaddedLabelWidth([lblWorkflow, lblId, lblStates]);
 
@@ -11729,9 +11835,7 @@ class ScWorkflowState extends ScEntity {
 
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) async {
-    env.err.writeln(
-        "Workflow states have nothing meaningful to list. Try `${ScFnDetails().canonicalName}` for a subset or `${ScFnData().canonicalName}` if you want to see everything about your task.");
-    return ScList([]);
+    throw UnimplementedError();
   }
 
   @override
@@ -12010,6 +12114,218 @@ class ScEpicWorkflowState extends ScEntity {
   }
 }
 
+class ScCustomField extends ScEntity {
+  ScCustomField(ScString id) : super(id);
+
+  @override
+  String get shortFnName => 'cf';
+
+  factory ScCustomField.fromMap(ScEnv env, Map<String, dynamic> data) {
+    final valuesData = data['values'] as List;
+    ScList values = ScList([]);
+    if (valuesData.isNotEmpty) {
+      values = ScList(valuesData
+          .map((enumValueMap) =>
+              ScCustomFieldEnumValue.fromMap(env, enumValueMap))
+          .toList());
+    }
+    data.remove('values');
+    final customField = ScCustomField(ScString(data['id'].toString()))
+        .addAll(env, data) as ScCustomField;
+    customField.data[ScString('values')] = values;
+    return customField;
+  }
+
+  @override
+  String typeName() {
+    return 'custom field';
+  }
+
+  @override
+  Future<ScEntity> fetch(ScEnv env) async {
+    final customField = await env.client.getCustomField(env, idString);
+    data = customField.data;
+    return this;
+  }
+
+  @override
+  Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) async {
+    final values = data[ScString('values')];
+    if (values is ScList) {
+      return Future<ScList>.value(values);
+    } else {
+      return ScList([]);
+    }
+  }
+
+  @override
+  Future<ScEntity> update(ScEnv env, Map<String, dynamic> updateMap) async {
+    final customField =
+        await env.client.updateCustomField(env, idString, updateMap);
+    data = customField.data;
+    return this;
+  }
+
+  @override
+  String readableString(ScEnv env) {
+    final lp = lParen(env);
+    final rp = rParen(env);
+    final fnName = env.style(shortFnName, this);
+    return "$lp$fnName $id$rp";
+  }
+
+  @override
+  String printToString(ScEnv env) {
+    if (env.isPrintJson) {
+      return super.printToString(env);
+    } else {
+      final name = dataFieldOr<ScString?>(data, 'name', title) ??
+          ScString("<No name: run fetch>");
+      final shortName = truncate(name.value, env.displayWidth);
+
+      final sb = StringBuffer();
+
+      sb.write(readableString(env));
+
+      final cmt = comment(env);
+      sb.write(' $cmt ');
+      sb.write(env.style(shortName, styleTitle));
+      final states = data[ScString('states')];
+      if (states is ScList) {
+        final numStates = states.length;
+        sb.write(env.style(' [$numStates states]', styleWorkflowState));
+      }
+      return sb.toString();
+    }
+  }
+
+  @override
+  ScExpr printSummary(ScEnv env) {
+    final lblName = 'Field Name ';
+    final lblId = 'Id ';
+    final lblEnabled = 'Enabled? ';
+    final lblFieldType = 'Field Type ';
+    final lblValues = 'Values ';
+    int labelWidth = maxPaddedLabelWidth([
+      lblName,
+      lblId,
+      lblEnabled,
+      lblFieldType,
+      lblValues,
+    ]);
+
+    if (!data.containsKey(ScString('name'))) {
+      waitOn(fetch(env));
+    }
+
+    final sb = StringBuffer('\n');
+
+    final name = dataFieldOr<ScString?>(data, 'name', title) ??
+        ScString("<No name: run fetch>");
+    final canonicalName = data[ScString('canonical_name')];
+    sb.write(env.style(lblName.padLeft(labelWidth), this));
+    sb.write(env.style(name.value, styleTitle, styles: [styleUnderline]));
+    if (canonicalName is ScString) {
+      sb.write(env.style(" (${canonicalName.value})", styleTitle,
+          styles: [styleUnderline]));
+    }
+    sb.writeln();
+
+    sb.write(env.style(lblId.padLeft(labelWidth), this));
+    sb.writeln(id);
+
+    final isEnabled = data[ScString('enabled')];
+    if (isEnabled is ScBoolean) {
+      sb.write(env.style(lblEnabled.padLeft(labelWidth), this));
+      if (isEnabled == ScBoolean.veritas()) {
+        sb.writeln(env.style('Yes', styleBoolean));
+      } else {
+        sb.writeln(env.style('No', styleBoolean));
+      }
+    }
+
+    final values = data[ScString('values')] as ScList;
+    sb.write(env.style(lblValues.padLeft(labelWidth), this));
+    var isFirst = true;
+    for (final value in values.innerList) {
+      if (value is ScCustomFieldEnumValue) {
+        if (isFirst) {
+          isFirst = false;
+          sb.writeln(value.inlineSummary(env));
+        } else {
+          sb.writeln('${"".padLeft(labelWidth)}${value.inlineSummary(env)}');
+        }
+      }
+    }
+
+    env.out.write(sb.toString());
+    return ScNil();
+  }
+}
+
+class ScCustomFieldEnumValue extends ScEntity {
+  ScCustomFieldEnumValue(ScString id) : super(id);
+
+  @override
+  String get shortFnName => '';
+
+  factory ScCustomFieldEnumValue.fromMap(ScEnv env, Map<String, dynamic> data) {
+    return ScCustomFieldEnumValue(ScString(data['id'].toString()))
+        .addAll(env, data) as ScCustomFieldEnumValue;
+  }
+
+  @override
+  String typeName() {
+    return 'custom field enum value';
+  }
+
+  @override
+  String readableString(ScEnv env) {
+    final lp = lParen(env);
+    final rp = rParen(env);
+    return "${lp}id $id$rp";
+  }
+
+  @override
+  Future<ScEntity> fetch(ScEnv env) async {
+    env.err.writeln(env.style(
+        ";; [WARN] To fetch a custom field enum value, fetch the custom field itself instead.",
+        styleWarn));
+    return this;
+  }
+
+  @override
+  Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ScEntity> update(ScEnv env, Map<String, dynamic> updateMap) {
+    throw OperationNotSupported(
+        "You cannot update a custom field enum value via the Shortcut API.");
+  }
+
+  @override
+  String printToString(ScEnv env) {
+    if (env.isPrintJson) {
+      return super.printToString(env);
+    } else {
+      final value = dataFieldOr<ScString?>(data, 'value', title) ??
+          ScString("<No value: run fetch>");
+
+      final sb = StringBuffer();
+      sb.write(readableString(env));
+
+      final cmt = comment(env);
+      sb.write(' $cmt');
+      sb.write(env.style(' [Custom Field Enum Value]', this));
+      sb.write(env.style(' ${value.value}', styleTitle));
+
+      return sb.toString();
+    }
+  }
+}
+
 /// Functions
 
 void fetchAllTheThings(ScEnv env) {
@@ -12017,6 +12333,7 @@ void fetchAllTheThings(ScEnv env) {
   env.cacheMembers(waitOn(env.client.getMembers(env)));
   env.cacheTeams(waitOn(env.client.getTeams(env)));
   env.cacheEpicWorkflow(waitOn(env.client.getEpicWorkflow(env)));
+  env.cacheCustomFields(waitOn(env.client.getCustomFields(env)));
   env.writeCachesToDisk();
   bindAllTheThings(env);
 }
@@ -12361,6 +12678,10 @@ ScEntity? entityFromEnvJson(Map<String, dynamic> json) {
         break;
       case 'workflow':
         entity = ScWorkflow(ScString(entityId));
+        entity.title = ScString(title);
+        break;
+      case 'custom field':
+        entity = ScCustomField(ScString(entityId));
         entity.title = ScString(title);
         break;
     }
