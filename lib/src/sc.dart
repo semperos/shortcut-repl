@@ -95,6 +95,7 @@ class ScEnv {
     ScSymbol('value'): ScFnIdentity(), // esp. for fn as value
     ScSymbol('type'): ScFnType(),
     ScSymbol('undef'): ScFnUndef(),
+    ScSymbol('resolve'): ScFnResolve(),
 
     ScSymbol('dt'): ScFnDateTime(),
     ScSymbol('now'): ScFnDateTimeNow(),
@@ -509,10 +510,10 @@ class ScEnv {
     final multiLineExprString = StringBuffer();
     for (var i = 0; i < sourceLines.length; i++) {
       final line = sourceLines[i];
-      final trimmed = line.trim();
+      final trimmed = line;
       if (multiLineExprString.isNotEmpty) {
         // Continue building up multi-line program.
-        multiLineExprString.write("$trimmed ");
+        multiLineExprString.write("$trimmed\n");
         final currentProgram = multiLineExprString.toString();
         if (scParser.accept(currentProgram)) {
           try {
@@ -546,7 +547,7 @@ class ScEnv {
         returnValue = interpret('$line\nnil');
       } else if (!scParser.accept(trimmed)) {
         // Allow multi-line programs
-        multiLineExprString.write("$trimmed ");
+        multiLineExprString.write("$trimmed\n");
         final currentExprString = multiLineExprString.toString();
         // Single-line parenthetical program
         if (scParser.accept(currentExprString)) {
@@ -2235,6 +2236,53 @@ class ScFnUndef extends ScBaseInvocable {
           "The `$canonicalName` function expects only 1 argument, but received ${args.length}");
     }
     return ScNil();
+  }
+}
+
+class ScFnResolve extends ScBaseInvocable {
+  static final ScFnResolve _instance = ScFnResolve._internal();
+  ScFnResolve._internal();
+  factory ScFnResolve() => _instance;
+
+  @override
+  String get canonicalName => 'resolve';
+
+  @override
+  Set<List<String>> get arities => {
+        ["string-or-dotted-symbol"]
+      };
+
+  @override
+  String get help =>
+      "Attempt to resolve the given string/dotted symbol, returning `nil` if that symbol has no definition in the current environment.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final x = args[0];
+      String symName;
+      if (x is ScDottedSymbol) {
+        symName = x._name;
+      } else if (x is ScString) {
+        symName = x.value;
+      } else {
+        throw BadArgumentsException(
+            "The `$canonicalName` function expects a string or dotted symbol argument, but received a ${x.typeName()}");
+      }
+      final boundValue = env.bindings[ScSymbol(symName)];
+      if (boundValue == null) {
+        return ScNil();
+      } else {
+        return boundValue;
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `$canonicalName` function expects 1 argument, but received ${args.length} arguments.");
+    }
   }
 }
 
@@ -4192,9 +4240,7 @@ class ScFnPwd extends ScBaseInvocable {
     if (args.isEmpty) {
       if (env.parentEntity != null) {
         final pe = env.parentEntity!;
-        if (env.membersById.isEmpty || pe.data.isEmpty) {
-          waitOn(pe.fetch(env));
-        }
+        waitOn(pe.fetch(env));
         pe.printSummary(env);
         return ScNil();
       } else {
@@ -6055,17 +6101,53 @@ Both of these signatures support a first argument that is an entity, so that you
         updateMap = maybeUpdateMap;
       } else if (maybeUpdateMap is ScString ||
           maybeUpdateMap is ScDottedSymbol) {
-        if (args.length == 2) {
+        if (args.length == 1) {
+          final value = entity.getField(maybeUpdateMap);
+          final tempFile = newTempFile();
+          List<String>? fields;
+          if (entity is ScStory) {
+            fields = ScStory.fieldsForUpdate.toList();
+          } else if (entity is ScEpic) {
+            fields = ScEpic.fieldsForUpdate.toList();
+          } else if (entity is ScIteration) {
+            fields = ScIteration.fieldsForUpdate.toList();
+          } else if (entity is ScLabel) {
+            fields = ScLabel.fieldsForUpdate.toList();
+          } else if (entity is ScMilestone) {
+            fields = ScMilestone.fieldsForUpdate.toList();
+          } else if (entity is ScTask) {
+            fields = ScTask.fieldsForUpdate.toList();
+          } else if (entity is ScComment) {
+            fields = ScComment.fieldsForUpdate.toList();
+          } else if (entity is ScEpicComment) {
+            fields = ScEpicComment.fieldsForUpdate.toList();
+          }
+
+          if (fields == null) {
+            throw BadArgumentsException(
+                "Using `!` with a ${entity.typeName()} entity is not currently supported.");
+          } else {
+            fields.sort();
+            final formatted = fields.join(', ');
+            tempFile.writeAsStringSync(
+                ';; Fields: $formatted\n{$maybeUpdateMap $value}');
+            execOpenInEditor(env, existingFile: tempFile);
+            env.out.writeln(env.style(
+                "\n;; [HELP] Once you've saved the file in your editor, run the following to update your Story:\n\n    load *1 | ! ${entity.readableString(env)} _\n",
+                styleInfo));
+            return ScFile(tempFile);
+          }
+        } else if (args.length == 2) {
           final updateKey = maybeUpdateMap;
           final updateValue = args[1];
           updateMap = ScMap({updateKey: updateValue});
         } else {
           throw BadArgumentsException(
-              "The `$canonicalName` function expects either a map or separate string/symbol key value pairs to update the entity; received a key, but no value.");
+              "The `$canonicalName` function expects either a map or separate key/value pairs to update the entity; received a key, but no value.");
         }
       } else {
         throw BadArgumentsException(
-            "The `$canonicalName` function expects either a map or separate string/symbol key value pairs to update the entity, but received ${maybeUpdateMap.typeName()}");
+            "The `$canonicalName` function expects either a map or separate key/value pairs to update the entity, but received ${maybeUpdateMap.typeName()}");
       }
       return waitOn(entity.update(
           env, scExprToValue(updateMap, forJson: true, onlyEntityIds: true)));
@@ -8825,8 +8907,6 @@ class ScList extends ScExpr {
         ScExpr finalItem;
         if (evaledItem is ScDottedSymbol) {
           finalItem = evaledItem;
-        } else if (evaledItem is ScBaseInvocable) {
-          finalItem = evaledItem.invoke(env, ScList([]));
         } else {
           finalItem = evaledItem;
         }
@@ -9017,8 +9097,6 @@ class ScMap extends ScExpr {
         ScExpr finalKey;
         if (evaledKey is ScDottedSymbol) {
           finalKey = evaledKey;
-        } else if (evaledKey is ScBaseInvocable) {
-          finalKey = evaledKey.invoke(env, ScList([]));
         } else {
           finalKey = evaledKey;
         }
@@ -9026,8 +9104,6 @@ class ScMap extends ScExpr {
         ScExpr finalValue;
         if (evaledValue is ScAnonymousFunction) {
           finalValue = evaledValue;
-        } else if (evaledValue is ScBaseInvocable) {
-          finalValue = evaledValue.invoke(env, ScList([]));
         } else {
           finalValue = evaledValue;
         }
@@ -9160,6 +9236,28 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
 
   ScMap data = ScMap({});
   ScString? title;
+
+  void setField(ScExpr key, ScExpr value) {
+    if (key is ScString) {
+      data[key] = value;
+    } else if (key is ScDottedSymbol) {
+      data[ScString(key._name)] = value;
+    } else {
+      throw BadArgumentsException(
+          "Entities only support setting data field values via string or dotted symbol keys, but received a ${key.typeName()}");
+    }
+  }
+
+  ScExpr getField(ScExpr key) {
+    if (key is ScString) {
+      return data[key] ?? ScNil();
+    } else if (key is ScDottedSymbol) {
+      return data[ScString(key._name)] ?? ScNil();
+    } else {
+      throw BadArgumentsException(
+          "Entities only support data field access via string or dotted symbol keys, but received a ${key.typeName()}");
+    }
+  }
 
   /// Designed to be overridden. The value "fetch" is the default because all entities are constructable via that function.
   String get shortFnName => 'fetch';
@@ -9883,6 +9981,18 @@ class ScMilestone extends ScEntity {
     'state',
   };
 
+  static final Set<String> fieldsForUpdate = {
+    'after_id',
+    'archived',
+    'before_id',
+    'categories',
+    'completed_at_override',
+    'description',
+    'name',
+    'started_at_override',
+    'state',
+  };
+
   @override
   String typeName() {
     return 'milestone';
@@ -10033,6 +10143,26 @@ class ScEpic extends ScEntity {
     'started_at_override',
     'state',
     'updated_at',
+  };
+
+  static final Set<String> fieldsForUpdate = {
+    'after_id',
+    'archived',
+    'before_id',
+    'completed_at_override',
+    'deadline',
+    'description',
+    'epic_state_id',
+    'follower_ids',
+    'group_id',
+    'labels',
+    'milestone_id',
+    'name',
+    'owner_ids',
+    'planned_start_date',
+    'requested_by_id',
+    'started_at_override',
+    'state',
   };
 
   factory ScEpic.fromMap(ScEnv env, Map<String, dynamic> data) {
@@ -10304,6 +10434,36 @@ class ScStory extends ScEntity {
     'story_type',
     'tasks',
     'updated_at',
+    'workflow_state_id',
+  };
+
+  static final Set<String> fieldsForUpdate = {
+    'after_id',
+    'archived',
+    'before_id',
+    'branch_ids',
+    'commit_ids',
+    'completed_at_override',
+    'custom_fields',
+    'deadline',
+    'description',
+    'epic_id',
+    'estimate',
+    'external_links',
+    'file_ids',
+    'follower_ids',
+    'group_id',
+    'iteration_id',
+    'labels',
+    'linked_file_ids',
+    'move_to',
+    'name',
+    'owner_ids',
+    'project_id',
+    'pull_request_ids',
+    'requested_by_id',
+    'started_at_override',
+    'story_type',
     'workflow_state_id',
   };
 
@@ -10624,12 +10784,12 @@ class ScStory extends ScEntity {
           var prefix = '';
           if (isComplete is ScBoolean) {
             if (isComplete == ScBoolean.veritas()) {
-              prefix = env.style("[DONE]", styleDone);
+              prefix = env.style("[DONE] ", styleDone);
             } else if (isComplete == ScBoolean.falsitas()) {
-              prefix = env.style("[TODO]", styleUnstarted);
+              prefix = env.style("[TODO] ", styleUnstarted);
             }
           }
-          sb.writeln("            $prefix ${t.inlineSummary(env)}");
+          sb.writeln("${''.padLeft(labelWidth)}$prefix${t.inlineSummary(env)}");
         }
       }
     }
@@ -10650,6 +10810,23 @@ class ScTask extends ScEntity {
   String typeName() {
     return 'task';
   }
+
+  static Set<String> fieldsForCreate = {
+    'complete',
+    'created_at',
+    'description',
+    'external_id',
+    'owner_ids',
+    'updated_at',
+  };
+
+  static Set<String> fieldsForUpdate = {
+    'after_id',
+    'before_id',
+    'complete',
+    'description',
+    'owner_ids',
+  };
 
   factory ScTask.fromMap(
       ScEnv env, ScString storyId, Map<String, dynamic> data) {
@@ -10710,6 +10887,15 @@ class ScTask extends ScEntity {
       return sb.toString();
     }
   }
+
+  @override
+  String readableString(ScEnv env) {
+    final lp = lParen(env);
+    final rp = rParen(env);
+
+    final fnName = env.style(shortFnName, this);
+    return "$lp$fnName ${storyId.value} $idString$rp";
+  }
 }
 
 class ScComment extends ScEntity {
@@ -10731,6 +10917,10 @@ class ScComment extends ScEntity {
     'parent_id',
     'text',
     'updated_at',
+  };
+
+  static final Set<String> fieldsForUpdate = {
+    'text',
   };
 
   factory ScComment.fromMap(
@@ -10834,6 +11024,10 @@ class ScEpicComment extends ScEntity {
     'external_id',
     'text',
     'updated_at',
+  };
+
+  static final Set<String> fieldsForUpdate = {
+    'text',
   };
 
   factory ScEpicComment.fromMap(
@@ -10951,6 +11145,15 @@ class ScIteration extends ScEntity {
   }
 
   static final Set<String> fieldsForCreate = {
+    'description',
+    'end_date',
+    'follower_ids',
+    'group_ids',
+    'labels',
+    'name',
+    'start_date',
+  };
+  static final Set<String> fieldsForUpdate = {
     'description',
     'end_date',
     'follower_ids',
@@ -11166,6 +11369,13 @@ class ScLabel extends ScEntity {
     'color',
     'description',
     'external_id',
+    'name',
+  };
+
+  static final Set<String> fieldsForUpdate = {
+    'archived',
+    'color',
+    'description',
     'name',
   };
 
