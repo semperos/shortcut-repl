@@ -913,12 +913,6 @@ def current-iteration value (fn [team]
 def current-epics value (fn [team]
   (where (epics team) epic-is-in-progress))
 
-; def my-iterations            value (fn [] (interpret "my-stories | map .iteration_id | where identity | map fetch "))
-; def my-current-iterations    value (fn [] (interpret "my-iterations | where {.status \"started\"} "))
-; def my-unfinished-iterations value (fn [] (interpret "my-iterations | where {.status \"done\"} "))
-; def my-epics                 value (fn [] (interpret "my-stories | map .epic_id | where identity | map epic | where {.state %(not (= % \"done\"))}"))
-; def team-current-iterations  value (fn [team] (interpret "team | iterations | where {.status \"started\"}"))
-
 ;; TODO Consider best way to prompt folks to setup defaults. Printing here does it in all the tests.
 ; def -priv-defaults defaults
 ; when (= nil (.team -priv-defaults)) %(println "[INFO] Don't forget to set a default team with `default .team <your team>`")
