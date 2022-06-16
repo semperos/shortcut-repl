@@ -316,28 +316,29 @@ class ScEnv {
   };
 
   final Map<ScSymbol, ScString> runtimeHelp = {
-    ScSymbol('first'): ScString("Return the first element of a collection."),
-    ScSymbol('second'): ScString("Return the second element of a collection."),
-    ScSymbol('third'): ScString("Return the third element of a collection."),
-    ScSymbol('fourth'): ScString("Return the fourth element of a collection."),
-    ScSymbol('fifth'): ScString("Return the fifth element of a collection."),
-    ScSymbol('sixth'): ScString("Return the sixth element of a collection."),
+    ScSymbol('first'): ScString("Returns the first element of a collection."),
+    ScSymbol('second'): ScString("Returns the second element of a collection."),
+    ScSymbol('third'): ScString("Returns the third element of a collection."),
+    ScSymbol('fourth'): ScString("Returns the fourth element of a collection."),
+    ScSymbol('fifth'): ScString("Returns the fifth element of a collection."),
+    ScSymbol('sixth'): ScString("Returns the sixth element of a collection."),
     ScSymbol('seventh'):
-        ScString("Return the seventh element of a collection."),
-    ScSymbol('eighth'): ScString("Return the eighth element of a collection."),
-    ScSymbol('ninth'): ScString("Return the ninth element of a collection."),
-    ScSymbol('tenth'): ScString("Return the tenth element of a collection."),
-    ScSymbol('not'): ScString("Return true if falsey; return false if truthy."),
+        ScString("Returns the seventh element of a collection."),
+    ScSymbol('eighth'): ScString("Returns the eighth element of a collection."),
+    ScSymbol('ninth'): ScString("Returns the ninth element of a collection."),
+    ScSymbol('tenth'): ScString("Returns the tenth element of a collection."),
+    ScSymbol('not'):
+        ScString("Returns true if falsey; return false if truthy."),
     ScSymbol('or'): ScString(
-        "Return the first argument that is truthy, or the last argument if none are truthy.`"),
+        "Returns the first argument that is truthy, or the last argument if none are truthy.`"),
     ScSymbol('when'): ScString(
         "If the condition is truthy, invokes the function provided, else returns `nil`."),
     ScSymbol('first-where'): ScString(
-        "Return the first item of the collection where the map spec or function provided returns truthy."),
+        "Returns the first item of the collection where the map spec or function provided returns truthy."),
     ScSymbol('sum'):
-        ScString("Return the sum of the numbers in the collection."),
+        ScString("Returns the sum of the numbers in the collection."),
     ScSymbol('avg'): ScString(
-        "Return the arithmetic mean of the numbers in the collection."),
+        "Returns the arithmetic mean of the numbers in the collection."),
     ScSymbol('mapcat'): ScString(
         "Apply the function to every item in the collection, then concatenate all the resulting collections."),
     // Archived
@@ -782,7 +783,7 @@ def story-is-finished    {[.workflow_state_id .type] "done"}
 def story-is-completed   {[.workflow_state_id .type] "done"}
 
 def story-is-archived {.archived true}
-def story-is-not-archived {.archived false}
+def story-is-not-archived {.archived false};
 def story-is-blocked {.blocked true}
 def story-is-blocker {.blocker true}
 
@@ -2250,7 +2251,7 @@ class ScFnType extends ScBaseInvocable {
         ["value"]
       };
   @override
-  String get help => "Return the name of the type of the value as a string.";
+  String get help => "Returns the name of the type of the value as a string.";
 
   @override
   String get helpFull =>
@@ -2351,8 +2352,12 @@ class ScFnResolve extends ScBaseInvocable {
       "Attempt to resolve the given string/dotted symbol, returning `nil` if that symbol has no definition in the current environment.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+
+This supports dynamic programming and optionally replacing or updating an existing binding.""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -2393,7 +2398,7 @@ class ScFnDateTime extends ScBaseInvocable {
         ["date-time-string"]
       };
   @override
-  String get help => 'Return a date-time value for the given string.';
+  String get help => 'Returns a date-time value for the given string.';
 
   @override
   String get helpFull =>
@@ -2457,7 +2462,7 @@ class ScFnDateTimeNow extends ScBaseInvocable {
   Set<List<String>> get arities => {[]};
 
   @override
-  String get help => 'Return the current date-time in your local timezone.';
+  String get help => 'Returns the current date-time in your local timezone.';
 
   @override
   String get helpFull => help;
@@ -2490,8 +2495,15 @@ class ScFnDateTimeToUtc extends ScBaseInvocable {
   String get help => "Convert the date-time to be in the UTC time zone.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+
+This does not change the actual instant in history that this date-time represents. It marks the date-time as being in the UTC time zone, so that default string representations add 'Z' for the timezone qualifier.
+
+See also:
+  to-local""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -2533,10 +2545,16 @@ class ScFnDateTimeToLocal extends ScBaseInvocable {
 
   @override
   String get help => "Convert the date-time to be in the local time zone.";
-
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+
+This does not change the actual instant in history that this date-time represents. It marks the date-time as being in the local time zone (as discoverable on your system, which may vary based on operating system and locale settings), so that default string representations include the appropriate timezone identifier.
+
+See also:
+  to-utc""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -2578,11 +2596,16 @@ class ScFnDateTimeIsBefore extends ScBaseInvocable {
       };
 
   @override
-  String get help => "Return true if the first date is before the second.";
+  String get help => "Returns true if the first date is before the second.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+
+See also:
+  after?""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -2623,11 +2646,16 @@ class ScFnDateTimeIsAfter extends ScBaseInvocable {
       };
 
   @override
-  String get help => "Return true if the first date is after the second.";
+  String get help => "Returns true if the first date is after the second.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+
+See also:
+  before?""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -2704,15 +2732,19 @@ class ScFnDateTimePlus extends ScBaseInvocable {
 
   @override
   String get help =>
-      "Return a date-time value that is N units further into the future. Accepts a date-time value and a variable number of arguments (or a list of arguments).";
+      "Returns a date-time value that is N units further into the future. Accepts a date-time value and a variable number of arguments (or a list of arguments).";
 
   @override
-  // TODO: implement helpFull
   String get helpFull =>
       help +
       '\n\n' +
       r"""
-NB: The `-weeks` variants are implemented using a Dart `Duration` of 7 days.""";
+Consult Dart's DateTime class documentation for more information: https://api.dart.dev/stable/dart-core/DateTime-class.html
+
+NB: The `-weeks` variants are implemented using a Dart `Duration` of 7 days.
+
+See also:
+  minus-* functions""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -2794,15 +2826,20 @@ class ScFnDateTimeMinus extends ScBaseInvocable {
 
   @override
   String get help =>
-      "Return a date-time value that is N units further into the past. Accepts a date-time value and a variable number of arguments (or a list of arguments).";
+      "Returns a date-time value that is N units further into the past. Accepts a date-time value and a variable number of arguments (or a list of arguments).";
 
   @override
-  // TODO: implement helpFull
   String get helpFull =>
       help +
       '\n\n' +
       r"""
-NB: The `-weeks` variants are implemented using a Dart `Duration` of 7 days.""";
+
+Consult Dart's DateTime class documentation for more information: https://api.dart.dev/stable/dart-core/DateTime-class.html
+
+NB: The `-weeks` variants are implemented using a Dart `Duration` of 7 days.
+
+See also:
+  plus-* functions""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -2885,11 +2922,20 @@ class ScFnDateTimeUntil extends ScBaseInvocable {
 
   @override
   String get help =>
-      'Return the duration between two date-time values in the given units (defaults to `now` if only one date-time given), expecting the second to be in the future.';
+      'Returns the duration between two date-time values in the given units (defaults to `now` if only one date-time given), expecting the second to be in the future.';
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+If the second date-time is in the past, a negative value is returned.
+
+Consult Dart's DateTime class documentation for more information: https://api.dart.dev/stable/dart-core/DateTime-class.html
+
+See also:
+  *-since functions
+""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -2977,11 +3023,20 @@ class ScFnDateTimeSince extends ScBaseInvocable {
 
   @override
   String get help =>
-      'Return the duration between two date-time values in the given units (defaults to `now` if only one date-time given), expecting the second to be in the past.';
+      'Returns the duration between two date-time values in the given units (defaults to `now` if only one date-time given), expecting the second to be in the past.';
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+If the second date-time is in the future, a negative value is returned.
+
+Consult Dart's DateTime class documentation for more information: https://api.dart.dev/stable/dart-core/DateTime-class.html
+
+See also:
+  *-until functions
+""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -3091,11 +3146,23 @@ class ScFnDateTimeField extends ScBaseInvocable {
       };
 
   @override
-  String get help => "Return given part of the date-time value.";
+  String get help => "Returns given part of the date-time value.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+All of these are supported directly by Dart except for the week-of-year variant. Confirm that its calculation matches your expectations.
+
+Consult Dart's DateTime class documentation for more information: https://api.dart.dev/stable/dart-core/DateTime-class.html
+
+See also:
+  dt
+  plus-* functions
+  minus-* functions
+  *-since functions
+  *-until functions""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -3203,8 +3270,20 @@ class ScFnAssert extends ScBaseInvocable {
   String get help => "Throw an error if the assertion doesn't hold.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+The first argument is tested for truthiness.
+
+If it is falsey, then an error is thrown. The second argument, expected to be a string, is used as the message for this error.
+
+If it is truthy, then nil is returned.
+
+See also:
+  if
+  type
+  when""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -3240,7 +3319,7 @@ class ScFnSelect extends ScBaseInvocable {
 
   @override
   String get help =>
-      "Return a map that only has the specified entries of this map.";
+      "Returns a new map that only contains the entries specified by the given keys.";
 
   @override
   String get helpFull =>
@@ -3322,7 +3401,7 @@ class ScFnWhere extends ScBaseInvocable {
 
   @override
   String get help =>
-      'Return items from a collection that match the given map spec or function.';
+      'Returns items from a collection that match the given map spec or function.';
 
   @override
   String get helpFull =>
@@ -3565,11 +3644,20 @@ class ScFnDistinct extends ScBaseInvocable {
 
   @override
   String get help =>
-      "Return new collection with only distinct items from the original.";
+      "Returns a new collection with only distinct items from the original based on = equality.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+This function is immutable, returning a new collection and leaving the original intact.
+
+NB: Equality for entities (e.g., stories, epics, etc.) is based solely on ID. If two entities have the same ID, they're considered equal, even if the underlying data for two instances is radically different.
+
+See also:
+  count
+  sort""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -3608,11 +3696,19 @@ class ScFnReverse extends ScBaseInvocable {
       };
 
   @override
-  String get help => "Return a new collection with itesm in reverse order.";
+  String get help =>
+      "Returns a new collection with items from the original collection in reverse order.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+
+See also:
+  count
+  distinct
+  sort""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -3821,11 +3917,20 @@ class ScFnPrStr extends ScBaseInvocable {
       };
 
   @override
-  String get help => "Return a readable string of the given argument.";
+  String get help => "Returns a readable string of the given argument.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+A readable string is one that PL can read and evaluate as code.
+
+Use `concat` if you want to construct a string from parts.
+
+See also:
+  concat
+  print""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -3855,11 +3960,23 @@ class ScFnDefaults extends ScBaseInvocable {
   Set<List<String>> get arities => {[]};
 
   @override
-  String get help => "Display all workspace-level defaults set using sc.";
+  String get help =>
+      "Returns a map of all Shortcut workspace-level defaults set via `setup` or `default`.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+When creating Stories, you need to supply a workflow state. In order to support making story creation and the creation of other entities easier, you are encouraged to set defaults using `setup` for a guided process, or `default` to set individual defaults manually.
+
+This function returns a map with keys that are the canonical default names and values that are the values you've chosen. These keys map to the domain of Shortcut the application (e.g., 'team' instead of 'group'), but see the help documentation for `default` for more details.
+
+See also:
+  default
+  setup
+  teams
+  workflows""";
 
   static ScList defaults = ScList(
       [ScString('team'), ScString('workflow'), ScString('workflow-state')]);
@@ -4169,7 +4286,7 @@ class ScFnHistory extends ScBaseInvocable {
 
   @override
   String get help =>
-      "Return history of parent entities you have `cd`ed into, in reverse order so latest are at the bottom. Max 100 entries.";
+      "Returns history of parent entities you have `cd`ed into, in reverse order so latest are at the bottom. Max 100 entries.";
 
   @override
   String get helpFull =>
@@ -4320,7 +4437,7 @@ class ScFnCwd extends ScBaseInvocable {
 
   @override
   String get help =>
-      'Return the working "directory"—the current parent entity we have `cd`ed into.';
+      'Returns the working "directory"—the current parent entity we have `cd`ed into.';
 
   @override
   // TODO: implement helpFull
@@ -4472,7 +4589,7 @@ class ScFnData extends ScBaseInvocable {
       };
 
   @override
-  String get help => "Return the entity's complete, raw data.";
+  String get help => "Returns the entity's complete, raw data.";
 
   @override
   // TODO: implement helpFull
@@ -4521,7 +4638,7 @@ class ScFnDetails extends ScBaseInvocable {
       };
 
   @override
-  String get help => "Return the entity's most important details as a map.";
+  String get help => "Returns the entity's most important details as a map.";
 
   @override
   // TODO: implement helpFull
@@ -4570,7 +4687,7 @@ class ScFnSummary extends ScBaseInvocable {
       };
 
   @override
-  String get help => "Return a summary of the Shortcut entity's state.";
+  String get help => "Returns a summary of the Shortcut entity's state.";
 
   @override
   // TODO: implement helpFull
@@ -4850,8 +4967,10 @@ class ScFnConcat extends ScBaseInvocable {
         for (final coll in args.innerList) {
           if (coll is ScString) {
             sb.write(coll.value);
+          } else if (coll == ScNil()) {
+            continue;
           } else {
-            sb.write(coll.toString());
+            sb.write(coll.printToString(env));
           }
         }
         return ScString(sb.toString());
@@ -4860,6 +4979,8 @@ class ScFnConcat extends ScBaseInvocable {
         for (final coll in args.innerList) {
           if (coll is ScList) {
             l.addAll(coll.innerList);
+          } else if (coll == ScNil()) {
+            continue;
           } else {
             throw BadArgumentsException(
                 "The `$canonicalName` function can concatenate lists, but all arguments must then be lists; received a ${coll.typeName()}");
@@ -4871,6 +4992,8 @@ class ScFnConcat extends ScBaseInvocable {
         for (final coll in args.innerList) {
           if (coll is ScMap) {
             m.addMapMutable(coll);
+          } else if (coll == ScNil()) {
+            continue;
           } else {
             throw BadArgumentsException(
                 "The `$canonicalName` function can concatenate maps, but all arguments must then be maps; received a ${coll.typeName()}");
@@ -4920,36 +5043,32 @@ concat {.a [1 2]} {.a [3 4]} => {.a [3 4]}
     if (args.isEmpty) {
       return ScList([]);
     } else {
-      final sample = args[0];
-      if (sample is ScMap) {
-        ScMap m = ScMap({});
-        for (final coll in args.innerList) {
-          if (coll is ScMap) {
-            for (final key in coll.keys) {
-              final newValue = coll[key];
-              final previousValue = m[key];
-              ScExpr finalValue;
-              if (newValue is ScList && previousValue is ScList) {
-                final concatFn = ScFnConcat();
-                finalValue =
-                    concatFn.invoke(env, ScList([previousValue, newValue]));
-              } else if (newValue is ScMap && previousValue is ScMap) {
-                finalValue = invoke(env, ScList([previousValue, newValue]));
-              } else {
-                finalValue = newValue!;
-              }
-              m[key] = finalValue;
+      ScMap m = ScMap({});
+      for (final coll in args.innerList) {
+        if (coll is ScMap) {
+          for (final key in coll.keys) {
+            final newValue = coll[key];
+            final previousValue = m[key];
+            ScExpr finalValue;
+            if (newValue is ScList && previousValue is ScList) {
+              final concatFn = ScFnConcat();
+              finalValue =
+                  concatFn.invoke(env, ScList([previousValue, newValue]));
+            } else if (newValue is ScMap && previousValue is ScMap) {
+              finalValue = invoke(env, ScList([previousValue, newValue]));
+            } else {
+              finalValue = newValue!;
             }
-          } else {
-            throw BadArgumentsException(
-                "The `$canonicalName` function can extend maps, but received a ${coll.typeName()}");
+            m[key] = finalValue;
           }
+        } else if (coll == ScNil()) {
+          continue;
+        } else {
+          throw BadArgumentsException(
+              "The `$canonicalName` function can extend maps, but received a ${coll.typeName()}");
         }
-        return m;
-      } else {
-        throw BadArgumentsException(
-            "The `$canonicalName` function can extend maps, but received a ${sample.typeName()}");
       }
+      return m;
     }
   }
 }
@@ -4969,7 +5088,7 @@ class ScFnKeys extends ScBaseInvocable {
       };
 
   @override
-  String get help => "Return the keys of this map or entity's data.";
+  String get help => "Returns the keys of this map or entity's data.";
 
   @override
   // TODO: implement helpFull
@@ -5111,7 +5230,7 @@ class ScFnSecond extends ScBaseInvocable {
 
   @override
   String get help =>
-      "Return either the second item in a collection, or the second value of a date-time value.";
+      "Returns either the second item in a collection, or the second value of a date-time value.";
 
   @override
   // TODO: implement helpFull
@@ -5316,7 +5435,7 @@ class ScFnCount extends ScBaseInvocable {
 
   @override
   String get help =>
-      'Return the length of the collection, i.e., the count of its items.';
+      'Returns the length of the collection, i.e., the count of its items.';
 
   @override
   // TODO: implement helpFull
@@ -5364,7 +5483,7 @@ class ScFnSort extends ScBaseInvocable {
   String get helpFull =>
       help +
       '\n\n' +
-      r"""Return a copy of the original collection, sorted. Maps are sorted by their keys.
+      r"""Returns a copy of the original collection, sorted. Maps are sorted by their keys.
 
 Pass an additional function (or dotted symbol) to sort using a custom comparator.""";
 
@@ -5604,7 +5723,7 @@ class ScFnReadFile extends ScBaseInvocable {
       };
 
   @override
-  String get help => 'Return string contents of a file.';
+  String get help => 'Returns string contents of a file.';
 
   @override
   // TODO: implement helpFull
@@ -5757,7 +5876,7 @@ class ScFnInterpret extends ScBaseInvocable {
 
   @override
   String get help =>
-      "Return the expression resulting from interpreting the given string of code.";
+      "Returns the expression resulting from interpreting the given string of code.";
 
   @override
   // TODO: implement helpFull
@@ -7461,7 +7580,7 @@ class ScFnMembers extends ScBaseInvocable {
       };
 
   @override
-  String get help => "Return _all_ members in this workspace.";
+  String get help => "Returns _all_ members in this workspace.";
 
   @override
   String get helpFull =>
@@ -7526,7 +7645,7 @@ class ScFnWorkflow extends ScBaseInvocable {
       };
 
   @override
-  String get help => "Return the Shortcut workflow with this ID.";
+  String get help => "Returns the Shortcut workflow with this ID.";
 
   @override
   String get helpFull =>
@@ -7567,7 +7686,7 @@ class ScFnWorkflows extends ScBaseInvocable {
   Set<List<String>> get arities => {[]};
 
   @override
-  String get help => "Return all story workflows in this workspace.";
+  String get help => "Returns all story workflows in this workspace.";
 
   @override
   String get helpFull =>
@@ -7601,7 +7720,7 @@ class ScFnEpicWorkflow extends ScBaseInvocable {
 
   @override
   String get help =>
-      "Return the Shortcut epic workflow for the current workspace.";
+      "Returns the Shortcut epic workflow for the current workspace.";
 
   @override
   String get helpFull =>
@@ -7636,7 +7755,7 @@ class ScFnTeam extends ScBaseInvocable {
       };
 
   @override
-  String get help => "Return the Shortcut team with this ID.";
+  String get help => "Returns the Shortcut team with this ID.";
 
   @override
   // TODO: implement helpFull
@@ -7677,7 +7796,7 @@ class ScFnTeams extends ScBaseInvocable {
       };
 
   @override
-  String get help => "Return teams in this workspace.";
+  String get help => "Returns teams in this workspace.";
 
   @override
   // TODO: implement helpFull
@@ -8778,7 +8897,7 @@ class ScFnAdd extends ScBaseInvocable {
       };
 
   @override
-  String get help => 'Return the sum of all the arguments.';
+  String get help => 'Returns the sum of all the arguments.';
 
   @override
   // TODO: implement helpFull
@@ -8820,7 +8939,7 @@ class ScFnSubtract extends ScBaseInvocable {
 
   @override
   String get help =>
-      'Return the difference of all the arguments, left-to-right.';
+      'Returns the difference of all the arguments, left-to-right.';
 
   @override
   // TODO: implement helpFull
@@ -8860,7 +8979,7 @@ class ScFnMultiply extends ScBaseInvocable {
         ["number", "..."]
       };
   @override
-  String get help => 'Return the product of all the arguments.';
+  String get help => 'Returns the product of all the arguments.';
 
   @override
   // TODO: implement helpFull
@@ -8901,7 +9020,7 @@ class ScFnDivide extends ScBaseInvocable {
 
   @override
   String get help =>
-      'Return the quotient of all the numbers, left-to-right, as a floating-point number (Dart double).';
+      'Returns the quotient of all the numbers, left-to-right, as a floating-point number (Dart double).';
 
   @override
   // TODO: implement helpFull
@@ -8949,7 +9068,7 @@ class ScFnModulo extends ScBaseInvocable {
       };
 
   @override
-  String get help => 'Return the modulo of the two numbers.';
+  String get help => 'Returns the modulo of the two numbers.';
 
   @override
   String get helpFull => help;
@@ -9297,7 +9416,7 @@ class ScMap extends ScExpr {
 
   @override
 
-  /// Return an [ScMap] where all keys and values have been evaluated.
+  /// Returns an [ScMap] where all keys and values have been evaluated.
   ScExpr eval(ScEnv env) {
     if (innerMap.isEmpty) {
       return this;
@@ -9808,7 +9927,7 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
     return jsonEncoder.convert(data);
   }
 
-  /// Return a string representation of this [ScEntity] that is readable and evaluate-able by PL
+  /// Returns a string representation of this [ScEntity] that is readable and evaluate-able by PL
   String readableString(ScEnv env) {
     final lp = lParen(env);
     final rp = rParen(env);
@@ -9950,8 +10069,6 @@ class ScMember extends ScEntity {
       final shortName = truncate(name, env.displayWidth);
 
       final cmt = comment(env);
-      final memberFnName = env.style('mb', this);
-      final memberId = id;
 
       var prefix = '';
       if (role is ScString) {
