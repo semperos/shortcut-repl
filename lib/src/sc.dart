@@ -192,6 +192,7 @@ class ScEnv {
     ScSymbol('drop'): ScFnDrop(),
     ScSymbol('distinct'): ScFnDistinct(),
     ScSymbol('uniq'): ScFnDistinct(),
+    ScSymbol('reverse'): ScFnReverse(),
 
     ScSymbol('search'): ScFnSearch(),
     ScSymbol('grep'): ScFnSearch(),
@@ -897,7 +898,21 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
 
 def set-custom-field value (fn [story field-id value-id] (! story .custom_fields [{.field_id field-id .value_id value-id}]))
 
-; def my-stories               value (fn [] (find-stories {.owner_ids [me] .workflow_state_types ["unstarted" "started"]}))
+def my-stories value (fn []
+ (find-stories (extend
+                 (query-owner (me))
+                 query-not-finished
+                 query-not-archived)))
+
+def my-iterations value (fn []
+  (map (where (map (my-stories) .iteration_id) identity) fetch))
+
+def current-iteration value (fn [team]
+  (where (iterations team) iteration-is-in-progress))
+
+def current-epics value (fn [team]
+  (where (epics team) epic-is-in-progress))
+
 ; def my-iterations            value (fn [] (interpret "my-stories | map .iteration_id | where identity | map fetch "))
 ; def my-current-iterations    value (fn [] (interpret "my-iterations | where {.status \"started\"} "))
 ; def my-unfinished-iterations value (fn [] (interpret "my-iterations | where {.status \"done\"} "))
@@ -3284,6 +3299,7 @@ class ScFnSelect extends ScBaseInvocable {
   }
 }
 
+// TODO There's a bug in the map spec matching when more than one entry is provided.
 class ScFnWhere extends ScBaseInvocable {
   static final ScFnWhere _instance = ScFnWhere._internal();
   ScFnWhere._internal();
@@ -3560,6 +3576,44 @@ class ScFnDistinct extends ScBaseInvocable {
           }
         }
         return l;
+      } else {
+        throw BadArgumentsException(
+            "The `$canonicalName` function expects a list argument, but received a ${coll.typeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `$canonicalName` function expects 1 argument, but received ${args.length} arguments.");
+    }
+  }
+}
+
+class ScFnReverse extends ScBaseInvocable {
+  static final ScFnReverse _instance = ScFnReverse._internal();
+  ScFnReverse._internal();
+  factory ScFnReverse() => _instance;
+
+  @override
+  String get canonicalName => 'reverse';
+
+  @override
+  Set<List<String>> get arities => {
+        ["collection"]
+      };
+
+  @override
+  String get help => "Return a new collection with itesm in reverse order.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final coll = args[0];
+      if (coll is ScList) {
+        final copy = List<ScExpr>.from(coll.innerList);
+        return ScList(copy.reversed.toList());
       } else {
         throw BadArgumentsException(
             "The `$canonicalName` function expects a list argument, but received a ${coll.typeName()}");
@@ -6217,7 +6271,11 @@ Both of these signatures support a first argument that is an entity, so that you
         } else if (args.length == 2) {
           final updateKey = maybeUpdateMap;
           final updateValue = args[1];
-          updateMap = ScMap({updateKey: updateValue});
+          if (updateValue is ScWorkflowState) {
+            updateMap = ScMap({updateKey: updateValue.id});
+          } else {
+            updateMap = ScMap({updateKey: updateValue});
+          }
         } else {
           throw BadArgumentsException(
               "The `$canonicalName` function expects either a map or separate key/value pairs to update the entity; received a key, but no value.");
@@ -10448,7 +10506,7 @@ class ScEpic extends ScEntity {
 
       String archivedStr = '';
       if (isArchived.toBool()) {
-        archivedStr = env.style('[ARCHIVED]', styleError);
+        archivedStr = env.style(' [ARCHIVED]', styleError);
       }
 
       final prefix = "$epicStateStr$storiesStr$pointsStr$archivedStr";
@@ -10806,7 +10864,7 @@ class ScStory extends ScEntity {
 
       String archivedStr = '';
       if (isArchived.toBool()) {
-        archivedStr = env.style('[ARCHIVED]', styleError);
+        archivedStr = env.style(' [ARCHIVED]', styleError);
       }
 
       final prefix = "$storyStateType$estimateStr$storyType$archivedStr";
@@ -10885,8 +10943,28 @@ class ScStory extends ScEntity {
 
     final state = data[ScString('workflow_state_id')];
     if (state is ScWorkflowState) {
-      sb.write(env.style(lblState.padLeft(labelWidth), this));
-      sb.write(state.inlineSummary(env));
+      final stateName = state.data[ScString('name')];
+      if (stateName is ScString) {
+        final type = state.data[ScString('type')];
+        if (type is ScString) {
+          final ts = type.value;
+          String color = styleUnstarted;
+          switch (ts) {
+            case 'unstarted':
+              color = styleUnstarted;
+              break;
+            case 'started':
+              color = styleStarted;
+              break;
+            case 'done':
+              color = styleDone;
+              break;
+          }
+          sb.write(env.style(lblState.padLeft(labelWidth), this));
+          sb.write(env.style(stateName.value, color));
+          sb.write(" ${state.readableString(env)}");
+        }
+      }
     }
     sb.writeln();
 
@@ -10980,7 +11058,13 @@ class ScStory extends ScEntity {
         if (label is ScMap) {
           final name = label[ScString('name')];
           if (name is ScString) {
-            sb.write(name);
+            final color = label[ScString('color')];
+            if (color is ScString) {
+              final colorHex = color.value.substring(1); // has leading #
+              final rgb = ColorUtils.hex2rgb(colorHex);
+              sb.write(chalk.rgb(rgb[0], rgb[1], rgb[2])("⚫"));
+            }
+            sb.write(name.value);
           }
           if (i + 1 != labels.length) {
             sb.write(', ');
@@ -11670,9 +11754,17 @@ class ScLabel extends ScEntity {
     final cmt = comment(env);
     sb.write(' $cmt');
 
+    final color = data[ScString('color')];
+    if (color is ScString) {
+      final colorHex = color.value.substring(1); // has leading #
+      final rgb = ColorUtils.hex2rgb(colorHex);
+      sb.write(chalk.rgb(rgb[0], rgb[1], rgb[2])(" ⚫"));
+    } else {
+      sb.write(' ');
+    }
     final name = dataFieldOr<ScString?>(data, 'name', title) ??
         ScString("<No name: run fetch>");
-    sb.write(env.style(' ${name.value}', styleTitle));
+    sb.write(env.style(name.value, styleTitle));
 
     return sb.toString();
   }
@@ -11718,7 +11810,7 @@ class ScLabel extends ScEntity {
 
       final colorHex = color.value.substring(1); // has leading #
       final rgb = ColorUtils.hex2rgb(colorHex);
-      sb.write(chalk.rgb(rgb[0], rgb[1], rgb[2])("⬛️"));
+      sb.write(chalk.rgb(rgb[0], rgb[1], rgb[2])("⚫"));
       sb.write(' ${color.value}');
       sb.writeln();
     }
@@ -12446,7 +12538,7 @@ void bindAllTheThings(ScEnv env) {
               if (valueName is ScString) {
                 final legalValueName = mungeToLegalSymbolName(valueName.value);
                 final sym =
-                    ScSymbol("field-${canonicalName.value}->$legalValueName");
+                    ScSymbol("field-${canonicalName.value}--$legalValueName");
                 env.bindings[sym] = customFieldEnumValue;
               }
             }
@@ -13044,8 +13136,8 @@ dynamic scExprToValue(ScExpr expr,
       throwOnIllegalJsonKeys: throwOnIllegalJsonKeys,
     );
   } else if (expr is ScEntity) {
-    // ScWorkflowState should always be persisted as-is, not independenty fetch-able.
-    if (expr is ScWorkflowState) {
+    // These should always be persisted as-is, not independenty fetch-able.
+    if (expr is ScWorkflowState || expr is ScCustomFieldEnumValue) {
       return unwrapScMap(
         expr.data,
         currentDepth: currentDepth + 1,
@@ -13246,19 +13338,28 @@ Future<ScEntity> fetchId(ScEnv env, String entityPublicId) async {
               return await env.client.getMember(env, entityPublicId);
             } catch (_) {
               try {
-                return await env.client.getWorkflow(env, entityPublicId);
+                return await env.client.getLabel(env, entityPublicId);
               } catch (_) {
                 try {
-                  final epicWorkflow = await env.client.getEpicWorkflow(env);
-                  if (epicWorkflow.idString == entityPublicId) {
-                    return epicWorkflow;
-                  } else {
-                    throw EntityNotFoundException(
-                        "No entity with public ID $entityPublicId could be found.\nTask fetching requires both story and task IDs; use `cd` or `ls` with a story to fetch its tasks.");
-                  }
+                  return await env.client.getCustomField(env, entityPublicId);
                 } catch (_) {
-                  throw EntityNotFoundException(
-                      "No entity with public ID $entityPublicId could be found.\nTask fetching requires both story and task IDs; use `cd` or `ls` with a story to fetch its tasks.");
+                  try {
+                    return await env.client.getWorkflow(env, entityPublicId);
+                  } catch (_) {
+                    try {
+                      final epicWorkflow =
+                          await env.client.getEpicWorkflow(env);
+                      if (epicWorkflow.idString == entityPublicId) {
+                        return epicWorkflow;
+                      } else {
+                        throw EntityNotFoundException(
+                            "No entity with public ID $entityPublicId could be found.\nTask fetching requires both story and task IDs; use `cd` or `ls` with a story to fetch its tasks.");
+                      }
+                    } catch (_) {
+                      throw EntityNotFoundException(
+                          "No entity with public ID $entityPublicId could be found.\nTask fetching requires both story and task IDs; use `cd` or `ls` with a story to fetch its tasks.");
+                    }
+                  }
                 }
               }
             }

@@ -257,7 +257,11 @@ class PipedLispParserDefinition extends PipedLispGrammarDefinition {
       });
 
   @override
-  Parser symbol() => super.symbol().map((symStr) => ScSymbol(symStr));
+  Parser symbol() => super.symbol().map((symStr) {
+        // NB: Not sure why trailing commas are being parsed as part of ScDottedSymbol, but they are.
+        symStr = symStr.replaceAll(',', '');
+        return ScSymbol(symStr);
+      });
 
   @override
   Parser define() => super.define().map((definition) {
