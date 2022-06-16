@@ -22,6 +22,7 @@ class ScEnv {
   ScMap workflowsById = ScMap({});
   ScMap workflowStatesById = ScMap({});
   ScMap customFieldsById = ScMap({});
+  ScMap customFieldEnumValuesById = ScMap({});
   ScEpicWorkflow? epicWorkflow;
   late final String baseConfigDirPath;
 
@@ -889,10 +890,12 @@ def story-states         value (fn [entity] (ls (.workflow_id (fetch entity))))
 def epic-states          value (fn [entity] (ls (epic-workflow)))
 def workflow-state-types ["unstarted" "started" "done"]
 
-;; Entity Creation
+;; Entity Updates
 
 def add-label value (fn [story label-name] (! story .labels [{.name label-name}]))
 def add-labels value (fn [story label-names] (! story .labels (map label-names %(just {.name %}))))
+
+def set-custom-field value (fn [story field-id value-id] (! story .custom_fields [{.field_id field-id .value_id value-id}]))
 
 ; def my-stories               value (fn [] (find-stories {.owner_ids [me] .workflow_state_types ["unstarted" "started"]}))
 ; def my-iterations            value (fn [] (interpret "my-stories | map .iteration_id | where identity | map fetch "))
@@ -1159,16 +1162,19 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
     try {
       final membersFile = getCacheMembersFile(baseConfigDirPath);
       final teamsFile = getCacheTeamsFile(baseConfigDirPath);
+      final customFieldsFile = getCacheCustomFieldsFile(baseConfigDirPath);
       final workflowsFile = getCacheWorkflowsFile(baseConfigDirPath);
       final epicWorkflowFile = getCacheEpicWorkflowFile(baseConfigDirPath);
 
       final membersStr = await membersFile.readAsString();
       final teamsStr = await teamsFile.readAsString();
+      final customFieldsStr = await customFieldsFile.readAsString();
       final workflowsStr = await workflowsFile.readAsString();
       final epicWorkflowStr = await epicWorkflowFile.readAsString();
 
       final membersMap = jsonDecode(membersStr) as Map;
       final teamsMap = jsonDecode(teamsStr) as Map;
+      final customFieldsMap = jsonDecode(customFieldsStr) as Map;
       final workflowsMap = jsonDecode(workflowsStr) as Map;
       final epicWorkflowMap =
           jsonDecode(epicWorkflowStr) as Map<String, dynamic>;
@@ -1176,12 +1182,15 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
       // These are stored as JSON objects based on their cache
       final membersMaps = membersMap.values;
       final teamsMaps = teamsMap.values;
+      final customFieldsMaps = customFieldsMap.values;
       final workflowsMaps = workflowsMap.values;
 
       final members =
           ScList(membersMaps.map((e) => ScMember.fromMap(this, e)).toList());
       final teams =
           ScList(teamsMaps.map((e) => ScTeam.fromMap(this, e)).toList());
+      final customFields = ScList(
+          customFieldsMaps.map((e) => ScCustomField.fromMap(this, e)).toList());
       final workflows = ScList(
           workflowsMaps.map((e) => ScWorkflow.fromMap(this, e)).toList());
       if (epicWorkflowMap.isEmpty) {
@@ -1194,6 +1203,7 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
 
       cacheMembers(members);
       cacheTeams(teams);
+      cacheCustomFields(customFields);
       cacheWorkflows(workflows);
       cacheEpicWorkflow(epicWorkflow!);
     } catch (e, st) {
@@ -1313,11 +1323,44 @@ def add-labels value (fn [story label-names] (! story .labels (map label-names %
 
   void cacheCustomFields(ScList customFields) {
     ScMap m = ScMap({});
+    ScMap valuesM = ScMap({});
     for (final customField in customFields.innerList) {
       final customFieldId = (customField as ScCustomField).id;
       m[customFieldId] = customField;
+      final customFieldEnumValues = customField.data[ScString('values')];
+      if (customFieldEnumValues is ScList) {
+        for (final customFieldEnumValue in customFieldEnumValues.innerList) {
+          if (customFieldEnumValue is ScCustomFieldEnumValue) {
+            valuesM[customFieldEnumValue.id] = customFieldEnumValue;
+          }
+        }
+      }
     }
     customFieldsById = m;
+    customFieldEnumValuesById = valuesM;
+  }
+
+  ScCustomField resolveCustomField(ScString customFieldId) {
+    final maybeCachedCustomField = customFieldsById[customFieldId];
+    if (maybeCachedCustomField != null) {
+      return maybeCachedCustomField as ScCustomField;
+    } else {
+      final customField = ScCustomField(customFieldId);
+      waitOn(customField.fetch(this));
+      customFieldsById[customFieldId] = customField;
+      return customField;
+    }
+  }
+
+  ScCustomFieldEnumValue resolveCustomFieldEnumValue(
+      ScString customFieldEnumValueId) {
+    final maybeCachedCustomFieldEnumValue =
+        customFieldEnumValuesById[customFieldEnumValueId];
+    if (maybeCachedCustomFieldEnumValue != null) {
+      return maybeCachedCustomFieldEnumValue as ScCustomFieldEnumValue;
+    } else {
+      return ScCustomFieldEnumValue(customFieldEnumValueId);
+    }
   }
 
   ScWorkflow resolveWorkflow(ScString workflowId) {
@@ -9450,6 +9493,10 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
     ScString('group_mention_ids')
   };
 
+  static final Set<ScString> customFieldEnumValuesKeys = {
+    ScString('values'),
+  };
+
   static final Set<ScString> workflowKeys = {ScString('workflow_id')};
   static final Set<ScString> workflowsKeys = {ScString('workflow_ids')};
 
@@ -9538,6 +9585,26 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
             }
           }
           data[key] = ScList(l);
+        }
+      }
+
+      // ## Custom Fields and their enum values
+      if (this is ScCustomField) {
+        if (customFieldEnumValuesKeys.contains(key)) {
+          final ids = data[key]!;
+          if (ids is ScList) {
+            List<ScExpr> l = [];
+            for (final id in ids.innerList) {
+              if (id is ScString) {
+                l.add(env.resolveCustomFieldEnumValue(id));
+              } else if (id is ScCustomFieldEnumValue) {
+                l.add(id);
+              } else if (id is ScMap) {
+                l.add(ScCustomFieldEnumValue.fromMap(env, scExprToValue(id)));
+              }
+            }
+            data[key] = ScList(l);
+          }
         }
       }
 
@@ -12121,24 +12188,22 @@ class ScCustomField extends ScEntity {
   String get shortFnName => 'cf';
 
   factory ScCustomField.fromMap(ScEnv env, Map<String, dynamic> data) {
-    final valuesData = data['values'] as List;
-    ScList values = ScList([]);
-    if (valuesData.isNotEmpty) {
-      values = ScList(valuesData
-          .map((enumValueMap) =>
-              ScCustomFieldEnumValue.fromMap(env, enumValueMap))
-          .toList());
-    }
-    data.remove('values');
     final customField = ScCustomField(ScString(data['id'].toString()))
         .addAll(env, data) as ScCustomField;
-    customField.data[ScString('values')] = values;
     return customField;
   }
 
   @override
   String typeName() {
     return 'custom field';
+  }
+
+  ScString? get canonicalName {
+    final canonicalName = data[ScString('canonical_name')];
+    if (canonicalName is ScString) {
+      return canonicalName;
+    }
+    return null;
   }
 
   @override
@@ -12359,6 +12424,34 @@ void bindAllTheThings(ScEnv env) {
       if (isArchived != ScBoolean.veritas()) {
         final sym = ScSymbol("team-${mentionName.value}");
         env.bindings[sym] = team;
+      }
+    }
+  }
+
+  for (final customFieldId in env.customFieldsById.keys) {
+    final customField = env.customFieldsById[customFieldId] as ScCustomField;
+    final canonicalName = customField.canonicalName;
+    if (canonicalName is ScString) {
+      final isEnabled = customField.data[ScString('enabled')];
+      if (isEnabled != ScBoolean.falsitas()) {
+        final sym = ScSymbol("field-${canonicalName.value}");
+        env.bindings[sym] = customField;
+        // Bindings for each custom field enum value as well, since those are
+        // how users set the custom field value on a Story.
+        final customFieldEnumValues = customField.data[ScString('values')];
+        if (customFieldEnumValues is ScList) {
+          for (final customFieldEnumValue in customFieldEnumValues.innerList) {
+            if (customFieldEnumValue is ScCustomFieldEnumValue) {
+              final valueName = customFieldEnumValue.data[ScString('value')];
+              if (valueName is ScString) {
+                final legalValueName = mungeToLegalSymbolName(valueName.value);
+                final sym =
+                    ScSymbol("field-${canonicalName.value}->$legalValueName");
+                env.bindings[sym] = customFieldEnumValue;
+              }
+            }
+          }
+        }
       }
     }
   }
