@@ -623,30 +623,30 @@ class ScEnv {
   void loadPrelude() {
     final prelude = r'''
 ;; Accessors
-def first   value %(get % 0)
+def first   value (fn first [coll] (get coll 0))
 ;; `second` is custom to handle both coll and date-time values
-def third   value %(get % 2)
-def fourth  value %(get % 3)
-def fifth   value %(get % 4)
-def sixth   value %(get % 5)
-def seventh value %(get % 6)
-def eighth  value %(get % 7)
-def ninth   value %(get % 8)
-def tenth   value %(get % 9)
-def last    value (fn [coll] (get coll (- (count coll) 1)))
+def third   value (fn third [coll] (get coll 2))
+def fourth  value (fn fourth [coll] (get coll 3))
+def fifth   value (fn fifth [coll] (get coll 4))
+def sixth   value (fn sixth [coll] (get coll 5))
+def seventh value (fn seventh [coll] (get coll 6))
+def eighth  value (fn eighth [coll] (get coll 7))
+def ninth   value (fn ninth [coll] (get coll 8))
+def tenth   value (fn tenth [coll] (get coll 9))
+def last    value (fn last [coll] (get coll (- (count coll) 1)))
 
 ;; Conditionals
-def not         value (fn [x] (if x %(value false) %(value true)))
-def or          value (fn [this that] ((fn [this-res] (if this-res %(value this-res) that)) (this)))
-def when        value (fn [condition then-branch] (if condition then-branch %(identity nil)))
-def first-where value (fn [coll where-clause] (first (where coll where-clause)))
+def not         value (fn not [x] (if x %(value false) %(value true)))
+def or          value (fn or [this that] ((fn [this-res] (if this-res %(value this-res) that)) (this)))
+def when        value (fn when [condition then-branch] (if condition then-branch %(identity nil)))
+def first-where value (fn first-where [coll where-clause] (first (where coll where-clause)))
 
 ;; Mathematics
-def sum value %(reduce % 0 +)
-def avg value (fn [coll] (/ (reduce coll +) (count coll)))
+def sum value (fn sum [coll] (reduce coll 0 +))
+def avg value (fn avg [coll] (/ (reduce coll +) (count coll)))
 
 ;; Collections
-def mapcat value (fn [coll f] (apply (map coll f) concat))
+def mapcat value (fn mapcat [coll f] (apply (map coll f) concat))
 
 ;; Query Builders
 def query-archived     {.archived true}
@@ -659,75 +659,75 @@ def query-completed-at-start value (fn query-completed-at-start [dt]
 def query-completed-at-after value query-completed-at-start
 def query-completed-after value query-completed-at-start
 
-def query-completed-at-end value (fn [dt]
+def query-completed-at-end value (fn query-completed-at-end [dt]
  (assert (= "date-time" (type dt))
          (concat "query-completed-at-start expects a date-time, but received a " (type dt)))
  {.completed_at_end dt})
 def query-completed-at-before value query-completed-at-end
 def query-completed-before value query-completed-at-end
 
-def query-created-at-start value (fn [dt]
+def query-created-at-start value (fn query-created-at-start [dt]
  (assert (= "date-time" (type dt))
          (concat "query-created-at-start expects a date-time, but received a " (type dt)))
  {.created_at_start dt})
 def query-created-at-after value query-created-at-start
 def query-created-after value query-created-at-start
 
-def query-created-at-end value (fn [dt]
+def query-created-at-end value (fn query-created-at-end [dt]
  (assert (= "date-time" (type dt))
          (concat "query-created-at-start expects a date-time, but received a " (type dt)))
  {.created_at_end dt})
 def query-created-at-before value query-created-at-end
 def query-created-before value query-created-at-end
 
-def query-deadline-start value (fn [dt]
+def query-deadline-start value (fn query-deadline-start [dt]
  (assert (= "date-time" (type dt))
          (concat "query-deadline-start expects a date-time, but received a " (type dt)))
  {.deadline_start dt})
 def query-deadline-after value query-deadline-start
 
-def query-deadline-end value (fn [dt]
+def query-deadline-end value (fn query-deadline-end [dt]
  (assert (= "date-time" (type dt))
          (concat "query-deadline-end expects a date-time, but received a " (type dt)))
  {.deadline_end dt})
 def query-deadline-before value query-deadline-end
 
-def query-epic  value (fn [epic] {.epic_id epic})
-def query-epics value (fn [epics] {.epic_ids epics})
+def query-epic  value (fn query-epic [epic] {.epic_id epic})
+def query-epics value (fn query-epics [epics] {.epic_ids epics})
 
-def query-estimate value (fn [estimate] {.estimate estimate})
-def query-external-id value (fn [external-id] {.external_id external-id})
+def query-estimate value (fn query-estimate [estimate] {.estimate estimate})
+def query-external-id value (fn query-estimate [external-id] {.external_id external-id})
 
-def query-group value (fn [group] {.group_id group})
-def query-team value (fn [team] {.team_id team})
-def query-groups value (fn [groups] {.group_ids groups})
-def query-teams value (fn [teams] {.team_ids teams})
+def query-group value (fn query-group [group] {.group_id group})
+def query-team value (fn query-team [team] {.team_id team})
+def query-groups value (fn query-groups [groups] {.group_ids groups})
+def query-teams value (fn query-teams [teams] {.team_ids teams})
 
 def query-includes-description {.includes_description true}
 def query-not-include-description {.includes_description true}
 def query-has-description {.includes_description true}
 def query-not-have-description {.includes_description true}
 
-def query-iteration  value (fn [iteration] {.iteration_id iteration})
-def query-iterations value (fn [iterations] {.iteration_ids iterations})
+def query-iteration  value (fn query-iteration [iteration] {.iteration_id iteration})
+def query-iterations value (fn query-iterations [iterations] {.iteration_ids iterations})
 
-def query-label-name value (fn [label-name] {.label_name label-name})
-def query-labels value (fn [labels] {.label_ids labels})
+def query-label-name value (fn query-label-name [label-name] {.label_name label-name})
+def query-labels value (fn query-labels [labels] {.label_ids labels})
 
 
-def query-owner value (fn [member]
+def query-owner value (fn query-owner [member]
  (assert (subset? [(type member)] ["member" "string"])
          (concat "query-owned-by expects a member (or its ID), but received a " (type member)))
  {.owner_id member})
 
-def query-owners value (fn [members]
+def query-owners value (fn query-owners [members]
   (assert (= "list" (type members))
           (concat "query-owners expects a list, but received a " (type members)))
   (assert (subset? (distinct (map members %(type %))) ["member" "string"])
           (concat "query-owners expects a list of members, but received a list with types " (map members type)))
   {.owner_ids members})
 
-def query-requested-by value (fn [member]
+def query-requested-by value (fn query-requested-by [member]
  (assert (subset? [(type member)] ["member" "string"])
          (concat "query-requested-by expects a member, but received a " (type member)))
  {.requested_by_id member})
@@ -739,23 +739,23 @@ def query-story-type-chore   {.story_type "chore"}
 def query-feature            {.story_type "feature"}
 def query-story-type-feature {.story_type "feature"}
 
-def query-updated-at-start value (fn [dt]
+def query-updated-at-start value (fn query-updated-at-start [dt]
  (assert (= "date-time" (type dt))
          (concat "query-updated-at-start expects a date-time, but received a " (type dt)))
  {.updated_at_start dt})
 def query-updated-at-after value query-updated-at-start
 
-def query-updated-at-end value (fn [dt]
+def query-updated-at-end value (fn query-updated-at-end [dt]
  (assert (= "date-time" (type dt))
          (concat "query-updated-at-start expects a date-time, but received a " (type dt)))
  {.updated_at_at_end dt})
 def query-updated-at-before value query-updated-at-end
 
-def query-workflow-state value (fn [workflow-state] {.workflow_state_id workflow-state})
-def query-state value (fn [workflow-state] {.workflow_state_id workflow-state})
+def query-workflow-state value (fn query-workflow-state [workflow-state] {.workflow_state_id workflow-state})
+def query-state value (fn query-state [workflow-state] {.workflow_state_id workflow-state})
 
-def query-workflow-state-types value (fn [wf-state-types] {.workflow_state_types wf-state-types})
-def query-state-types          value (fn [wf-state-types] {.workflow_state_types wf-state-types})
+def query-workflow-state-types value (fn query-workflow-state-types [wf-state-types] {.workflow_state_types wf-state-types})
+def query-state-types          value (fn query-state-types [wf-state-types] {.workflow_state_types wf-state-types})
 
 def query-unfinished   {.workflow_state_types ["unstarted" "started"]}
 def query-incomplete   query-unfinished
@@ -782,89 +782,90 @@ def story-is-finished    {[.workflow_state_id .type] "done"}
 def story-is-completed   {[.workflow_state_id .type] "done"}
 
 def story-is-archived {.archived true}
+def story-is-not-archived {.archived false}
 def story-is-blocked {.blocked true}
 def story-is-blocker {.blocker true}
 
-def story-is-completed-at value (fn [completed-at] {.completed_at completed-at})
-def story-was-completed-at value (fn [completed-at] {.completed_at completed-at})
+def story-is-completed-at value (fn story-is-completed-at [completed-at] {.completed_at completed-at})
+def story-was-completed-at value (fn story-was-completed-at [completed-at] {.completed_at completed-at})
 
-def story-is-completed-at-override value (fn [completed-at] {.completed_at_override completed-at})
-def story-was-completed-at-override value (fn [completed-at] {.completed_at_override completed-at})
+def story-is-completed-at-override value (fn story-is-completed-at-override [completed-at] {.completed_at_override completed-at})
+def story-was-completed-at-override value (fn story-was-completed-at-override [completed-at] {.completed_at_override completed-at})
 
-def story-is-created-at value (fn [created-at] {.created_at created-at})
-def story-was-created-at value (fn [created-at] {.created_at created-at})
+def story-is-created-at value (fn story-is-created-at [created-at] {.created_at created-at})
+def story-was-created-at value (fn story-was-created-at [created-at] {.created_at created-at})
 
 ;; TODO Custom fields
 
-def story-is-cycle-time-greater-than value (fn [cycle-time] {.cycle_time (fn [t] (> t cycle-time))})
-def story-has-cycle-time-greater-than value (fn [cycle-time] {.cycle_time (fn [t] (> t cycle-time))})
-def story-is-cycle-time-less-than value (fn [cycle-time] {.cycle_time (fn [t] (< t cycle-time))})
-def story-has-cycle-time-less-than value (fn [cycle-time] {.cycle_time (fn [t] (< t cycle-time))})
-def story-is-cycle-time-of value (fn [cycle-time] {.cycle_time cycle-time})
-def story-has-cycle-time-of value (fn [cycle-time] {.cycle_time cycle-time})
+def story-is-cycle-time-greater-than value (fn story-is-cycle-time-greater-than [cycle-time] {.cycle_time (fn [t] (> t cycle-time))})
+def story-has-cycle-time-greater-than value (fn story-has-cycle-time-greater-than [cycle-time] {.cycle_time (fn [t] (> t cycle-time))})
+def story-is-cycle-time-less-than value (fn story-is-cycle-time-less-than [cycle-time] {.cycle_time (fn [t] (< t cycle-time))})
+def story-has-cycle-time-less-than value (fn story-has-cycle-time-less-than [cycle-time] {.cycle_time (fn [t] (< t cycle-time))})
+def story-is-cycle-time-of value (fn story-is-cycle-time-of [cycle-time] {.cycle_time cycle-time})
+def story-has-cycle-time-of value (fn story-has-cycle-time-of [cycle-time] {.cycle_time cycle-time})
 
-def story-is-deadline-of value (fn [deadline] {.deadline deadline})
-def story-has-deadline-of value (fn [deadline] {.deadline deadline})
-def story-is-deadline-after value (fn [deadline] {.deadline (fn [dt] (after? dt deadline))})
-def story-has-deadline-after value (fn [deadline] {.deadline (fn [dt] (after? dt deadline))})
-def story-is-deadline-before value (fn [deadline] {.deadline (fn [dt] (before? dt deadline))})
-def story-has-deadline-before value (fn [deadline] {.deadline (fn [dt] (before? dt deadline))})
+def story-is-deadline-of value (fn story-is-deadline-of [deadline] {.deadline deadline})
+def story-has-deadline-of value (fn story-has-deadline-of [deadline] {.deadline deadline})
+def story-is-deadline-after value (fn story-is-deadline-after [deadline] {.deadline (fn [dt] (after? dt deadline))})
+def story-has-deadline-after value (fn story-has-deadline-after [deadline] {.deadline (fn [dt] (after? dt deadline))})
+def story-is-deadline-before value (fn story-is-deadline-before [deadline] {.deadline (fn [dt] (before? dt deadline))})
+def story-has-deadline-before value (fn story-has-deadline-before [deadline] {.deadline (fn [dt] (before? dt deadline))})
 
-def story-is-description-includes value (fn [desc] {.description (fn [s] (contains? s desc))})
-def story-is-description-contains value (fn [desc] {.description (fn [s] (contains? s desc))})
-def story-has-description-including value (fn [desc] {.description (fn [s] (contains? s desc))})
-def story-has-description-containing value (fn [desc] {.description (fn [s] (contains? s desc))})
+def story-is-description-includes value (fn story-is-description-includes [desc] {.description (fn [s] (contains? s desc))})
+def story-is-description-contains value (fn story-is-description-contains [desc] {.description (fn [s] (contains? s desc))})
+def story-has-description-including value (fn story-has-description-including [desc] {.description (fn [s] (contains? s desc))})
+def story-has-description-containing value (fn story-has-description-containing [desc] {.description (fn [s] (contains? s desc))})
 
-def story-is-in-epic value (fn [epic] {.epic_id epic})
-def story-is-epic-id value (fn [epic] {.epic_id epic})
-def story-has-epic-id value (fn [epic] {.epic_id epic})
+def story-is-in-epic value (fn story-is-in-epic [epic] {.epic_id epic})
+def story-is-epic-id value (fn story-is-epic-id [epic] {.epic_id epic})
+def story-has-epic-id value (fn story-has-epic-id [epic] {.epic_id epic})
 
-def story-is-estimate value (fn [est] {.estimate est})
-def story-has-estimate value (fn [est] {.estimate est})
-def story-is-estimate-greater-than value (fn [est] {.estimate (fn [e] (> (when-nil e 0) est))})
-def story-has-estimate-greater-than value (fn [est] {.estimate (fn [e] (> (when-nil e 0) est))})
-def story-is-estimate-less-than value (fn [est] {.estimate (fn [e] (< (when-nil e 0) est))})
-def story-has-estimate-less-than value (fn [est] {.estimate (fn [e] (< (when-nil e 0) est))})
+def story-is-estimate value (fn story-is-estimate [est] {.estimate est})
+def story-has-estimate value (fn story-has-estimate [est] {.estimate est})
+def story-is-estimate-greater-than value (fn story-is-estimate-greater-than [est] {.estimate (fn [e] (> (when-nil e 0) est))})
+def story-has-estimate-greater-than value (fn story-has-estimate-greater-than [est] {.estimate (fn [e] (> (when-nil e 0) est))})
+def story-is-estimate-less-than value (fn story-is-estimate-less-than [est] {.estimate (fn [e] (< (when-nil e 0) est))})
+def story-has-estimate-less-than value (fn story-has-estimate-less-than [est] {.estimate (fn [e] (< (when-nil e 0) est))})
 
-def story-is-external-id value (fn [ext-id] {.external_id ext-id})
-def story-has-external-id value (fn [ext-id] {.external_id ext-id})
+def story-is-external-id value (fn story-is-external-id [ext-id] {.external_id ext-id})
+def story-has-external-id value (fn story-has-external-id [ext-id] {.external_id ext-id})
 
-def story-is-external-links value (fn [links]
+def story-is-external-links value (fn story-is-external-links [links]
                                       (if (= "list" (type links))
                                         %(just {.external_links (fn [lnks] (subset? links lnks))})
                                         %(just {.external_links (fn [lnks] (contains? lnks links))})))
-def story-has-external-links value (fn [links]
+def story-has-external-links value (fn story-has-external-links [links]
                                        (if (= "list" (type links))
                                          %(just {.external_links (fn [lnks] (subset? links lnks))})
                                          %(just {.external_links (fn [lnks] (contains? lnks links))})))
 
-def story-is-followers value (fn [followers] {.follower_ids (fn [flwrs] (subset? followers flwrs))})
-def story-has-followers value (fn [followers] {.follower_ids (fn [flwrs] (subset? followers flwrs))})
-def story-is-follower-ids value (fn [followers] {.follower_ids (fn [flwrs] (subset? followers flwrs))})
-def story-has-follower-ids value (fn [followers] {.follower_ids (fn [flwrs] (subset? followers flwrs))})
+def story-is-followers value (fn story-is-followers [followers] {.follower_ids (fn [flwrs] (subset? followers flwrs))})
+def story-has-followers value (fn story-has-followers [followers] {.follower_ids (fn [flwrs] (subset? followers flwrs))})
+def story-is-follower-ids value (fn story-is-follower-ids [followers] {.follower_ids (fn [flwrs] (subset? followers flwrs))})
+def story-has-follower-ids value (fn story-has-follower-ids [followers] {.follower_ids (fn [flwrs] (subset? followers flwrs))})
 
-def story-is-group value (fn [group] {.group_id group})
-def story-is-team value (fn [group] {.group_id group})
-def story-is-owned-by-group value (fn [group] {.group_id group})
-def story-is-owned-by-team value (fn [group] {.group_id group})
+def story-is-group value (fn story-is-group [group] {.group_id group})
+def story-is-team value (fn story-is-team [group] {.group_id group})
+def story-is-owned-by-group value (fn story-is-owned-by-group [group] {.group_id group})
+def story-is-owned-by-team value (fn story-is-owned-by-team [group] {.group_id group})
 
-def story-is-group-mentions value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
-def story-is-group-mention-ids value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
-def story-has-group-mentions value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
-def story-has-group-mention-ids value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
-def story-is-team-mentions value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
-def story-is-team-mention-ids value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
-def story-has-team-mentions value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
-def story-has-team-mention-ids value (fn [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-is-group-mentions value (fn story-is-group-mentions [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-is-group-mention-ids value (fn story-is-group-mention-ids [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-has-group-mentions value (fn story-has-group-mentions [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-has-group-mention-ids value (fn story-has-group-mention-ids [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-is-team-mentions value (fn story-is-team-mentions [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-is-team-mention-ids value (fn story-is-team-mention-ids [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-has-team-mentions value (fn story-has-team-mentions [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
+def story-has-team-mention-ids value (fn story-has-team-mention-ids [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
 
-def story-is-iteration value (fn [iteration] {.iteration_id iteration})
-def story-has-iteration value (fn [iteration] {.iteration_id iteration})
-def story-is-in-iteration value (fn [iteration] {.iteration_id iteration})
+def story-is-iteration value (fn story-is-iteration [iteration] {.iteration_id iteration})
+def story-has-iteration value (fn story-has-iteration [iteration] {.iteration_id iteration})
+def story-is-in-iteration value (fn story-is-in-iteration [iteration] {.iteration_id iteration})
 
-def story-is-labels value (fn [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
-def story-has-labels value (fn [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
-def story-is-label-ids value (fn [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
-def story-has-label-ids value (fn [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
+def story-is-labels value (fn story-is-labels [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
+def story-has-labels value (fn story-has-labels [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
+def story-is-label-ids value (fn story-is-label-ids [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
+def story-has-label-ids value (fn story-has-label-ids [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
 
 ;; TODO Investigate why higher-order function not working for story-is-label-names
 
@@ -876,10 +877,10 @@ def iteration-is-done        {.status "done"}
 def iteration-is-finished    {.status "done"}
 def iteration-is-completed   {.status "done"}
 
-def type-is-story     value (fn [x] (= "story" (type x)))
-def type-is-epic      value (fn [x] (= "epic" (type x)))
-def type-is-milestone value (fn [x] (= "milestone" (type x)))
-def type-is-iteration value (fn [x] (= "iteration" (type x)))
+def type-is-story     value (fn type-is-story [x] (= "story" (type x)))
+def type-is-epic      value (fn type-is-epic [x] (= "epic" (type x)))
+def type-is-milestone value (fn type-is-milestone [x] (= "milestone" (type x)))
+def type-is-iteration value (fn type-is-iteration [x] (= "iteration" (type x)))
 
 ;; Entities
 
@@ -887,24 +888,25 @@ def comments value .comments
 
 ;; Entity States
 
-def story-states         value (fn [entity] (ls (.workflow_id (fetch entity))))
-def epic-states          value (fn [entity] (ls (epic-workflow)))
+def story-states         value (fn story-states [entity] (ls (.workflow_id (fetch entity))))
+def epic-states          value (fn epic-states [entity] (ls (epic-workflow)))
 def workflow-state-types ["unstarted" "started" "done"]
 
 ;; Entity Updates
 
-def add-label value (fn [story label-name] (! story .labels [{.name label-name}]))
-def add-labels value (fn [story label-names] (! story .labels (map label-names %(just {.name %}))))
+def add-label value (fn add-label [story label-name] (! story .labels [{.name label-name}]))
+def add-labels value (fn add-labels [story label-names] (! story .labels (map label-names %(just {.name %}))))
 
-def set-custom-field value (fn [story field-id value-id] (! story .custom_fields [{.field_id field-id .value_id value-id}]))
+def set-custom-field value (fn set-custom-field [story field-id value-id] (! story .custom_fields [{.field_id field-id .value_id value-id}]))
+def add-custom-field value set-custom-field
 
-def my-stories value (fn []
+def my-stories value (fn my-stories []
  (find-stories (extend
                  (query-owner (me))
                  query-not-finished
                  query-not-archived)))
 
-def current-stories value (fn [entity]
+def current-stories value (fn current-stories [entity]
  (if (= "member" (type entity))
    %(find-stories (extend
                    (query-owner entity)
@@ -915,13 +917,13 @@ def current-stories value (fn [entity]
                    query-not-finished
                    query-not-archived))))
 
-def my-iterations value (fn []
+def my-iterations value (fn my-iterations []
   (map (where (map (my-stories) .iteration_id) identity) fetch))
 
-def current-iteration value (fn [team]
+def current-iteration value (fn current-iteration [team]
   (where (iterations team) iteration-is-in-progress))
 
-def current-epics value (fn [team]
+def current-epics value (fn current-epics [team]
   (where (epics team) epic-is-in-progress))
 
 ;; TODO Consider best way to prompt folks to setup defaults. Printing here does it in all the tests.
@@ -9493,6 +9495,7 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
     ScString('requested_by_id'),
     ScString('owner_ids'),
     ScString('profile'),
+    ScString('requested_by_id'),
     ScString('start_date'),
     ScString('started_at'),
     ScString('state'),
