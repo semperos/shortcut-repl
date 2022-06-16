@@ -904,6 +904,17 @@ def my-stories value (fn []
                  query-not-finished
                  query-not-archived)))
 
+def current-stories value (fn [entity]
+ (if (= "member" (type entity))
+   %(find-stories (extend
+                   (query-owner entity)
+                   query-not-finished
+                   query-not-archived))
+   %(find-stories (extend
+                   (query-group entity)
+                   query-not-finished
+                   query-not-archived))))
+
 def my-iterations value (fn []
   (map (where (map (my-stories) .iteration_id) identity) fetch))
 
