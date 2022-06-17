@@ -275,9 +275,9 @@ class ScEnv {
     // ScSymbol('unstarted'): ScFnUnstarted(),
     // ScSymbol('in-progress'): ScFnInProgress(),
     // ScSymbol('done'): ScFnDone(),
-    ScSymbol('next-state'): ScFnNextState(),
-    ScSymbol('prev-state'): ScFnPreviousState(),
-    ScSymbol('previous-state'): ScFnPreviousState(),
+    ScSymbol('next-state!'): ScFnNextState(),
+    ScSymbol('prev-state!'): ScFnPreviousState(),
+    ScSymbol('previous-state!'): ScFnPreviousState(),
     ScSymbol('story'): ScFnStory(),
     ScSymbol('st'): ScFnStory(),
     ScSymbol('stories'): ScFnStories(),
@@ -3990,7 +3990,6 @@ See also:
         final s = x as ScString;
         m[s] = defaultFn.invoke(env, ScList([s]));
       }
-      // printTable(env, defaults.innerList, m);
       return m;
     } else {
       throw BadArgumentsException(
@@ -4043,6 +4042,12 @@ Identifiers are:
  - "team"
  - "workflow"
  - "workflow_state"
+
+See also:
+  defaults
+  setup
+  teams
+  workflows
 """;
 
   @override
@@ -4323,8 +4328,22 @@ class ScFnBackward extends ScBaseInvocable {
       "Change your parent entity to the previous one in your history.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+This tool preserves the history of every entity you have `cd`ed into, up to the last 100. It writes this history to disk in your env.json file.
+
+You can use the `forward` and `backward` functions which are also aliased as `f` and `b` as well as `n` and `p` respectively for those accustomed to 'next' and 'previous'.
+
+History is stored as a simple list, not a tree.
+
+See also:
+  cwd
+  .
+  forward
+  history
+  pwd""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -4368,8 +4387,22 @@ class ScFnForward extends ScBaseInvocable {
       "Change your parent entity to the next one in your history.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+This tool preserves the history of every entity you have `cd`ed into, up to the last 100. It writes this history to disk in your env.json file.
+
+You can use the `forward` and `backward` functions which are also aliased as `f` and `b` as well as `n` and `p` respectively for those accustomed to 'next' and 'previous'.
+
+History is stored as a simple list, not a tree.
+
+See also:
+  backward
+  cwd
+  .
+  history
+  pwd""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -4411,8 +4444,31 @@ class ScFnLs extends ScBaseInvocable {
   String get help => 'List items within a context.';
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+As far as makes sense, you can use `ls` with any Shortcut entity.
+
+At time of writing, this function behaves as follows for each entity:
+
+- In a milestone:  lists epics
+- In an epic:      lists stories
+- In an iteration: lists stories
+- In a label:      lists stories
+- In a story:      lists tasks
+- In a team:       lists members
+- In a member:     lists stories the member is an owner of
+- In a workflow:   lists workflow states
+
+See also:
+  epics
+  find-stories
+  iterations
+  labels
+  milestones
+  stories
+""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -4437,10 +4493,9 @@ class ScFnCwd extends ScBaseInvocable {
 
   @override
   String get help =>
-      'Returns the working "directory"—the current parent entity we have `cd`ed into.';
+      'Returns the working "directory"—the current parent entity you have `cd`ed into.';
 
   @override
-  // TODO: implement helpFull
   String get helpFull =>
       help +
       '\n\n' +
@@ -4482,8 +4537,18 @@ class ScFnPwd extends ScBaseInvocable {
       'Print the working "directory"—the current parent entity we have `cd`ed into.';
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+This prints a subset of the important metadata of the given entity, as well as the entity's description.
+
+See also:
+  .
+  cwd
+  data
+  details
+  summary""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -4524,11 +4589,24 @@ class ScFnMv extends ScBaseInvocable {
 
   @override
   String get help =>
-      "Move a Shortcut entity from one container to another (e.g., a story to a new epic).";
+      "Move a Shortcut entity from one container to another (e.g., a story to an epic).";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+This function works for the following 'movements' of entities:
+
+- A story to an epic
+- A story to an iteration
+- A story to a team
+- An epic to a milestone
+- An epic to a team
+
+See also:
+  !
+  update!""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -4592,8 +4670,22 @@ class ScFnData extends ScBaseInvocable {
   String get help => "Returns the entity's complete, raw data.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+Returns a PL representation of the data returned by Shortcut's API for the given entity.
+
+If you want the original JSON, you'll need to use the --json flag with this program to have it output JSON.
+
+The underlying data of multiple entities is adapted to handle resolving certain IDs to entities, for the sake of better ergonomics at the REPL.
+
+This function will fetch from remote if it detects the entity is "empty" (constructed only from an ID) and needs to be refreshed.
+
+See also:
+  details
+  keys
+  summary""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -4641,8 +4733,20 @@ class ScFnDetails extends ScBaseInvocable {
   String get help => "Returns the entity's most important details as a map.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+Prints a table of entries that are the core entries for most entities within Shortcut.
+
+If `summary` or `pwd` doesn't show what you expect and `data` is too much, `details` is a middle ground between the two.
+
+See also:
+  cwd
+  data
+  keys
+  pwd
+  summary""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -4690,8 +4794,13 @@ class ScFnSummary extends ScBaseInvocable {
   String get help => "Returns a summary of the Shortcut entity's state.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+The same as `pwd` but for the entity provided as an argument.
+
+This _prints_ a summary and returns `nil`.""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -4771,8 +4880,11 @@ class ScFnApply extends ScBaseInvocable {
   String get help => "Apply the given function to the list of arguments.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+If you need to invoke a function with a number of arguments known only at runtime, use this function to call that function as if the list of arguments were passed directly.""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
@@ -4815,8 +4927,21 @@ class ScFnMap extends ScBaseInvocable {
       "Invoke a function for each item in a list, returning the list of return values.";
 
   @override
-  // TODO: implement helpFull
-  String get helpFull => help;
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+Rather than a loop, this function allows traversing every item of a collection and returning a new collection that is the result of invoking the given function with each item as its sole argument.
+
+This function is immutable, leaving the original collection intact.
+
+See also:
+  concat
+  filter
+  join
+  reduce
+  sort
+  take""";
 
   @override
   ScExpr invoke(ScEnv env, ScList args) {
