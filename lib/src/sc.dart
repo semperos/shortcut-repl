@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer';
 import 'dart:io';
 import 'dart:math';
 
@@ -73,6 +74,7 @@ class ScEnv {
   late List<ScEntity> parentEntityHistory;
   int parentEntityHistoryCursor = 0;
 
+  // TODO Create a base namespace that symbols auto-resolve to, so if someone accidentally shadows one of these they can `undef` there's and get back the original.
   // TODO These keys need to be derived from canonicalName and additional aliases need to be added to the classes that need them.
   /// IDEA Have the functions here mapped to their _classes_ so that debug mode can re-construct them with each evaluation for better code reloading support.
   /// The default bindings of this [ScEnv] give identifiers values in code.
@@ -457,6 +459,13 @@ class ScEnv {
       parentEntity = null;
     } else {
       parentEntity = entityFromEnvJson(p);
+      if (parentEntity != null) {
+        env.out.writeln(env.style(
+            "[INFO] Fetching your parent entity from the last session...",
+            styleInfo));
+        waitOn(parentEntity.fetch(env));
+        env.out.writeln(env.style("[INFO] Parent entity fetched.", styleInfo));
+      }
     }
 
     env.parentEntity = parentEntity;
@@ -1922,12 +1931,7 @@ class ScDottedSymbol extends ScExpr implements ScBaseInvocable {
 
   @override
   ScExpr eval(ScEnv env) {
-    // Parsing treats .. as a ScDottedSymbol but I want to use it as a ScSymbol
-    if (_name == '.') {
-      return env[ScSymbol('..')]!;
-    } else {
-      return this;
-    }
+    return this;
   }
 
   @override
@@ -4231,10 +4235,44 @@ You can `cd` into an entity to make that entity your current "parent entity." Ma
       env.parentEntityHistoryCursor = 0;
       return ScNil();
     } else if (args.length == 1) {
-      final newParentEntity = args.first;
+      final newParentEntity = args[0];
       final oldParentEntity = env.parentEntity;
       env.parentEntityHistoryCursor = 0;
-      if (newParentEntity is ScEntity) {
+      if (newParentEntity == ScDottedSymbol('.')) {
+        if (oldParentEntity is ScTask) {
+          return fetchAndSetParentEntity(env, oldParentEntity.storyId);
+        } else if (oldParentEntity is ScStory) {
+          return fetchAndSetParentEntity(env, oldParentEntity.epicId);
+        } else if (oldParentEntity is ScEpic) {
+          return fetchAndSetParentEntity(env, oldParentEntity.milestoneId);
+        } else if (oldParentEntity is ScComment) {
+          final parentId = oldParentEntity.parentId;
+          if (parentId != null) {
+            final parentComment =
+                ScComment(oldParentEntity.id as ScString, parentId);
+            final entity = waitOn(parentComment.fetch(env));
+            setParentEntity(env, entity);
+            return entity;
+          } else {
+            return fetchAndSetParentEntity(env, oldParentEntity.storyId);
+          }
+        } else if (oldParentEntity is ScEpicComment) {
+          final parentId = oldParentEntity.parentId;
+          if (parentId != null) {
+            final parentComment =
+                ScEpicComment(oldParentEntity.id as ScString, parentId);
+            final entity = waitOn(parentComment.fetch(env));
+            setParentEntity(env, entity);
+            return entity;
+          } else {
+            return fetchAndSetParentEntity(env, oldParentEntity.epicId);
+          }
+        } else {
+          env.parentEntity = null;
+          env.parentEntityHistoryCursor = 0;
+          return ScNil();
+        }
+      } else if (newParentEntity is ScEntity) {
         setParentEntity(env, newParentEntity);
         // Feature: Keep the env.json up-to-date with most recent parent entity.
         return newParentEntity;
@@ -4243,15 +4281,14 @@ You can `cd` into an entity to make that entity your current "parent entity." Ma
         if (newParentEntity is ScNumber) {
           id = ScString(newParentEntity.value.toString());
         } else {
-          id = newParentEntity;
+          id = newParentEntity as ScString;
         }
         if (oldParentEntity is ScStory) {
           try {
             final task = waitOn(
                 env.client.getTask(env, oldParentEntity.idString, id.value));
             env.parentEntity = task;
-            env[ScSymbol('__sc_previous-parent-entity')] = oldParentEntity;
-            // NB: Don't! env.writeToDisk() or put in parentEntityHistory. It's not usable on re-boot unless we store storyId as well.
+            setParentEntity(env, task);
             return task;
           } catch (_) {
             // I believe the waitOn causes this to be an AsyncError wrapping an EntityNotFoundException ^
@@ -4269,7 +4306,7 @@ You can `cd` into an entity to make that entity your current "parent entity." Ma
         }
       } else {
         throw BadArgumentsException(
-            'The argument to `$canonicalName` must be a Shortcut entity or ID.');
+            'The argument to `$canonicalName` must be .. or a Shortcut entity or an entity ID.');
       }
     } else {
       throw BadArgumentsException(
@@ -10661,6 +10698,16 @@ class ScEpic extends ScEntity {
     'state',
   };
 
+  ScString? get milestoneId {
+    final i = data[ScString('milestone_id')];
+    if (i is ScNumber) {
+      return ScString(i.value.toString());
+    } else if (i is ScString) {
+      return i;
+    }
+    return null;
+  }
+
   factory ScEpic.fromMap(ScEnv env, Map<String, dynamic> data) {
     var epicCommentsData = data['comments'] ?? [];
     ScList epicComments = ScList([]);
@@ -11002,6 +11049,16 @@ class ScStory extends ScEntity {
   @override
   String typeName() {
     return 'story';
+  }
+
+  ScString? get epicId {
+    final i = data[ScString('epic_id')];
+    if (i is ScNumber) {
+      return ScString(i.value.toString());
+    } else if (i is ScString) {
+      return i;
+    }
+    return null;
   }
 
   factory ScStory.fromMap(ScEnv env, Map<String, dynamic> data) {
@@ -11516,6 +11573,16 @@ class ScComment extends ScEntity {
     'text',
   };
 
+  ScString? get parentId {
+    final i = data[ScString('parent_id')];
+    if (i is ScNumber) {
+      return ScString(i.value.toString());
+    } else if (i is ScString) {
+      return i;
+    }
+    return null;
+  }
+
   factory ScComment.fromMap(
       ScEnv env, ScString storyId, Map<String, dynamic> data) {
     return ScComment(storyId, ScString(data['id'].toString())).addAll(env, data)
@@ -11601,6 +11668,7 @@ class ScComment extends ScEntity {
 class ScEpicComment extends ScEntity {
   ScEpicComment(this.epicId, ScString commentId) : super(commentId);
   final ScString epicId;
+  ScString? parentId;
   int level = 0;
 
   @override
@@ -11625,19 +11693,22 @@ class ScEpicComment extends ScEntity {
 
   factory ScEpicComment.fromMap(
       ScEnv env, ScString epicId, Map<String, dynamic> data,
-      {commentLevel = 0}) {
+      {commentLevel = 0, ScString? parentId}) {
     var epicCommentsData = data['comments'] ?? [];
     ScList epicComments = ScList([]);
     if (epicCommentsData.isNotEmpty) {
       epicComments = ScList(List<ScExpr>.from(epicCommentsData.map(
           (commentMap) => ScEpicComment.fromMap(env, epicId, commentMap,
-              commentLevel: commentLevel + 1))));
+              commentLevel: commentLevel + 1, parentId: data['id']))));
     }
     data.remove('comments');
     final epicComment = ScEpicComment(epicId, ScString(data['id'].toString()))
         .addAll(env, data) as ScEpicComment;
     epicComment.level = commentLevel;
     epicComment.data[ScString('comments')] = epicComments;
+    if (parentId != null) {
+      epicComment.parentId = parentId;
+    }
     return epicComment;
   }
 
@@ -12735,6 +12806,23 @@ class ScCustomFieldEnumValue extends ScEntity {
 
 /// Functions
 
+ScExpr fetchAndSetParentEntity(ScEnv env, ScString? entityId) {
+  if (entityId != null) {
+    final fetchFn = ScFnFetch();
+    final entity = fetchFn.invoke(env, ScList([entityId])) as ScEntity;
+    setParentEntity(env, entity);
+    return entity;
+  } else {
+    return setParentEntityRoot(env);
+  }
+}
+
+ScNil setParentEntityRoot(ScEnv env) {
+  env.parentEntity = null;
+  env.parentEntityHistoryCursor = 0;
+  return ScNil();
+}
+
 void fetchAllTheThings(ScEnv env) {
   env.cacheWorkflows(waitOn(env.client.getWorkflows(env)));
   env.cacheMembers(waitOn(env.client.getMembers(env)));
@@ -12860,8 +12948,6 @@ void bindAllTheThings(ScEnv env) {
     }
   }
 }
-
-/// Functions
 
 /// Calculates number of weeks for a given year as per https://en.wikipedia.org/wiki/ISO_week_date#Weeks_per_year
 /// Copied from: https://stackoverflow.com/a/54129275
