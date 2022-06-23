@@ -460,11 +460,7 @@ class ScEnv {
     } else {
       parentEntity = entityFromEnvJson(p);
       if (parentEntity != null) {
-        env.out.writeln(env.style(
-            "[INFO] Fetching your parent entity from the last session...",
-            styleInfo));
-        waitOn(parentEntity.fetch(env));
-        env.out.writeln(env.style("[INFO] Parent entity fetched.", styleInfo));
+        unawaited(fetchParentAsync(env, parentEntity));
       }
     }
 
@@ -10700,7 +10696,9 @@ class ScEpic extends ScEntity {
 
   ScString? get milestoneId {
     final i = data[ScString('milestone_id')];
-    if (i is ScNumber) {
+    if (i is ScMilestone) {
+      return ScString(i.idString);
+    } else if (i is ScNumber) {
       return ScString(i.value.toString());
     } else if (i is ScString) {
       return i;
@@ -11053,7 +11051,9 @@ class ScStory extends ScEntity {
 
   ScString? get epicId {
     final i = data[ScString('epic_id')];
-    if (i is ScNumber) {
+    if (i is ScEpic) {
+      return ScString(i.idString);
+    } else if (i is ScNumber) {
       return ScString(i.value.toString());
     } else if (i is ScString) {
       return i;
@@ -11575,7 +11575,9 @@ class ScComment extends ScEntity {
 
   ScString? get parentId {
     final i = data[ScString('parent_id')];
-    if (i is ScNumber) {
+    if (i is ScComment) {
+      return ScString(i.idString);
+    } else if (i is ScNumber) {
       return ScString(i.value.toString());
     } else if (i is ScString) {
       return i;
@@ -11699,7 +11701,8 @@ class ScEpicComment extends ScEntity {
     if (epicCommentsData.isNotEmpty) {
       epicComments = ScList(List<ScExpr>.from(epicCommentsData.map(
           (commentMap) => ScEpicComment.fromMap(env, epicId, commentMap,
-              commentLevel: commentLevel + 1, parentId: data['id']))));
+              commentLevel: commentLevel + 1,
+              parentId: ScString(data['id'].toString())))));
     }
     data.remove('comments');
     final epicComment = ScEpicComment(epicId, ScString(data['id'].toString()))
@@ -12805,6 +12808,15 @@ class ScCustomFieldEnumValue extends ScEntity {
 }
 
 /// Functions
+
+Future<void> fetchParentAsync(ScEnv env, ScEntity parentEntity) {
+  env.out.writeln(env.style(
+      ";; [INFO] Fetching your parent entity from the last session...",
+      styleInfo));
+  return parentEntity.fetch(env).then((value) {
+    env.out.writeln(env.style(";; [INFO] Parent entity fetched.", styleInfo));
+  });
+}
 
 ScExpr fetchAndSetParentEntity(ScEnv env, ScString? entityId) {
   if (entityId != null) {
