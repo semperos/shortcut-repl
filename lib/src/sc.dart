@@ -4244,8 +4244,7 @@ You can `cd` into an entity to make that entity your current "parent entity." Ma
         } else if (oldParentEntity is ScComment) {
           final parentId = oldParentEntity.parentId;
           if (parentId != null) {
-            final parentComment =
-                ScComment(oldParentEntity.id as ScString, parentId);
+            final parentComment = ScComment(oldParentEntity.storyId, parentId);
             final entity = waitOn(parentComment.fetch(env));
             setParentEntity(env, entity);
             return entity;
@@ -4256,7 +4255,7 @@ You can `cd` into an entity to make that entity your current "parent entity." Ma
           final parentId = oldParentEntity.parentId;
           if (parentId != null) {
             final parentComment =
-                ScEpicComment(oldParentEntity.id as ScString, parentId);
+                ScEpicComment(oldParentEntity.epicId, parentId);
             final entity = waitOn(parentComment.fetch(env));
             setParentEntity(env, entity);
             return entity;
