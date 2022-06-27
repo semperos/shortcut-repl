@@ -771,6 +771,10 @@ def query-not-finished query-unfinished
 def query-started     {.workflow_state_types ["started"]}
 def query-in-progress query-started
 
+def query-finished {.workflow_state_types ["done"]}
+def query-complete query-finished
+def query-done     query-finished
+
 def epic-is-unstarted   {.state "to do"}
 def epic-is-todo        {.state "to do"}
 def epic-is-in-progress {.state "in progress"}
@@ -922,6 +926,20 @@ def current-stories value (fn current-stories [entity]
                    (query-group entity)
                    query-not-finished
                    query-not-archived))))
+
+def recent-stories value (fn recent-stories [entity]
+ (if (= "member" (type entity))
+   %(find-stories (extend
+                   (query-owner entity)
+                   query-done
+                   (query-completed-after (minus-weeks (now) 2))
+                   query-not-archived))
+   %(find-stories (extend
+                   (query-group entity)
+                   query-done
+                   (query-completed-after (minus-weeks (now) 2))
+                   query-not-archived))))
+
 
 def my-iterations value (fn my-iterations []
   (map (where (map (my-stories) .iteration_id) identity) fetch))
