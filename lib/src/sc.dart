@@ -653,6 +653,7 @@ def avg value (fn avg [coll] (/ (reduce coll +) (count coll)))
 
 ;; Collections
 def mapcat value (fn mapcat [coll f] (apply (map coll f) concat))
+def group-by value (fn [coll f] (reduce coll {} (fn [acc item] (extend acc {(f item) [item]}))))
 
 ;; Query Builders
 def query-archived     {.archived true}
@@ -927,6 +928,8 @@ def current-stories value (fn current-stories [entity]
                    query-not-finished
                    query-not-archived))))
 
+; def stories-current value current-stories
+
 def recent-stories value (fn recent-stories [entity]
  (if (= "member" (type entity))
    %(find-stories (extend
@@ -940,6 +943,20 @@ def recent-stories value (fn recent-stories [entity]
                    (query-completed-after (minus-weeks (now) 2))
                    query-not-archived))))
 
+; def stories-recent value recent-stories
+
+def stories-completed-since value (fn recent-stories [entity date-time]
+ (if (= "member" (type entity))
+   %(find-stories (extend
+                   (query-owner entity)
+                   query-done
+                   (query-completed-after date-time)
+                   query-not-archived))
+   %(find-stories (extend
+                   (query-group entity)
+                   query-done
+                   (query-completed-after date-time)
+                   query-not-archived))))
 
 def my-iterations value (fn my-iterations []
   (map (where (map (my-stories) .iteration_id) identity) fetch))
