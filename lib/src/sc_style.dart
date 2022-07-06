@@ -191,7 +191,6 @@ final colorBlindDarkPalette = {
   // "#ffdf4d",
 };
 
-
 // final defaultLightPalette = {
 //   'comment': '#8c8d8c',
 //   'done': '#56993d',

@@ -896,6 +896,13 @@ def type-is-iteration value (fn type-is-iteration [x] (= "iteration" (type x)))
 ;; Entities
 
 def comments value .comments
+def mention value (fn [mem]
+        (concat
+         "[@"
+         (.mention_name (.profile mem))
+         "](shortcutapp://members/"
+         (.id mem)
+         ")"))
 
 ;; Entity States
 
@@ -908,7 +915,10 @@ def workflow-state-types ["unstarted" "started" "done"]
 def add-label value (fn add-label [story label-name] (! story .labels [{.name label-name}]))
 def add-labels value (fn add-labels [story label-names] (! story .labels (map label-names %(just {.name %}))))
 
-def set-custom-field value (fn set-custom-field [story field-id value-id] (! story .custom_fields [{.field_id field-id .value_id value-id}]))
+def set-custom-field value (fn set-custom-field [story custom-field custom-field-value]
+   (! story
+      .custom_fields
+      [{.field_id (.id custom-field) .value_id (.id custom-field-value)}]))
 def add-custom-field value set-custom-field
 
 def my-stories value (fn my-stories []
