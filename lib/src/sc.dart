@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer';
 import 'dart:io';
 import 'dart:math';
 
@@ -226,6 +225,9 @@ class ScEnv {
     ScSymbol('sort'): ScFnSort(),
     ScSymbol('contains?'): ScFnContains(),
     ScSymbol('subset?'): ScFnIsSubset(),
+
+    ScSymbol('lower-case'): ScFnLowerCase(),
+    ScSymbol('upper-case'): ScFnUpperCase(),
 
     ScSymbol('file'): ScFnFile(),
     ScSymbol('read-file'): ScFnReadFile(),
@@ -653,7 +655,38 @@ def avg value (fn avg [coll] (/ (reduce coll +) (count coll)))
 
 ;; Collections
 def mapcat value (fn mapcat [coll f] (apply (map coll f) concat))
+;; TODO Bug in group-by when keys are lists.
 def group-by value (fn [coll f] (reduce coll {} (fn [acc item] (extend acc {(f item) [item]}))))
+
+def set value (fn [coll]
+  (assert (= "list" (type coll))
+    (concat "The `set` function expects a list, but received a " (type coll)))
+  (reduce
+    coll
+    {}
+    (fn [m item]
+      (extend m {item nil}))))
+
+(def intersection value (fn [coll-a coll-b]
+  (assert (= "list" (type coll-a))
+    (concat "The `intersection` function expects its first arg to be a list, but received a " (type coll-a)))
+  (assert (= "list" (type coll-b))
+    (concat "The `intersection` function expects its first arg to be a list, but received a " (type coll-b)))
+  ((fn [set-a]
+      ((fn [set-b]
+          (reduce
+           (if (> (count set-a) (count set-b))
+             %(keys set-a)
+             %(keys set-b))
+           []
+           (fn [acc item]
+             (if (contains? set-a item)
+               %(if (contains? set-b item)
+                  %(concat acc [item])
+                  %(id acc))
+               %(id acc)))))
+       (set coll-b)))
+   (set coll-a))))
 
 ;; Query Builders
 def query-archived     {.archived true}
@@ -869,9 +902,11 @@ def story-is-team-mention-ids value (fn story-is-team-mention-ids [groups] {.gro
 def story-has-team-mentions value (fn story-has-team-mentions [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
 def story-has-team-mention-ids value (fn story-has-team-mention-ids [groups] {.group_mention_ids (fn [gmis] (subset? groups gmis))})
 
-def story-is-iteration value (fn story-is-iteration [iteration] {.iteration_id iteration})
-def story-has-iteration value (fn story-has-iteration [iteration] {.iteration_id iteration})
-def story-is-in-iteration value (fn story-is-in-iteration [iteration] {.iteration_id iteration})
+def story-is-iteration value (fn story-is-iteration [iteration]
+  (assert (= "iteration" (type iteration)) "Expected an iteration but received a " (type iteration))
+  {.iteration_id iteration})
+def story-has-iteration value story-is-iteration
+def story-is-in-iteration value story-is-iteration
 
 def story-is-labels value (fn story-is-labels [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
 def story-has-labels value (fn story-has-labels [labels] {.label_ids (fn [lbls] (subset? labels lbls))})
@@ -896,6 +931,7 @@ def type-is-iteration value (fn type-is-iteration [x] (= "iteration" (type x)))
 ;; Entities
 
 def comments value .comments
+def cms value .comments
 def mention value (fn [mem]
         (concat
          "[@"
@@ -903,6 +939,12 @@ def mention value (fn [mem]
          "](shortcutapp://members/"
          (.id mem)
          ")"))
+
+def branch-prefix value (fn [story]
+  (concat (first (split (.name (.profile (whoami))) " "))
+          "/sc-"
+          (pr-str (.id story))
+          "/"))
 
 ;; Entity States
 
@@ -912,6 +954,10 @@ def workflow-state-types ["unstarted" "started" "done"]
 
 ;; Entity Updates
 
+def claim value (fn [entity] (! entity .owner_ids [ (whoami) ]))
+def own   value (fn [entity] (! entity .owner_ids [ (whoami) ]))
+def claim-for value (fn [entity mem] (! entity .owner_ids [ mem ]))
+def own-by    value (fn [entity mem] (! entity .owner_ids [ mem ]))
 def add-label value (fn add-label [story label-name] (! story .labels [{.name label-name}]))
 def add-labels value (fn add-labels [story label-names] (! story .labels (map label-names %(just {.name %}))))
 
@@ -5664,6 +5710,82 @@ class ScFnCount extends ScBaseInvocable {
   }
 }
 
+class ScFnLowerCase extends ScBaseInvocable {
+  static final ScFnLowerCase _instance = ScFnLowerCase._internal();
+  ScFnLowerCase._internal();
+  factory ScFnLowerCase() => _instance;
+
+  @override
+  String get canonicalName => 'lower-case';
+
+  @override
+  Set<List<String>> get arities => {
+        ["string"]
+      };
+
+  @override
+  String get help =>
+      'Returns a copy of the string with all characters converted to lower (miniscule) case.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty) {
+      throw BadArgumentsException(
+          'The `$canonicalName` function expects one argument: a string.');
+    } else {
+      final s = args[0];
+      if (s is ScString) {
+        return ScString(s.value.toLowerCase());
+      } else {
+        throw BadArgumentsException(
+            "The `$canonicalName` function expects a string argument, but received a ${s.typeName()}");
+      }
+    }
+  }
+}
+
+class ScFnUpperCase extends ScBaseInvocable {
+  static final ScFnUpperCase _instance = ScFnUpperCase._internal();
+  ScFnUpperCase._internal();
+  factory ScFnUpperCase() => _instance;
+
+  @override
+  String get canonicalName => 'lower-case';
+
+  @override
+  Set<List<String>> get arities => {
+        ["string"]
+      };
+
+  @override
+  String get help =>
+      'Returns a copy of the string with all characters converted to lower (miniscule) case.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty) {
+      throw BadArgumentsException(
+          'The `$canonicalName` function expects one argument: a string.');
+    } else {
+      final s = args[0];
+      if (s is ScString) {
+        return ScString(s.value.toUpperCase());
+      } else {
+        throw BadArgumentsException(
+            "The `$canonicalName` function expects a string argument, but received a ${s.typeName()}");
+      }
+    }
+  }
+}
+
 class ScFnSort extends ScBaseInvocable {
   static final ScFnSort _instance = ScFnSort._internal();
   ScFnSort._internal();
@@ -8377,6 +8499,8 @@ Use the `find-stories` function to use more fine-grained criteria for retrieving
           ScString("owner_id"): entity,
         });
         return findStoriesFn.invoke(env, ScList([findMap]));
+      } else if (entity is ScLabel) {
+        return waitOn(entity.ls(env));
       } else {
         // TODO Parent that is ScLabel
         throw BadArgumentsException(
