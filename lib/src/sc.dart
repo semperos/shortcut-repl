@@ -213,6 +213,10 @@ class ScEnv {
     ScSymbol('<='): ScFnLessThanOrEqualTo(),
     ScSymbol('max'): ScFnMax(),
     ScSymbol('min'): ScFnMin(),
+    ScSymbol('ceil'): ScFnCeiling(),
+    ScSymbol('ceiling'): ScFnCeiling(),
+    ScSymbol('floor'): ScFnFloor(),
+    ScSymbol('sqrt'): ScFnSquareRoot(),
 
     ScSymbol('when-nil'): ScFnWhenNil(),
     ScSymbol('get'): ScFnGet(),
@@ -652,6 +656,41 @@ def first-where value (fn first-where [coll where-clause] (first (where coll whe
 ;; Mathematics
 def sum value (fn sum [coll] (reduce coll 0 +))
 def avg value (fn avg [coll] (/ (reduce coll +) (count coll)))
+def mean value avg
+def even? value (fn [n] (= 0 (mod n 2)))
+def odd? value (fn [n] (not (= 0 (mod n 2))))
+(def median value (fn median [coll]
+  ((fn [coll ct]
+      (if (even? ct)
+        %(avg [(get coll (floor (/ ct 2))) (get coll (- (floor (/ ct 2)) 1))])
+        %(get coll (floor (/ ct 2)))))
+    (sort coll) (count coll))))
+(def std-dev-sample value (fn std-dev-sample [coll]
+  (assert (= "list" (type coll))
+    (concat "The std-dev function expects a list, but received a" (type coll)))
+  ((fn [average]
+     (sqrt
+       (/ (sum (map coll (fn [n] ((fn [m] (* m m)) (- n average)))))
+          (- (count coll) 1))))
+    (avg coll))))
+(def std-dev value (fn std-dev [coll]
+  (assert (= "list" (type coll))
+    (concat "The std-dev function expects a list, but received a" (type coll)))
+  ((fn [average]
+     (sqrt
+       (/ (sum (map coll (fn [n] ((fn [m] (* m m)) (- n average)))))
+          (count coll))))
+    (avg coll))))
+(def stat-summ value (fn stat-summ [coll]
+  (print "Count:\t" (count coll))
+  (print "\nMin:\t" (min coll))
+  (print "\nMax:\t" (max coll))
+  (print "\nRange:\t" (- (max coll) (min coll)))
+  (print "\nMean:\t" (avg coll))
+  (print "\nMedian:\t" (median coll))
+  (print "\nSDev:\t" (std-dev-sample coll))
+  (println)))
+def statistical-summary value stat-summ
 
 ;; Collections
 def mapcat value (fn mapcat [coll f] (apply (map coll f) concat))
@@ -8997,6 +9036,119 @@ class ScFnMin extends ScBaseInvocable {
               "The `$canonicalName` function only works with numbers, but received a ${value.typeName()}");
         }
       });
+    }
+  }
+}
+
+class ScFnCeiling extends ScBaseInvocable {
+  static final ScFnCeiling _instance = ScFnCeiling._internal();
+  ScFnCeiling._internal();
+  factory ScFnCeiling() => _instance;
+
+  @override
+  String get canonicalName => 'ceiling';
+
+  @override
+  Set<List<String>> get arities => {
+        ["number"]
+      };
+
+  @override
+  String get help =>
+      'Return the given number rounded up to the nearest integer.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final n = args[0];
+      if (n is ScNumber) {
+        return ScNumber(n.value.ceil());
+      } else {
+        throw BadArgumentsException(
+            "The `$canonicalName` function's argument must be a number, but received a ${n.typeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `$canonicalName` function expects only one argument, but received ${args.length} arguments.");
+    }
+  }
+}
+
+class ScFnFloor extends ScBaseInvocable {
+  static final ScFnFloor _instance = ScFnFloor._internal();
+  ScFnFloor._internal();
+  factory ScFnFloor() => _instance;
+
+  @override
+  String get canonicalName => 'floor';
+
+  @override
+  Set<List<String>> get arities => {
+        ["number"]
+      };
+
+  @override
+  String get help =>
+      'Return the given number rounded down to the nearest integer.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final n = args[0];
+      if (n is ScNumber) {
+        return ScNumber(n.value.floor());
+      } else {
+        throw BadArgumentsException(
+            "The `$canonicalName` function's argument must be a number, but received a ${n.typeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `$canonicalName` function expects only one argument, but received ${args.length} arguments.");
+    }
+  }
+}
+
+class ScFnSquareRoot extends ScBaseInvocable {
+  static final ScFnSquareRoot _instance = ScFnSquareRoot._internal();
+  ScFnSquareRoot._internal();
+  factory ScFnSquareRoot() => _instance;
+
+  @override
+  String get canonicalName => 'sqrt';
+
+  @override
+  Set<List<String>> get arities => {
+        ["number"]
+      };
+
+  @override
+  String get help => 'Return the square root of the given number.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final n = args[0];
+      if (n is ScNumber) {
+        return ScNumber(sqrt(n.value));
+      } else {
+        throw BadArgumentsException(
+            "The `$canonicalName` function's argument must be a number, but received a ${n.typeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `$canonicalName` function expects only one argument, but received ${args.length} arguments.");
     }
   }
 }
