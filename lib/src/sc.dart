@@ -696,21 +696,47 @@ def statistical-summary value stat-summ
 def mapcat value (fn mapcat [coll f] (apply (map coll f) concat))
 ;; TODO Bug in group-by when keys are lists.
 def group-by value (fn [coll f] (reduce coll {} (fn [acc item] (extend acc {(f item) [item]}))))
-
-def set value (fn [coll]
-  (assert (= "list" (type coll))
-    (concat "The `set` function expects a list, but received a " (type coll)))
+(def vals value (fn [m]
+  (assert (= "map" (type m))
+    (concat "The `vals` function expects a map, but received a " (type m)))
   (reduce
-    coll
-    {}
-    (fn [m item]
-      (extend m {item nil}))))
+    (keys m)
+    []
+    (fn [acc k]
+      (concat acc [(get m k)])))))
+
+;; TODO Create a `seq` fn for lists and maps
+(def every? value (fn [coll pred]
+  (.return
+    (reduce
+      coll
+      {.return true}
+      (fn [acc x]
+        (if (not (get acc .return))
+          (fn [] acc)
+          (fn []
+            (if (pred x)
+              (fn [] {.return true})
+              (fn [] {.return false})))))))))
+
+(def set? value (fn [coll]
+  (if (= "map" (type coll))
+    (fn [] (every? (vals coll) (fn [x] (= nil x))))
+    (fn [] false))))
+
+(def set value (fn [coll]
+  (if (set? coll)
+    (fn [] coll)
+    (fn []
+     (assert (= "list" (type coll))
+       (concat "The `set` function expects either a set (map of all nil values) or a list, but received a " (type coll)))
+       (reduce
+         coll
+         {}
+         (fn [m item]
+           (extend m {item nil})))))))
 
 (def intersection value (fn [coll-a coll-b]
-  (assert (= "list" (type coll-a))
-    (concat "The `intersection` function expects its first arg to be a list, but received a " (type coll-a)))
-  (assert (= "list" (type coll-b))
-    (concat "The `intersection` function expects its first arg to be a list, but received a " (type coll-b)))
   ((fn [set-a]
       ((fn [set-b]
           (reduce
@@ -722,8 +748,27 @@ def set value (fn [coll]
              (if (contains? set-a item)
                %(if (contains? set-b item)
                   %(concat acc [item])
-                  %(id acc))
+                  (fn [] acc))
                %(id acc)))))
+       (set coll-b)))
+   (set coll-a))))
+
+(def difference value (fn [coll-a coll-b]
+  ((fn [set-a]
+      ((fn [set-b]
+          (reduce
+           (if (> (count set-a) (count set-b))
+             %(keys set-a)
+             %(keys set-b))
+           []
+           (fn [acc item]
+             (if (contains? set-a item)
+               %(if (contains? set-b item)
+                  (fn [] acc)
+                  %(concat acc [item]))
+               %(if (contains? set-b item)
+                  (fn [] (concat acc [item]))
+                  (fn [] acc))))))
        (set coll-b)))
    (set coll-a))))
 
