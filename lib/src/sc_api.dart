@@ -8,6 +8,10 @@ import 'package:sc_cli/src/sc.dart';
 abstract class ScApiContract {
   // # CRUD
 
+  // ## Docs
+  Future<ScDoc> createDoc(ScEnv env, Map<String, dynamic> docData);
+  Future<ScDoc> getDoc(ScEnv env, String docPublicId);
+
   // ## Stories
   Future<ScStory> createStory(ScEnv env, Map<String, dynamic> storyData);
   Future<ScStory> getStory(ScEnv env, String storyPublicId);
@@ -51,6 +55,7 @@ abstract class ScApiContract {
 
   // ## Members
   Future<ScMember> getCurrentMember(ScEnv env);
+  Future<ScMember> getCurrentMemberShallow(ScEnv env);
   Future<ScMember> getMember(ScEnv env, String memberPublicId);
   Future<ScList> getMembers(ScEnv env);
 
@@ -124,16 +129,20 @@ abstract class ScClient implements ScApiContract {
   /// HTTP client used for requests to Shortcut's API
   final HttpClient client = HttpClient();
 
-  ScClient(this.host, this.apiToken);
+  ScClient(this.host, this.apiToken, this.appCookie);
 
   /// Shortcut API token used to communicate via its RESTful API.
   final String? apiToken;
+
+  /// Shortcut cookie from the browser app, used for some functionality not exposed by the public API.
+  final String? appCookie;
 
   final String host;
 }
 
 class ScLiveClient extends ScClient {
-  ScLiveClient(String host, String? apiToken) : super(host, apiToken);
+  ScLiveClient(String host, String? apiToken, String? appCookie)
+      : super(host, apiToken, appCookie);
 
   File? recordedCallsFile;
   bool shouldRecordCalls = false;
@@ -262,7 +271,14 @@ class ScLiveClient extends ScClient {
   Future<ScMember> getCurrentMember(ScEnv env) async {
     final tabaShallow = await authedCall(env, '/member');
     final shallowMember = tabaShallow.currentMember(env);
+    // stderr.writeln("CURRENT MEMBER: ${shallowMember.data}");
     return await getMember(env, shallowMember.idString);
+  }
+
+  @override
+  Future<ScMember> getCurrentMemberShallow(ScEnv env) async {
+    final tabaShallow = await authedCall(env, '/member');
+    return tabaShallow.currentMember(env);
   }
 
   @override
@@ -469,6 +485,34 @@ class ScLiveClient extends ScClient {
   }
 
   @override
+  Future<ScDoc> createDoc(ScEnv env, Map<String, dynamic> docData) async {
+    final body = {
+      "operationName": "AddDoc",
+      "variables": {},
+      "query": "mutation AddDoc {\n  addDoc {\n    id\n    __typename\n  }\n}\n"
+    };
+    final taba = await authedCall(env, "/docs/graphql",
+        httpVerb: HttpVerb.post,
+        useAppCookie: true,
+        body: body,
+        queryParams: {'op': 'AddDoc'});
+    return taba.docFromMutation(env, 'addDoc');
+  }
+
+  @override
+  Future<ScDoc> getDoc(ScEnv env, String docPublicId) async {
+    final body = {
+      "operationName": "GetDocFull",
+      "variables": {"id": docPublicId},
+      "query":
+          "query GetDocFull(\$id: ID\u0021) {  node(id: \$id) {    ... on Doc {      ...DocFull      __typename    }    __typename  }}fragment DocFull on Doc {  id  uuid  content  version  recovery {    status    updatedAt    __typename  }  ...DocWithRelationships  ...DocCollections  ...AccessControls  __typename}fragment DocWithRelationships on Doc {  id  title  accessControlScope  archived  followedByViewer  createdAt  creator {    id    __typename  }  workspace {    id    __typename  }  relationships {    ...Relationship    __typename  }  __typename}fragment Relationship on DocRelationship {  id  embedded  subject {    ... on Doc {      id      title      accessControlScope      __typename    }    ... on DocPeek {      id      __typename    }    ... on Story {      id      name      type      __typename    }    ... on Epic {      id      name      workflowState {        type        __typename      }      __typename    }    ... on Iteration {      id      name      state      __typename    }    ... on Milestone {      id      name      state      __typename    }    ... on Project {      id      name      color      __typename    }    ... on Label {      id      name      color      __typename    }    __typename  }  verb  object {    ... on Doc {      id      title      accessControlScope      __typename    }    ... on DocPeek {      id      __typename    }    ... on Story {      id      name      type      __typename    }    ... on Epic {      id      name      workflowState {        type        __typename      }      __typename    }    ... on Iteration {      id      name      state      __typename    }    ... on Milestone {      id      name      state      __typename    }    ... on Project {      id      name      color      __typename    }    ... on Label {      id      name      color      __typename    }    __typename  }  __typename}fragment DocCollections on Doc {  id  archived  collections {    ...CollectionBasic    __typename  }  __typename}fragment CollectionBasic on Collection {  id  name  archived  numDocs  __typename}fragment AccessControls on Doc {  accessControlScope  accessControls {    grant    grantee {      __typename      id      ... on Workspace {        name        __typename      }      ... on User {        name        __typename      }    }    __typename  }  __typename}"
+    };
+    final taba = await authedCall(env, "/docs/graphql",
+        httpVerb: HttpVerb.post, useAppCookie: true, body: body);
+    return taba.docFromNodeQuery(env);
+  }
+
+  @override
   Future<ScCustomField> createCustomField(
       ScEnv env, Map<String, dynamic> customFieldData) async {
     final taba = await authedCall(env, "/custom-fields",
@@ -498,7 +542,10 @@ class ScLiveClient extends ScClient {
   }
 
   Future<ThereAndBackAgain> authedCall(ScEnv env, String path,
-      {HttpVerb httpVerb = HttpVerb.get, Map<String, dynamic>? body}) async {
+      {HttpVerb httpVerb = HttpVerb.get,
+      Map<String, dynamic>? body,
+      useAppCookie = false,
+      Map<String, String>? queryParams}) async {
     if (recordedCallsFile == null) {
       shouldRecordCalls = checkShouldRecordCalls();
       recordedCallsFile ??= File([
@@ -506,19 +553,67 @@ class ScLiveClient extends ScClient {
         'recorded-calls.jsonl'
       ].join(Platform.pathSeparator));
     }
-    final uri =
-        Uri(scheme: scheme, host: getShortcutHost(), path: "$basePath$path");
+
+    // Path finagling based on token vs. cookie-based routes.
+    String actualBasePath;
+    String actualHost;
+    if (useAppCookie) {
+      actualBasePath = "/backend/api/private";
+      actualHost = getShortcutAppHost();
+    } else {
+      actualBasePath = "/api/v3";
+      actualHost = getShortcutApiHost();
+    }
+    final fullPath = "$actualBasePath$path";
+
+    // Query params must be added at Uri construction.
+    Uri uri;
+    if (queryParams != null) {
+      uri = Uri(
+          scheme: scheme,
+          host: actualHost,
+          path: fullPath,
+          queryParameters: queryParams);
+    } else {
+      uri = Uri(scheme: scheme, host: actualHost, path: fullPath);
+    }
+
     HttpClientRequest request =
         await client.openUrl(methodFromVerb(httpVerb), uri);
-    request
-      ..headers.set('Shortcut-Token', "$apiToken")
-      ..headers.contentType = ContentType.json;
+
+    // (2022-07-21) Docs don't have a token-based public API at this point.
+    if (useAppCookie) {
+      // TODO Memoize in ScEnv
+      final organization2 = getShortcutOrganization2();
+      if (organization2 == null) {
+        throw OperationNotSupported(
+            "You cannot do this without first settings a SHORTCUT_ORGANIZATION2 value in your environment.");
+      }
+      final workspace2 = getShortcutWorkspace2();
+      if (workspace2 == null) {
+        throw OperationNotSupported(
+            "You cannot do this without first settings a SHORTCUT_WORKSPACE2 value in your environment.");
+      }
+      request.cookies.add(Cookie('sid', appCookie!));
+      // request.headers.set('Cookie', appCookie!);
+      request.headers.set('tenant-organization2', organization2);
+      request.headers.set('tenant-workspace2', workspace2);
+      request.headers.set('clubhouse-event-source', 'quick action CTA');
+      request.headers.set('authority', 'app.shortcut.com');
+      request.headers.set('accept', '*/*');
+      request.headers.set('origin', 'https://app.shortcut.com');
+      request.headers.set('referer', 'https://app.shortcut.com/internal/write');
+    } else {
+      request.headers.set('Shortcut-Token', apiToken!);
+    }
+    request.headers.contentType = ContentType.json;
 
     if (httpVerb == HttpVerb.post || httpVerb == HttpVerb.put || body != null) {
       final bodyJson = jsonEncode(
         body,
         toEncodable: handleJsonNonEncodable,
       );
+      // stderr.writeln("JSON:\n$bodyJson");
       request
         ..headers.contentLength = bodyJson.length
         ..write(bodyJson);
@@ -547,7 +642,11 @@ class ScLiveClient extends ScClient {
       }
 
       if (response.statusCode == 404) {
-        throw EntityNotFoundException("Entity not found at $path");
+        // stderr.writeln(
+        //     "HTTP Request: ${request.method} ${request.uri} ${request.cookies} ${request.headers}");
+        // stderr.writeln(
+        //     "HTTP Response: ${response.statusCode} Something went especially wrong. See details below.\n${responseContents.toString()}");
+        throw EntityNotFoundException("Entity not found at ${request.uri}");
       } else if (response.statusCode == 400) {
         throw BadRequestException(
             "HTTP 400 Bad Request: The request wasn't quite right. See details below.\n${responseContents.toString()}",
@@ -555,7 +654,7 @@ class ScLiveClient extends ScClient {
             response);
       } else if (response.statusCode == 401) {
         throw BadRequestException(
-            "HTTP 401 Not Authorized: Make sure you have SHORTCUT_API_TOKEN defined in your environment correctly.",
+            "HTTP 401 Not Authorized: Make sure you have SHORTCUT_API_TOKEN and/or SHORTCUT_APP_COOKIE defined in your environment correctly.",
             request,
             response);
       } else if (response.statusCode == 422) {
@@ -654,6 +753,14 @@ class ThereAndBackAgain {
 
   Map<String, dynamic> objectBody() {
     return response['body'];
+  }
+
+  Map<String, dynamic> graphQlNode() {
+    return response['body']['data']['node'];
+  }
+
+  Map<String, dynamic> graphQlData() {
+    return response['body']['data'];
   }
 
   ScEpic epic(ScEnv env) {
@@ -770,6 +877,17 @@ class ThereAndBackAgain {
     List<dynamic> customFields = arrayBody();
     return ScList(
         customFields.map((e) => ScCustomField.fromMap(env, e)).toList());
+  }
+
+  ScDoc docFromNodeQuery(ScEnv env) {
+    Map<String, dynamic> node = graphQlNode();
+    return ScDoc.fromMap(env, node);
+  }
+
+  ScDoc docFromMutation(ScEnv env, String mutationName) {
+    Map<String, dynamic> data = graphQlData();
+    final node = data[mutationName];
+    return ScDoc.fromMap(env, node);
   }
 
   ScMap search(ScEnv env) {

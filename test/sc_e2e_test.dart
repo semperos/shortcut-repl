@@ -25,7 +25,8 @@ final configParentEpic = jsonDecode(configParentEpicRaw);
 final configParentMilestone = jsonDecode(configParentMilestoneRaw);
 final configNoParent = jsonDecode(configNoParentRaw);
 
-final client = ScLiveClient(getShortcutHost(), getShortcutApiToken());
+final client = ScLiveClient(
+    getShortcutApiHost(), getShortcutApiToken(), getShortcutAppCookie());
 
 void main() {
   group('Ctx with container', () {

@@ -21,6 +21,7 @@
             "env": {
                 "SHORTCUT_API_TOKEN": "${env:SHORTCUT_API_TOKEN}",
                 "SHORTCUT_API_HOST": "${env:SHORTCUT_API_HOST}",
+                "SHORTCUT_APP_COOKIE": "${env:SHORTCUT_APP_COOKIE}",
                 "SHORTCUT_RECORD_CALLS": "true"
             },
             "program": "test",

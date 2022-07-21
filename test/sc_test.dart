@@ -4,7 +4,8 @@ import 'package:sc_cli/src/sc.dart';
 import 'package:sc_cli/src/sc_api.dart' show ScLiveClient;
 import 'package:sc_cli/src/sc_config.dart';
 
-final client = ScLiveClient(getShortcutHost(), getShortcutApiToken());
+final client = ScLiveClient(
+    getShortcutApiHost(), getShortcutApiToken(), getShortcutAppCookie());
 
 ScEnv e() => ScEnv.fromMap(client, {});
 

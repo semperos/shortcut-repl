@@ -44,7 +44,8 @@ ${parser.usage}
 
 void interpretProgram(Options options) {
   final program = options.program!; // null checked by caller
-  final client = ScLiveClient(getShortcutHost(), getShortcutApiToken());
+  final client = ScLiveClient(
+      getShortcutApiHost(), getShortcutApiToken(), getShortcutAppCookie());
   final baseConfigDirPath =
       options.baseConfigDir ?? getDefaultBaseConfigDirPath();
   final env = ScEnv.readFromDisk(
@@ -98,7 +99,8 @@ Future<Isolate> startReplServer(
 /// Closure to make [options] available to the isolate fn.
 Function startProdReplServerIsolateFn(Options options) {
   return (SendPort sendPort) async {
-    final client = ScLiveClient(getShortcutHost(), getShortcutApiToken());
+    final client = ScLiveClient(
+        getShortcutApiHost(), getShortcutApiToken(), getShortcutAppCookie());
     final baseConfigDirPath =
         options.baseConfigDir ?? getDefaultBaseConfigDirPath();
     final env = ScEnv.readFromDisk(

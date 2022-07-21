@@ -1,7 +1,7 @@
 import 'dart:io';
 
-const host = 'api.app.shortcut.com';
-const basePath = '/api/v3';
+const apiHost = 'api.app.shortcut.com';
+const appHost = 'app.shortcut.com';
 const scheme = 'https';
 const envFilePath = 'env.json';
 const cacheMembersFilePath = 'cache_members.json';
@@ -11,12 +11,28 @@ const cacheCustomFieldsFilePath = 'cache_custom_fields.json';
 const cacheEpicWorkflowFilePath = 'cache_epic_workflow.json';
 const historyFilePath = 'history.log';
 
-String getShortcutHost() {
-  return Platform.environment['SHORTCUT_API_HOST'] ?? host;
+String getShortcutApiHost() {
+  return Platform.environment['SHORTCUT_API_HOST'] ?? apiHost;
+}
+
+String getShortcutAppHost() {
+  return Platform.environment['SHORTCUT_APP_HOST'] ?? appHost;
 }
 
 String? getShortcutApiToken() {
   return Platform.environment['SHORTCUT_API_TOKEN'];
+}
+
+String? getShortcutAppCookie() {
+  return Platform.environment['SHORTCUT_APP_COOKIE'];
+}
+
+String? getShortcutOrganization2() {
+  return Platform.environment['SHORTCUT_ORGANIZATION2'];
+}
+
+String? getShortcutWorkspace2() {
+  return Platform.environment['SHORTCUT_WORKSPACE2'];
 }
 
 const recordedCallsVersion = '1';

@@ -14,6 +14,12 @@ First, ensure you have a [Shortcut API token](https://app.shortcut.com/internal/
 export SHORTCUT_API_TOKEN=$(sops --decrypt --extract '["shortcut"]["api_token"]')
 ```
 
+To be able to create and access Docs, you need the Shortcut cookie (called `sid` as of this writing) out of your browser and supply that as `SHORTCUT_APP_COOKIE` in your environment. Please include only the _value_ of the cookie, not the `sid=` portion you may see if you "Copy as cURL" from your browser's developer tools.
+
+```shell
+export SHORTCUT_APP_COOKIE=<UUID goes here>
+```
+
 With that, you can run `sc` in one of two modes:
 
 * Interactive Read-Eval-Print Loop (REPL) using `sc -r`

@@ -263,6 +263,7 @@ class ScEnv {
     ScSymbol('fetch-all'): ScFnFetchAll(),
     ScSymbol('create'): ScFnCreate(),
     ScSymbol('create-comment'): ScFnCreateComment(),
+    ScSymbol('create-doc'): ScFnCreateDoc(),
     ScSymbol('create-epic'): ScFnCreateEpic(),
     ScSymbol('create-iteration'): ScFnCreateIteration(),
     ScSymbol('create-label'): ScFnCreateLabel(),
@@ -271,6 +272,7 @@ class ScEnv {
     ScSymbol('create-task'): ScFnCreateTask(),
     ScSymbol('new'): ScFnCreate(),
     ScSymbol('new-comment'): ScFnCreateComment(),
+    ScSymbol('new-doc'): ScFnCreateDoc(),
     ScSymbol('new-epic'): ScFnCreateEpic(),
     ScSymbol('new-iteration'): ScFnCreateIteration(),
     ScSymbol('new-label'): ScFnCreateLabel(),
@@ -286,6 +288,7 @@ class ScEnv {
     ScSymbol('next-state!'): ScFnNextState(),
     ScSymbol('prev-state!'): ScFnPreviousState(),
     ScSymbol('previous-state!'): ScFnPreviousState(),
+    ScSymbol('doc'): ScFnDoc(),
     ScSymbol('story'): ScFnStory(),
     ScSymbol('st'): ScFnStory(),
     ScSymbol('stories'): ScFnStories(),
@@ -357,9 +360,9 @@ class ScEnv {
     // Completed At
     ScSymbol('query-completed-at-start'): ScString(
         "Use with `find-stories`, narrow results to stories completed after the given date-time."),
-    ScSymbol('query-completed-at-after'): ScString(
+    ScSymbol('query-completed-at-since'): ScString(
         "Use with `find-stories`, narrow results to stories completed after the given date-time."),
-    ScSymbol('query-completed-after'): ScString(
+    ScSymbol('query-completed-since'): ScString(
         "Use with `find-stories`, narrow results to stories completed after the given date-time."),
     ScSymbol('query-completed-at-end'): ScString(
         "Use with `find-stories`, narrow results to stories completed before the given date-time."),
@@ -780,8 +783,8 @@ def query-completed-at-start value (fn query-completed-at-start [dt]
  (assert (= "date-time" (type dt))
          (concat "query-completed-at-start expects a date-time, but received a " (type dt)))
  {.completed_at_start dt})
-def query-completed-at-after value query-completed-at-start
-def query-completed-after value query-completed-at-start
+def query-completed-at-since value query-completed-at-start
+def query-completed-since value query-completed-at-start
 
 def query-completed-at-end value (fn query-completed-at-end [dt]
  (assert (= "date-time" (type dt))
@@ -1024,11 +1027,11 @@ def mention value (fn [mem]
          (.id mem)
          ")"))
 
-def branch-prefix value (fn [story]
-  (concat (first (split (.name (.profile (whoami))) " "))
+(def branch-prefix value (fn [story]
+  (concat (lower-case (first (split (.name (.profile (whoami))) " ")))
           "/sc-"
           (pr-str (.id story))
-          "/"))
+          "/")))
 
 ;; Entity States
 
@@ -1075,12 +1078,12 @@ def recent-stories value (fn recent-stories [entity]
    %(find-stories (extend
                    (query-owner entity)
                    query-done
-                   (query-completed-after (minus-weeks (now) 2))
+                   (query-completed-since (minus-weeks (now) 2))
                    query-not-archived))
    %(find-stories (extend
                    (query-group entity)
                    query-done
-                   (query-completed-after (minus-weeks (now) 2))
+                   (query-completed-since (minus-weeks (now) 2))
                    query-not-archived))))
 
 ; def stories-recent value recent-stories
@@ -1090,12 +1093,12 @@ def stories-completed-since value (fn recent-stories [entity date-time]
    %(find-stories (extend
                    (query-owner entity)
                    query-done
-                   (query-completed-after date-time)
+                   (query-completed-since date-time)
                    query-not-archived))
    %(find-stories (extend
                    (query-group entity)
                    query-done
-                   (query-completed-after date-time)
+                   (query-completed-since date-time)
                    query-not-archived))))
 
 def my-iterations value (fn my-iterations []
@@ -1198,36 +1201,7 @@ def current-epics value (fn current-epics [team]
     if (parentEntity != null) {
       final pe = parentEntity!;
 
-      String title;
-      if (pe is ScTask) {
-        final desc = pe.data[ScString('description')];
-        if (desc is ScString) {
-          title = desc.value;
-        } else {
-          title = '<No description found>';
-        }
-      } else if (pe is ScMember) {
-        final profile = pe.data[ScString('profile')];
-        if (profile is ScMap) {
-          final name = profile[ScString('name')];
-          if (name is ScString) {
-            title = name.value;
-          } else {
-            title = '<No name in member profile found>';
-          }
-        } else {
-          title = '<No member profile found>';
-        }
-      } else {
-        final name = pe.data[ScString('name')];
-        if (name is ScString) {
-          title = name.value;
-        } else if (pe.title != null) {
-          title = pe.title!.value;
-        } else {
-          title = '<No name: fetch the entity>';
-        }
-      }
+      String title = pe.calculateTitle();
 
       m['parent'] = {
         'entityType': pe.typeName(),
@@ -6391,9 +6365,9 @@ Caveat: Only Linux and macOS supported, this function shells out to `xdg-open` o
       }
     } else {
       ScEntity entity = env.resolveArgEntity(args, canonicalName);
-      final appUrl = entity.data[ScString('app_url')];
-      if (appUrl is ScString) {
-        execOpenInBrowser(appUrl.value);
+      final targetUrl = entity.url(env);
+      if (targetUrl is ScString) {
+        execOpenInBrowser(targetUrl.value);
       } else {
         throw MissingEntityDataException(
             "The app_url of this ${entity.typeName()} could not be accessed.");
@@ -7748,6 +7722,38 @@ class ScFnCreateLabel extends ScBaseInvocable {
   }
 }
 
+class ScFnCreateDoc extends ScBaseInvocable {
+  static final ScFnCreateDoc _instance = ScFnCreateDoc._internal();
+  ScFnCreateDoc._internal();
+  factory ScFnCreateDoc() => _instance;
+
+  @override
+  String get canonicalName => 'new-doc';
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        // ["label-map"],
+      };
+
+  @override
+  String get help => "Create a Shortcut doc. Currently supports no arguments.";
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty) {
+      return waitOn(env.client.createDoc(env, {}));
+    } else {
+      throw BadArgumentsException(
+          "The `$canonicalName` function expects 1 argument, but received ${args.length} arguments.");
+    }
+  }
+}
+
 class ScFnCreateMilestone extends ScBaseInvocable {
   static final ScFnCreateMilestone _instance = ScFnCreateMilestone._internal();
   ScFnCreateMilestone._internal();
@@ -8923,6 +8929,45 @@ class ScFnLabels extends ScBaseInvocable {
   }
 }
 
+class ScFnDoc extends ScBaseInvocable {
+  static final ScFnDoc _instance = ScFnDoc._internal();
+  ScFnDoc._internal();
+  factory ScFnDoc() => _instance;
+
+  @override
+  String get canonicalName => 'doc';
+
+  @override
+  String get help => "Fetch a Shortcut doc.";
+
+  @override
+  Set<List<String>> get arities => {
+        ["doc-id"]
+      };
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final docId = args[0];
+      ScDoc doc;
+      if (docId is ScString) {
+        doc = ScDoc(docId);
+      } else {
+        throw BadArgumentsException(
+            "The `$canonicalName` function expects a string for the doc ID, but received a ${docId.typeName()}");
+      }
+      return waitOn(doc.fetch(env));
+    } else {
+      // TODO Implement interactive doc creation
+      throw UnimplementedError();
+    }
+  }
+}
+
 class ScFnCustomFields extends ScBaseInvocable {
   static final ScFnCustomFields _instance = ScFnCustomFields._internal();
   ScFnCustomFields._internal();
@@ -10088,6 +10133,25 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
     }
   }
 
+  ScString? url(ScEnv env) {
+    if (this is ScDoc) {
+      final currentMember = waitOn(env.client.getCurrentMemberShallow(env));
+      final workspace2 = currentMember.data[ScString('workspace2')];
+      if (workspace2 is ScMap) {
+        final urlSlug = workspace2[ScString('url_slug')];
+        if (urlSlug is ScString) {
+          return ScString(
+              'https://${getShortcutAppHost()}/${urlSlug.value}/write/$idString');
+        }
+      }
+    }
+    final appUrl = data[ScString('app_url')];
+    if (appUrl is ScString) {
+      return appUrl;
+    }
+    return null;
+  }
+
   ScMap data = ScMap({});
   ScString? title;
 
@@ -10145,6 +10209,7 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
     ScString('status'),
     ScString('started_at'),
     ScString('story_type'),
+    ScString('title'),
     ScString('workflow_state_id'),
   };
 
@@ -10492,10 +10557,17 @@ abstract class ScEntity extends ScExpr implements RemoteCommand {
     } else if (this is ScCustomFieldEnumValue) {
       final value = data[ScString('value')];
       if (value is ScString) {
-        calculatedTitle = ScString(value.value);
+        calculatedTitle = value;
       } else {
         calculatedTitle =
             ScString('<No custom field enum value data: run fetch>');
+      }
+    } else if (this is ScDoc) {
+      final value = data[ScString('title')];
+      if (value is ScString) {
+        calculatedTitle = value;
+      } else {
+        calculatedTitle = ScString('<No doc title: add a title or run fetch>');
       }
     } else {
       final name = data[ScString('name')];
@@ -12510,6 +12582,136 @@ class ScLabel extends ScEntity {
   }
 }
 
+class ScDoc extends ScEntity {
+  ScDoc(ScString id) : super(id);
+
+  @override
+  String typeName() {
+    return 'doc';
+  }
+
+  @override
+  String get shortFnName => 'doc';
+
+  @override
+  String readableString(ScEnv env) {
+    final lp = lParen(env);
+    final rp = rParen(env);
+    final fnName = env.style(shortFnName, this);
+    return "$lp$fnName $id$rp";
+  }
+
+  static final Set<String> fieldsForCreate = {};
+
+  static final Set<String> fieldsForUpdate = {};
+
+  factory ScDoc.fromMap(ScEnv env, Map<String, dynamic> data) {
+    return ScDoc(ScString(data['id'].toString())).addAll(env, data) as ScDoc;
+  }
+
+  @override
+  Future<ScEntity> fetch(ScEnv env) async {
+    final doc = await env.client.getDoc(env, idString);
+    data = doc.data;
+    return this;
+  }
+
+  @override
+  String printToString(ScEnv env) {
+    final sb = StringBuffer();
+    sb.write(readableString(env));
+
+    final cmt = comment(env);
+    sb.write(' $cmt ');
+
+    final docTitle = data[ScString('title')];
+    if (docTitle is ScString) {
+      sb.write(env.style(docTitle.value, styleTitle));
+    } else {
+      sb.write(env.style("<No title: add a title or run fetch>", styleTitle));
+    }
+
+    return sb.toString();
+  }
+
+  @override
+  ScExpr printSummary(ScEnv env) {
+    if (!data.containsKey(ScString('content'))) {
+      waitOn(fetch(env));
+    }
+
+//     [
+//   "__typename",
+//   "accessControlScope",
+//   "accessControls",
+//   "archived",
+//   "collections",
+//   "content",
+//   "createdAt",
+//   "creator",
+//   "followedByViewer",
+//   "id",
+//   "recovery",
+//   "relationships",
+//   "title",
+//   "uuid",
+//   "version",
+//   "workspace"
+// ]
+
+    final lblTitle = 'Title ';
+    final lblId = 'Id ';
+    final lblSize = 'Size ';
+    final labelWidth = maxPaddedLabelWidth([
+      lblTitle,
+      lblId,
+      lblSize,
+    ]);
+
+    final sb = StringBuffer('\n');
+
+    final title = data[ScString('title')];
+    if (title is ScString) {
+      sb.write(env.style(lblTitle.padLeft(labelWidth), this));
+      sb.write(title.value);
+      sb.writeln();
+    }
+
+    sb.write(env.style(lblId.padLeft(labelWidth), this));
+    if (id is ScString) {
+      final i = id as ScString;
+      sb.write(i.value);
+    } else {
+      sb.write(id.toString());
+    }
+    sb.writeln();
+
+    final content = data[ScString('content')];
+    if (content is ScString) {
+      final size = content.value.length;
+      sb.write(env.style(lblSize.padLeft(labelWidth), this));
+      sb.write("$size bytes");
+      sb.writeln();
+    }
+
+    env.out.write(sb.toString());
+
+    return ScNil();
+  }
+
+  @override
+  Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) {
+    throw OperationNotSupported(
+        "Docs do not support `ls` at this time. Open the doc in the browser.");
+  }
+
+  @override
+  Future<ScEntity> update(ScEnv env, Map<String, dynamic> updateMap) {
+    throw OperationNotSupported(
+        "Docs do not support update at this time. Open the doc in the browser to edit it.");
+  }
+}
+
 class ScWorkflow extends ScEntity {
   ScWorkflow(ScString id) : super(id);
 
@@ -13580,6 +13782,10 @@ ScEntity? entityFromEnvJson(Map<String, dynamic> json) {
         break;
       case 'custom field':
         entity = ScCustomField(ScString(entityId));
+        entity.title = ScString(title);
+        break;
+      case 'doc':
+        entity = ScDoc(ScString(entityId));
         entity.title = ScString(title);
         break;
     }
