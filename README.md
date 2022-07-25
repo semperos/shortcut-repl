@@ -14,10 +14,12 @@ First, ensure you have a [Shortcut API token](https://app.shortcut.com/internal/
 export SHORTCUT_API_TOKEN=$(sops --decrypt --extract '["shortcut"]["api_token"]')
 ```
 
-To be able to create and access Docs, you need the Shortcut cookie (called `sid` as of this writing) out of your browser and supply that as `SHORTCUT_APP_COOKIE` in your environment. Please include only the _value_ of the cookie, not the `sid=` portion you may see if you "Copy as cURL" from your browser's developer tools.
+To be able to create and access Docs, you need the Shortcut cookie (called `sid` as of this writing) out of your browser and supply that as `SHORTCUT_APP_COOKIE` in your environment. Please include only the _value_ of the cookie, not the `sid=` portion you may see if you "Copy as cURL" from your browser's developer tools. You will also need the `tenant-organization2` and `tenant-workspace2` header values, which you can find using your browser's developer tooling while navigating within Docs.
 
 ```shell
 export SHORTCUT_APP_COOKIE=<UUID goes here>
+export SHORTCUT_ORGANIZATION2=<UUID goes here>
+export SHORTCUT_WORKSPACE2=<UUID goes here>
 ```
 
 With that, you can run `sc` in one of two modes:

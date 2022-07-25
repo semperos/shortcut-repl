@@ -2184,7 +2184,12 @@ abstract class ScBaseInvocable extends ScExpr {
   @override
   void print(ScEnv env) {
     // env.out.write("<function: $name>");
-    env.out.write("<function>");
+    env.out.write(printToString(env));
+  }
+
+  @override
+  String printToString(ScEnv env) {
+    return '<function>';
   }
 
   ScExpr invoke(ScEnv env, ScList args);
@@ -2258,6 +2263,11 @@ class ScFunction extends ScBaseInvocable {
       env.bindings = originalBindings;
       return result;
     }
+  }
+
+  @override
+  String printToString(ScEnv env) {
+    return "<function: $name>";
   }
 }
 
