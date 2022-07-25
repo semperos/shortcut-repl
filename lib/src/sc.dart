@@ -7756,7 +7756,10 @@ class ScFnCreateDoc extends ScBaseInvocable {
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
-      return waitOn(env.client.createDoc(env, {}));
+      final doc = waitOn(env.client.createDoc(env, {}));
+      final openFn = ScFnOpen();
+      openFn.invoke(env, ScList([doc]));
+      return doc;
     } else {
       throw BadArgumentsException(
           "The `$canonicalName` function expects 1 argument, but received ${args.length} arguments.");
