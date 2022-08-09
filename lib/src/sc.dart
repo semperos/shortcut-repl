@@ -106,6 +106,7 @@ class ScEnv {
     ScSymbol('to-local'): ScFnDateTimeToLocal(),
     ScSymbol('before?'): ScFnDateTimeIsBefore(),
     ScSymbol('after?'): ScFnDateTimeIsAfter(),
+    ScSymbol('format-date'): ScFnDateTimeFormat(),
     ScSymbol('year'): ScFnDateTimeField(ScDateTimeFormat.year),
     ScSymbol('month'): ScFnDateTimeField(ScDateTimeFormat.month),
     ScSymbol('week-of-year'): ScFnDateTimeField(ScDateTimeFormat.weekOfYear),
@@ -261,6 +262,7 @@ class ScEnv {
     ScSymbol('summary'): ScFnSummary(),
     ScSymbol('fetch'): ScFnFetch(),
     ScSymbol('fetch-all'): ScFnFetchAll(),
+    ScSymbol('workspace2-slug'): ScFnWorkspace2Slug(),
     ScSymbol('create'): ScFnCreate(),
     ScSymbol('create-comment'): ScFnCreateComment(),
     ScSymbol('create-doc'): ScFnCreateDoc(),
@@ -1109,6 +1111,9 @@ def current-iteration value (fn current-iteration [team]
 
 def current-epics value (fn current-epics [team]
   (where (epics team) epic-is-in-progress))
+
+; (def nav-docs value (fn []
+;   (open (concat "la))))
 
 ;; TODO Consider best way to prompt folks to setup defaults. Printing here does it in all the tests.
 ; def -priv-defaults defaults
@@ -2833,6 +2838,65 @@ See also:
       } else {
         throw BadArgumentsException(
             "The `$canonicalName` function's first argument must be a date-time, but received a ${dateTime1.typeName()}");
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `$canonicalName` function expects 2 arguments, but received ${args.length} arguments.");
+    }
+  }
+}
+
+class ScFnDateTimeFormat extends ScBaseInvocable {
+  static final ScFnDateTimeFormat _instance = ScFnDateTimeFormat._internal();
+  ScFnDateTimeFormat._internal();
+  factory ScFnDateTimeFormat() => _instance;
+
+  @override
+  String get canonicalName => 'format-date';
+
+  @override
+  Set<List<String>> get arities => {
+        ["date-time", "format-string"]
+      };
+
+  @override
+  String get help =>
+      "Returns a string representation of the given date-time based on the format string.";
+
+  @override
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""
+See the documentation for the DateFormat class in the intl package for formatting details:
+
+https://pub.dev/documentation/intl/latest/intl/DateFormat-class.html
+
+See also:
+  year
+  month
+  date-of-month
+  day-of-week
+  week-of-year""";
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 2) {
+      final dateTime = args[0];
+      final formatString = args[1];
+      if (dateTime is ScDateTime) {
+        if (formatString is ScString) {
+          final dt = dateTime.value;
+          final str = formatString.value;
+          final dateFormat = DateFormat(str);
+          return ScString(dateFormat.format(dt));
+        } else {
+          throw BadArgumentsException(
+              "The `$canonicalName` function's second argument must be a string, but received a ${dateTime.typeName()}");
+        }
+      } else {
+        throw BadArgumentsException(
+            "The `$canonicalName` function's first argument must be a date-time, but received a ${dateTime.typeName()}");
       }
     } else {
       throw BadArgumentsException(
@@ -7069,6 +7133,43 @@ NB: Iterations are not included in this list, because their "state" is based sol
       }
     } else {
       throw UnimplementedError();
+    }
+  }
+}
+
+class ScFnWorkspace2Slug extends ScBaseInvocable {
+  static final ScFnWorkspace2Slug _instance = ScFnWorkspace2Slug._internal();
+  ScFnWorkspace2Slug._internal();
+  factory ScFnWorkspace2Slug() => _instance;
+
+  @override
+  String get canonicalName => 'workspace2-slug';
+
+  @override
+  Set<List<String>> get arities => {[]};
+
+  @override
+  String get help =>
+      'Return the URL slug for the current workspace2, as determined by the SHORTCUT_API_TOKEN.';
+
+  @override
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""Useful for building URLs to parts of your Shortcut workspace not handled directly by this tool.""";
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty) {
+      final ws2 = getShortcutWorkspace2();
+      if (ws2 == null) {
+        return ScNil();
+      } else {
+        return ScString(ws2);
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `$canonicalName` function expects no arguments, but received ${args.length} arguments.");
     }
   }
 }
