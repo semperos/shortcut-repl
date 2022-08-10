@@ -3580,23 +3580,43 @@ class ScFnSelect extends ScBaseInvocable {
     } else {
       if (sourceMap is ScMap) {
         final getFn = ScFnGet();
+        final getInFn = ScFnGetIn();
         final notFound = ScSymbol('__sc_not-found');
         final targetMap = ScMap({});
         for (final key in selector.innerList) {
           final value = getFn.invoke(env, ScList([sourceMap, key, notFound]));
           if (value != notFound) {
             targetMap[key] = value;
+          } else {
+            // Support list-as-selector with select.
+            if (key is ScList) {
+              final value =
+                  getInFn.invoke(env, ScList([sourceMap, key, notFound]));
+              if (value != notFound) {
+                targetMap[key] = value;
+              }
+            }
           }
         }
         return targetMap;
       } else if (sourceMap is ScEntity) {
         final getFn = ScFnGet();
+        final getInFn = ScFnGetIn();
         final notFound = ScSymbol('__sc_not-found');
         final targetMap = ScMap({});
         for (final key in selector.innerList) {
           final value = getFn.invoke(env, ScList([sourceMap, key, notFound]));
           if (value != notFound) {
             targetMap[key] = value;
+          } else {
+            // Support list-as-selector with select.
+            if (key is ScList) {
+              final value =
+                  getInFn.invoke(env, ScList([sourceMap, key, notFound]));
+              if (value != notFound) {
+                targetMap[key] = value;
+              }
+            }
           }
         }
         return targetMap;
@@ -5249,14 +5269,19 @@ class ScFnReduce extends ScBaseInvocable {
       r"""
 NB: For Clojure developers, `reduce` has similar signature expectations, with the obvious exception of the position of the collection in the function parameters.
 
-If the collection is empty:
-  The function is expected to have a 0-arity that can be invoked to provide the return value of the reduction.
-If the collection has 1 item:
-  That item is returned without invoking the function.
-Otherwise:
-  If a starting accumulator is provided, that is used with the reducing function.
-  If a starting accumulator is not provided and the collection has 2 or more elements:
-    The first item of the collection is used as the starting accumulator, then the rest of the collection has the reducing function applied.
+If the collection is a list:
+  If the list is empty:
+    The function is expected to have a 0-arity that can be invoked to provide the return value of the reduction.
+  If the list has 1 item:
+    That item is returned without invoking the function.
+  Otherwise:
+    If a starting accumulator is provided, that is used with the reducing function.
+    If a starting accumulator is not provided and the list has 2 or more elements:
+      The first item of the list is used as the starting accumulator, then the rest of the list has the reducing function applied.
+
+If the collection is a map:
+  If no starting accumulator is provided, an empty map is assumed.
+  The function must support three argument parameters: the accumulator, a key, and a value.
 
 NB: Although Piped Lisp does not support implementing your own multi-arity functions, several built-in functions do support multiple arities and work well with reduce (e.g., `+` and other arithmetic functions).
 """;
@@ -5267,14 +5292,14 @@ NB: Although Piped Lisp does not support implementing your own multi-arity funct
       throw BadArgumentsException(
           "The `$canonicalName` function expects 2 or 3 arguments: a list, an optional starting accumulator, and a function of (acc, item), but received ${args.length} arguments.");
     } else {
-      final list = args[0];
-      if (list is ScList) {
+      final coll = args[0];
+      if (coll is ScList) {
         if (args.length == 2) {
           // list + fn
 
           final invocable = args[1];
           if (invocable is ScBaseInvocable) {
-            if (list.isEmpty) {
+            if (coll.isEmpty) {
               try {
                 final defaultValue = invocable.invoke(env, ScList([]));
                 return defaultValue;
@@ -5283,7 +5308,7 @@ NB: Although Piped Lisp does not support implementing your own multi-arity funct
                     "The `$canonicalName` function expects a starting accumulator or a function that can be invoked with zero arguments when the collection passed in is empty. The collection is empty, no accumulator was passed, and the function threw an exception.");
               }
             }
-            return list.reduce(
+            return coll.reduce(
                 (acc, item) => invocable.invoke(env, ScList([acc, item])));
           } else {
             throw BadArgumentsException(
@@ -5292,12 +5317,12 @@ NB: Although Piped Lisp does not support implementing your own multi-arity funct
         } else {
           // list + acc + fn
           final startingAcc = args[1];
-          if (list.isEmpty) {
+          if (coll.isEmpty) {
             return startingAcc;
           } else {
             final invocable = args[2];
             if (invocable is ScBaseInvocable) {
-              final listCopy = ScList(List<ScExpr>.from(list.innerList));
+              final listCopy = ScList(List<ScExpr>.from(coll.innerList));
               listCopy.insertMutable(0, startingAcc);
               return listCopy.reduce(
                   (acc, item) => invocable.invoke(env, ScList([acc, item])));
@@ -5307,9 +5332,49 @@ NB: Although Piped Lisp does not support implementing your own multi-arity funct
             }
           }
         }
+      } else if (coll is ScMap) {
+        if (args.length == 2) {
+          // map + fn
+          final invocable = args[1];
+          if (invocable is ScBaseInvocable) {
+            if (coll.isEmpty) {
+              try {
+                final defaultValue = invocable.invoke(env, ScList([]));
+                return defaultValue;
+              } catch (e) {
+                throw BadArgumentsException(
+                    "The `$canonicalName` function expects a starting accumulator or a function that can be invoked with zero arguments when the collection passed in is empty. The collection is empty, no accumulator was passed, and the function threw an exception.");
+              }
+            }
+            return coll.reduce(
+                ScMap({}),
+                (acc, key, value) =>
+                    invocable.invoke(env, ScList([acc, key, value])));
+          } else {
+            throw BadArgumentsException(
+                "When passing two arguments to `reduce`, the second argument must be a function, but received ${invocable.typeName()}");
+          }
+        } else {
+          // map + acc + fn
+          final startingAcc = args[1];
+          if (coll.isEmpty) {
+            return startingAcc;
+          } else {
+            final invocable = args[2];
+            if (invocable is ScBaseInvocable) {
+              return coll.reduce(
+                  startingAcc,
+                  (acc, key, value) =>
+                      invocable.invoke(env, ScList([acc, key, value])));
+            } else {
+              throw BadArgumentsException(
+                  "When passing three arguments to `reduce`, the third argument must be a function, but received ${invocable.typeName()}");
+            }
+          }
+        }
       } else {
         throw BadArgumentsException(
-            "The first argument to `reduce` must be a list, but received ${list.typeName()}");
+            "The first argument to `reduce` must be a list or map, but received ${coll.typeName()}");
       }
     }
   }
@@ -5672,9 +5737,9 @@ class ScFnGetIn extends ScBaseInvocable {
       return getIn(source.data, selector, missingDefault);
     } else if (source is ScMap) {
       return getIn(source, selector, missingDefault);
+    } else {
+      return missingDefault;
     }
-    // Not sure where null can be returned above, but this solves it.
-    return missingDefault;
   }
 }
 
@@ -6233,7 +6298,7 @@ class ScFnWriteFile extends ScBaseInvocable {
       if (maybeFile is ScFile) {
         file = maybeFile.file;
       } else if (maybeFile is ScString) {
-        file = resolveFile(env, maybeFile.value);
+        file = resolveFile(env, maybeFile.value, createIfMissing: true);
       } else {
         throw BadArgumentsException(
             'The `$canonicalName` function expects its first argument to be a file, but received a ${maybeFile.typeName()}');
@@ -6250,7 +6315,7 @@ class ScFnWriteFile extends ScBaseInvocable {
       }
 
       file.writeAsStringSync(contentStr);
-      return ScNil();
+      return ScFile(file);
     } else {
       throw BadArgumentsException(
           'The `$canonicalName` function expects two arguments: the file to write and content to write to it.');
@@ -10208,6 +10273,18 @@ class ScMap extends ScExpr {
     return ScMap(copy);
   }
 
+  ScExpr reduce(ScExpr startingAccumulator,
+      ScExpr Function(ScExpr acc, ScExpr key, ScExpr value) fn) {
+    final copy = Map<ScExpr, ScExpr>.from(innerMap);
+    final ks = copy.keys;
+    ScExpr runningAccumulator = startingAccumulator;
+    for (var k in ks) {
+      final v = this[k] ?? ScNil();
+      runningAccumulator = fn(runningAccumulator, k, v);
+    }
+    return runningAccumulator;
+  }
+
   @override
   String toJson() {
     JsonEncoder jsonEncoder = JsonEncoder.withIndent('  ');
@@ -14062,6 +14139,8 @@ ScExpr getIn(ScExpr m, ScList rawSelector, ScExpr missingDefault) {
       } else {
         return getIn(missingDefault, selector, missingDefault);
       }
+    } else if (m == ScNil()) {
+      return ScNil();
     } else {
       throw BadArgumentsException(
           "Don't know how to `get-in` a $k from a value of type ${m.typeName()}");
@@ -14449,7 +14528,7 @@ void startAndPrintPid(ScEnv env, String program, List<String> args) {
       ";; [INFO] Editor opened with process ID ${proc.pid}", styleInfo));
 }
 
-File resolveFile(ScEnv env, String filePath) {
+File resolveFile(ScEnv env, String filePath, {createIfMissing = false}) {
   String fp = filePath;
   if (fp.contains('~')) {
     String? home = Platform.environment['HOME'];
@@ -14462,14 +14541,19 @@ File resolveFile(ScEnv env, String filePath) {
     }
   }
 
-  var sourceFile = File(fp);
-  if (!sourceFile.existsSync()) {
-    sourceFile = File(env.baseConfigDirPath + '/' + fp);
-    if (!sourceFile.existsSync()) {
-      throw FileNotFound(filePath, env.baseConfigDirPath);
+  File originalFile = File(fp);
+  if (!originalFile.existsSync()) {
+    File fileRelativeToConfig = File(env.baseConfigDirPath + '/' + fp);
+    if (!fileRelativeToConfig.existsSync()) {
+      if (createIfMissing) {
+        originalFile.createSync(recursive: true);
+        return originalFile;
+      } else {
+        throw FileNotFound(filePath, env.baseConfigDirPath);
+      }
     }
   }
-  return sourceFile;
+  return originalFile;
 }
 
 /// Enumerations
