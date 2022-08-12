@@ -804,7 +804,7 @@ def query-created-after value query-created-at-start
 
 def query-created-at-end value (fn query-created-at-end [dt]
  (assert (= "date-time" (type dt))
-         (concat "query-created-at-start expects a date-time, but received a " (type dt)))
+         (concat "query-created-at-end expects a date-time, but received a " (type dt)))
  {.created_at_end dt})
 def query-created-at-before value query-created-at-end
 def query-created-before value query-created-at-end
@@ -913,6 +913,10 @@ def story-is-started     {[.workflow_state_id .type] "started"}
 def story-is-done        {[.workflow_state_id .type] "done"}
 def story-is-finished    {[.workflow_state_id .type] "done"}
 def story-is-completed   {[.workflow_state_id .type] "done"}
+
+def story-is-feature {.story_type "feature"}
+def story-is-bug     {.story_type "bug"}
+def story-is-chore   {.story_type "chore"}
 
 def story-is-archived {.archived true}
 def story-is-not-archived {.archived false};
@@ -1050,11 +1054,11 @@ def own-by    value (fn [entity mem] (! entity .owner_ids [ mem ]))
 def add-label value (fn add-label [story label-name] (! story .labels [{.name label-name}]))
 def add-labels value (fn add-labels [story label-names] (! story .labels (map label-names %(just {.name %}))))
 
-def set-custom-field value (fn set-custom-field [story custom-field custom-field-value]
+def set-custom-field! value (fn set-custom-field! [story custom-field custom-field-value]
    (! story
       .custom_fields
       [{.field_id (.id custom-field) .value_id (.id custom-field-value)}]))
-def add-custom-field value set-custom-field
+def add-custom-field! value set-custom-field!
 
 def my-stories value (fn my-stories []
  (find-stories (extend
