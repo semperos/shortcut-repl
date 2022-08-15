@@ -263,6 +263,9 @@ class ScEnv {
     ScSymbol('fetch'): ScFnFetch(),
     ScSymbol('fetch-all'): ScFnFetchAll(),
     ScSymbol('workspace2-slug'): ScFnWorkspace2Slug(),
+    ScSymbol('workspace-slug'): ScFnWorkspace2Slug(),
+    ScSymbol('workspace2-url'): ScFnWorkspace2Url(),
+    ScSymbol('workspace-url'): ScFnWorkspace2Url(),
     ScSymbol('create'): ScFnCreate(),
     ScSymbol('create-comment'): ScFnCreateComment(),
     ScSymbol('create-doc'): ScFnCreateDoc(),
@@ -880,8 +883,11 @@ def query-updated-at-end value (fn query-updated-at-end [dt]
  {.updated_at_at_end dt})
 def query-updated-at-before value query-updated-at-end
 
-def query-workflow-state value (fn query-workflow-state [workflow-state] {.workflow_state_id workflow-state})
-def query-state value (fn query-state [workflow-state] {.workflow_state_id workflow-state})
+def query-workflow-state value (fn query-workflow-state [workflow-state]
+  {.workflow_state_id (if (= "workflow state" (type workflow-state))
+                        %(id (.id workflow-state))
+                        %(id workflow-state))})
+def query-state value query-workflow-state
 
 def query-workflow-state-types value (fn query-workflow-state-types [wf-state-types] {.workflow_state_types wf-state-types})
 def query-state-types          value (fn query-state-types [wf-state-types] {.workflow_state_types wf-state-types})
@@ -1116,8 +1122,23 @@ def current-iteration value (fn current-iteration [team]
 def current-epics value (fn current-epics [team]
   (where (epics team) epic-is-in-progress))
 
-; (def nav-docs value (fn []
-;   (open (concat "la))))
+def open-url value (fn [url] (open {.url url}))
+def open-app-path value (fn [path] (open-url (concat (workspace2-url) path)))
+
+def nav-boards value (fn nav-boards [] (open-app-path "/stories"))
+def nav-dashboard value (fn nav-dashboard [] (open-app-path "/dashboard"))
+def nav-docs value (fn nav-docs [] (open-app-path "/write"))
+def nav-epics value (fn nav-epics [] (open-app-path "/epics"))
+def nav-home value (fn nav-home [] (open-app-path "/dashboard"))
+def nav-iterations value (fn nav-iterations [] (open-app-path "/iterations"))
+def nav-labels value (fn nav-labels [] (open-app-path "/labels"))
+def nav-milestones value (fn nav-milestones [] (open-app-path "/milestones"))
+def nav-projects value (fn nav-projects [] (open-app-path "/projects"))
+def nav-reports value (fn nav-reports [] (open-app-path "/reports"))
+def nav-roadmap value (fn nav-roadmap [] (open-app-path "/roadmap"))
+def nav-search value (fn nav-search [] (open-app-path "/search"))
+def nav-stories value (fn nav-stories [] (open-app-path "/stories"))
+def nav-teams value (fn nav-teams [] (open-app-path "/teams"))
 
 ;; TODO Consider best way to prompt folks to setup defaults. Printing here does it in all the tests.
 ; def -priv-defaults defaults
@@ -6496,8 +6517,9 @@ Caveat: Only Linux and macOS supported, this function shells out to `xdg-open` o
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.length == 1 && args[0] is ScMap) {
       final m = args[0] as ScMap;
-      final appUrl = m[ScString('app_url')];
-      final url = m[ScString('url')];
+      final getFn = ScFnGet();
+      final appUrl = getFn.invoke(env, ScList([m, ScDottedSymbol('app_url')]));
+      final url = getFn.invoke(env, ScList([m, ScDottedSymbol('url')]));
       if (appUrl is ScString) {
         execOpenInBrowser(appUrl.value);
       } else if (url is ScString) {
@@ -7210,6 +7232,7 @@ class ScFnWorkspace2Slug extends ScBaseInvocable {
   static final ScFnWorkspace2Slug _instance = ScFnWorkspace2Slug._internal();
   ScFnWorkspace2Slug._internal();
   factory ScFnWorkspace2Slug() => _instance;
+  static ScString? _workspace2Slug;
 
   @override
   String get canonicalName => 'workspace2-slug';
@@ -7230,11 +7253,61 @@ class ScFnWorkspace2Slug extends ScBaseInvocable {
   @override
   ScExpr invoke(ScEnv env, ScList args) {
     if (args.isEmpty) {
-      final ws2 = getShortcutWorkspace2();
-      if (ws2 == null) {
-        return ScNil();
+      if (_workspace2Slug == null) {
+        final current = waitOn(env.client.getCurrentMemberShallow(env));
+        final workspace2 = current.data[ScString('workspace2')];
+        if (workspace2 is ScMap) {
+          final urlSlug = workspace2[ScString('url_slug')];
+          if (urlSlug is ScString) {
+            _workspace2Slug = urlSlug;
+            return urlSlug;
+          } else {
+            return ScNil();
+          }
+        } else {
+          return ScNil();
+        }
       } else {
-        return ScString(ws2);
+        return _workspace2Slug!;
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `$canonicalName` function expects no arguments, but received ${args.length} arguments.");
+    }
+  }
+}
+
+class ScFnWorkspace2Url extends ScBaseInvocable {
+  static final ScFnWorkspace2Url _instance = ScFnWorkspace2Url._internal();
+  ScFnWorkspace2Url._internal();
+  factory ScFnWorkspace2Url() => _instance;
+
+  @override
+  String get canonicalName => 'workspace2-url';
+
+  @override
+  Set<List<String>> get arities => {[]};
+
+  @override
+  String get help =>
+      'Return the URL for the current workspace2, as determined by the SHORTCUT_APP_HOST or the default production host.';
+
+  @override
+  String get helpFull =>
+      help +
+      '\n\n' +
+      r"""Useful for building URLs to parts of your Shortcut workspace not handled directly by this tool.""";
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.isEmpty) {
+      final base = getShortcutAppHost();
+      final ws2Fn = ScFnWorkspace2Slug();
+      final ws2 = ws2Fn.invoke(env, ScList([]));
+      if (ws2 is ScString) {
+        return ScString("https://$base/${ws2.value}");
+      } else {
+        return ScNil();
       }
     } else {
       throw BadArgumentsException(
