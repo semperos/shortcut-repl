@@ -13748,7 +13748,8 @@ void bindAllTheThings(ScEnv env) {
     final label = env.labelsById[labelId] as ScLabel;
     final name = label.data[ScString('name')];
     if (name is ScString) {
-      final sym = ScSymbol("label-${name.value}");
+      final legalName = mungeToLegalSymbolName(name.value);
+      final sym = ScSymbol("label-$legalName");
       env.bindings[sym] = label;
     }
   }
