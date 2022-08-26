@@ -6,6 +6,7 @@ const scheme = 'https';
 const envFilePath = 'env.json';
 const cacheMembersFilePath = 'cache_members.json';
 const cacheTeamsFilePath = 'cache_teams.json';
+const cacheLabelsFilePath = 'cache_labels.json';
 const cacheWorkflowsFilePath = 'cache_workflows.json';
 const cacheCustomFieldsFilePath = 'cache_custom_fields.json';
 const cacheEpicWorkflowFilePath = 'cache_epic_workflow.json';
@@ -79,6 +80,16 @@ File getCacheTeamsFile(String baseConfigDirPath) {
     cacheTeamsFile.writeAsStringSync('{}');
   }
   return cacheTeamsFile;
+}
+
+File getCacheLabelsFile(String baseConfigDirPath) {
+  final cacheLabelsFile = File(
+      [baseConfigDirPath, cacheLabelsFilePath].join(Platform.pathSeparator));
+  if (!cacheLabelsFile.existsSync()) {
+    cacheLabelsFile.parent.createSync(recursive: true);
+    cacheLabelsFile.writeAsStringSync('{}');
+  }
+  return cacheLabelsFile;
 }
 
 File getCacheWorkflowsFile(String baseConfigDirPath) {

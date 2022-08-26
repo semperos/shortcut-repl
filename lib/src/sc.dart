@@ -19,6 +19,7 @@ class ScEnv {
 
   ScMap membersById = ScMap({});
   ScMap teamsById = ScMap({});
+  ScMap labelsById = ScMap({});
   ScMap workflowsById = ScMap({});
   ScMap workflowStatesById = ScMap({});
   ScMap customFieldsById = ScMap({});
@@ -1140,6 +1141,8 @@ def nav-search value (fn nav-search [] (open-app-path "/search"))
 def nav-stories value (fn nav-stories [] (open-app-path "/stories"))
 def nav-teams value (fn nav-teams [] (open-app-path "/teams"))
 
+def edit-config value (fn edit-config [] (edit (file "env.json")))
+
 ;; TODO Consider best way to prompt folks to setup defaults. Printing here does it in all the tests.
 ; def -priv-defaults defaults
 ; when (= nil (.team -priv-defaults)) %(println "[INFO] Don't forget to set a default team with `default .team <your team>`")
@@ -1342,6 +1345,13 @@ def nav-teams value (fn nav-teams [] (open-app-path "/teams"))
       sink.write(json);
       sink.close();
     }
+    if (labelsById.isNotEmpty) {
+      final f = getCacheLabelsFile(baseConfigDirPath);
+      final sink = f.openWrite(mode: FileMode.writeOnly);
+      final json = labelsById.toJson();
+      sink.write(json);
+      sink.close();
+    }
     if (workflowsById.isNotEmpty) {
       final f = getCacheWorkflowsFile(baseConfigDirPath);
       final sink = f.openWrite(mode: FileMode.writeOnly);
@@ -1369,18 +1379,21 @@ def nav-teams value (fn nav-teams [] (open-app-path "/teams"))
     try {
       final membersFile = getCacheMembersFile(baseConfigDirPath);
       final teamsFile = getCacheTeamsFile(baseConfigDirPath);
+      final labelsFile = getCacheLabelsFile(baseConfigDirPath);
       final customFieldsFile = getCacheCustomFieldsFile(baseConfigDirPath);
       final workflowsFile = getCacheWorkflowsFile(baseConfigDirPath);
       final epicWorkflowFile = getCacheEpicWorkflowFile(baseConfigDirPath);
 
       final membersStr = await membersFile.readAsString();
       final teamsStr = await teamsFile.readAsString();
+      final labelsStr = await labelsFile.readAsString();
       final customFieldsStr = await customFieldsFile.readAsString();
       final workflowsStr = await workflowsFile.readAsString();
       final epicWorkflowStr = await epicWorkflowFile.readAsString();
 
       final membersMap = jsonDecode(membersStr) as Map;
       final teamsMap = jsonDecode(teamsStr) as Map;
+      final labelsMap = jsonDecode(labelsStr) as Map;
       final customFieldsMap = jsonDecode(customFieldsStr) as Map;
       final workflowsMap = jsonDecode(workflowsStr) as Map;
       final epicWorkflowMap =
@@ -1389,6 +1402,7 @@ def nav-teams value (fn nav-teams [] (open-app-path "/teams"))
       // These are stored as JSON objects based on their cache
       final membersMaps = membersMap.values;
       final teamsMaps = teamsMap.values;
+      final labelsMaps = labelsMap.values;
       final customFieldsMaps = customFieldsMap.values;
       final workflowsMaps = workflowsMap.values;
 
@@ -1396,6 +1410,8 @@ def nav-teams value (fn nav-teams [] (open-app-path "/teams"))
           ScList(membersMaps.map((e) => ScMember.fromMap(this, e)).toList());
       final teams =
           ScList(teamsMaps.map((e) => ScTeam.fromMap(this, e)).toList());
+      final labels =
+          ScList(labelsMaps.map((e) => ScLabel.fromMap(this, e)).toList());
       final customFields = ScList(
           customFieldsMaps.map((e) => ScCustomField.fromMap(this, e)).toList());
       final workflows = ScList(
@@ -1410,6 +1426,7 @@ def nav-teams value (fn nav-teams [] (open-app-path "/teams"))
 
       cacheMembers(members);
       cacheTeams(teams);
+      cacheLabels(labels);
       cacheCustomFields(customFields);
       cacheWorkflows(workflows);
       cacheEpicWorkflow(epicWorkflow!);
@@ -1509,6 +1526,27 @@ def nav-teams value (fn nav-teams [] (open-app-path "/teams"))
         teamsById[teamId] = team;
         return team;
       }
+    }
+  }
+
+  void cacheLabels(ScList labels) {
+    ScMap m = ScMap({});
+    for (final label in labels.innerList) {
+      final labelId = (label as ScLabel).id;
+      m[labelId] = label;
+    }
+    labelsById = m;
+  }
+
+  ScLabel resolveLabel(ScString labelId) {
+    final maybeCachedLabel = labelsById[labelId];
+    if (maybeCachedLabel != null) {
+      return maybeCachedLabel as ScLabel;
+    } else {
+      final label = ScLabel(labelId);
+      waitOn(label.fetch(this));
+      labelsById[labelId] = label;
+      return label;
     }
   }
 
@@ -6842,7 +6880,7 @@ class ScFnFetchAll extends ScBaseInvocable {
     if (args.isEmpty) {
       // NB: Fetch things that change infrequently but will make everything else here faster.
       env.out.writeln(env.style(
-          ";; [Please Wait] Caching of all workflows, workflow states, members, and teams for this session. Run `fetch-all` to refresh.",
+          ";; [Please Wait] Caching & creating bindings for all members, teams, labels, workflows, workflow states, and epic workflow states. Run `fetch-all` to refresh.",
           'warn'));
       fetchAllTheThings(env);
       return ScNil();
@@ -13674,6 +13712,7 @@ void fetchAllTheThings(ScEnv env) {
   env.cacheWorkflows(waitOn(env.client.getWorkflows(env)));
   env.cacheMembers(waitOn(env.client.getMembers(env)));
   env.cacheTeams(waitOn(env.client.getTeams(env)));
+  env.cacheLabels(waitOn(env.client.getLabels(env)));
   env.cacheEpicWorkflow(waitOn(env.client.getEpicWorkflow(env)));
   env.cacheCustomFields(waitOn(env.client.getCustomFields(env)));
   env.writeCachesToDisk();
@@ -13702,6 +13741,15 @@ void bindAllTheThings(ScEnv env) {
         final sym = ScSymbol("team-${mentionName.value}");
         env.bindings[sym] = team;
       }
+    }
+  }
+
+  for (final labelId in env.labelsById.keys) {
+    final label = env.labelsById[labelId] as ScLabel;
+    final name = label.data[ScString('name')];
+    if (name is ScString) {
+      final sym = ScSymbol("label-${name.value}");
+      env.bindings[sym] = label;
     }
   }
 
