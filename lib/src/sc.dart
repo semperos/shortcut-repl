@@ -8836,7 +8836,7 @@ class ScFnStories extends ScBaseInvocable {
 
   @override
   String get help =>
-      'Fetch epics, either all or based on the current parent entity.';
+      'Fetch stories, either all or based on the current parent entity.';
 
   @override
   String get helpFull =>
