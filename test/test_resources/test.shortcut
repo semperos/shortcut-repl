@@ -1,0 +1,7 @@
+def alpha "a"
+(def with-estimate value (fn [story estimate]
+  (extend story {
+      "estimate" estimate
+  })))
+def double value (fn [n]
+  (* n 2))

@@ -1,0 +1,11 @@
+- [Shortcut](https://shortcut.com/) is a SaaS tool to help teams build products together. It features flexible issue tracking married with collaborative document editing, as well as integrations with relevant third-party tools like VCS providers and Slack.
+- This `shortcut-repl` project produces an executable called `sc`, which is Shortcut's abbreviation for Shortcut.
+- The `sc` tool is a command-line interface (CLI) for interacting with [Shortcut's HTTP API (v3)](https://shortcut.com/api/rest/v3).
+- The `sc` tool is an interpreter of an intentionally-rudimentary programming language called [[Piped Lisp]].
+- `sc` supports either one-off executions (use `-e` or `--eval`) or an interactive console/REPL (use `-r` or `--repl`).
+	- See [[Usage]] for more details.
+- See next:
+	- [[Installation]]
+	- [[Usage]]
+	- [[Planned Features]]
+	- [[License]]

@@ -1,0 +1,7 @@
+def double value (fn [n] (* n 2))
+; The following is not acceptable; it must have a leading paren to be multi-line.
+(def with-estimate value (fn [story estimate]
+  (extend story {
+      "estimate" estimate
+  }
+; unmatched delimiters

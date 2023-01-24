@@ -1,0 +1,21 @@
+# https://hub.docker.com/_/dart
+image: dart:2.18
+
+variables:
+  # Use to learn more:
+  # pub run test --help
+  PUB_VARS: "--platform vm --timeout 30s --concurrency=6 --test-randomize-ordering-seed=random --reporter=expanded"
+
+# Cache downloaded dependencies and plugins between builds.
+# To keep cache across branches add 'key: "$CI_JOB_NAME"'
+cache:
+  paths:
+    - .pub-cache/global_packages
+
+before_script:
+  - dart pub get --no-precompile
+
+test:
+  stage: test
+  script:
+    - dart test

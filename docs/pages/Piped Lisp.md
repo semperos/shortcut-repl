@@ -1,0 +1,100 @@
+- ## Overview
+  collapsed:: true
+	- Piped Lisp (PL) is a custom, interpreted, small Lisp-like language that is the sole means by which to leverage `sc`
+	- PL has been designed syntactically with a shell-like interactive terminal in mind.
+- ## Syntax
+  collapsed:: true
+	- PL is a minimalist Lisp:
+		- Parentheses are used _only_ to denote invocations, and are optional except within function definitions.
+		- No macro system.
+		- No traditional `cons` cells, etc., all programs are parsed into Dart lists.
+	- The `|` pipe character can be used to thread the result of one expression as the first argument to the next, akin to Clojure's thread-first macro `->`.
+		- Example: `(* 3 (+ 1 2))` -> `+ 1 2 | * 3`
+		- You can use `_` in a top-level expression to have the value from the previous expression threaded there, rather than as the first argument, equivalent to using Clojure's `as->` like `(as-> value _ ,,,)`
+			- Example: `(/ (+ 1 2) 3)` -> `+ 1 2 | / _ 3`
+	- Numbers support integer and floating point representations, and are wrappers around Dart's numbers (Dart's built-in `num.parse()` produces the underlying numeric value).
+		- TODO Examples of PL numbers
+	- Strings are sequences of characters or escape codes delimited by double quotation marks `"`.
+		- TODO Examples of PL strings
+	- Symbols
+		- Initial character must match this regular expression:
+		- Subsequent sequence of characters must match this regular expression:
+		- TODO Examples of PL symbols
+	- Dotted symbols
+		- A symbol with a leading dot, for example `.epic_id`
+		- These are similar in purpose to Clojure keywords, see the ((627e5f09-6ec8-4f66-9bab-fd17cf30846b)) section below for details.
+	- Lists are sequences of expressions delimited by square brackets `[]`.
+		- TODO Examples of PL lists
+	- Maps are even-numbered sequences of expressions delimited by curly braces `{}`. Maps require no further syntax to distinguish entries.
+		- TODO Examples of PL maps
+	- Commas are considered whitespace, so you may use them to separate values in lists or entries in maps if desired.
+	- Expressions may be written on multiple lines, as long as the parser can unambiguously decide that it must continue to the following line to have a syntactically valid program (e.g., unclosed parenthesis at line's end).
+		- TODO Example of single-line vs. multi-line program
+	- Functions are written using one of two syntaxes:
+		- `%(example %1 %2)`
+			- These can be suffixed like `%1-some-arg` for better readability as long as the number portion is correct.
+		- `(fn [a b] (example a b))`
+			- This syntax also supports naming the function: `(fn example-fn [a b] (example a b))`
+- ## Semantics
+  id:: 627e5f09-6ec8-4f66-9bab-fd17cf30846b
+  collapsed:: true
+	- Piped Lisp is an _embedded DSL_, meaning its source is parsed and interpreted using the semantics of the runtime of the host language (Dart).
+	- Numbers, strings, lists, and maps evaluate to themselves.
+	- ### Functions
+		- Function definition
+			- Use the syntax specified above.
+			- Function definitions do not currently support self-recursive calls.
+			- Function definitions do not currently support adding help text. A possible future extension of PL will involve supporting arbitrary map metadata on functions, wherein documentation will be one of multiple metadata entries.
+				- TODO Implement metadata support in PL
+		- Functions are **invoked** when evaluated, unless passed as an argument to another function. Use the idiom of `(value your-fn)` to unambiguously get the function as a value.
+			- `me` invokes the function bound to the symbol `me`
+			- `def myself value me` binds the function value `me` to a new symbol `myself`
+			- `def me-cached me` or `def me-cached (me)` assigns the _return value_ of invoking the `me` function to `me-cached`.
+	- ### Symbols
+		- Symbols are looked up in the current environment's bindings.
+			- If found: the value of the binding is returned when the symbol is evaluated.
+			- If not found:
+				- When in REPL mode (at the interactive console), the REPL guides the language user through defining the unknown symbol (or not).
+				- When in non-REPL mode, an exception is thrown.
+	- ### Dotted Symbols
+		- Akin to Clojure's keywords, PL dotted symbols evaluate to themselves **unless used in an invocation position**.
+			- Unlike Clojure, (1) invocation does not have to be denoted with parentheses, and (2) there are many syntactic contexts that result in invocation as opposed to simple evaluation.
+				- If a dotted symbol is evaluated by itself and there is a [[Parent Entity]] active, it tries to look itself up in that entity's data.
+				- If a dotted symbol is evaluated with a single argument that can be looked up into, it tries to look itself up in that data structure.
+					- If that argument is _not_ a collection or entity, then it looks itself up in the [[Parent Entity]] if active and uses its argument as the default-if-not-found value for the lookup.
+				- If a dotted symbol is evaluated with two arguments, the first is the collection or entity the dotted symbol looks itself up in, and the second argument is the default-if-not-found value for the lookup.
+	- ### Numerics
+		- PL numbers are simple wrappers around Dart numbers.
+		- Numbers are parsed using Dart's `num.parse`, so that controls the underlying numeric value for mathematical operations.
+		- All arithmetic operations leverage Dart's built-in operators.
+	- ### Strings
+		- PL strings are simple wrappers around Dart strings.
+		- Strings support the following escape sequences mapping to the following code points:
+			- `\n` -> 10
+			- `\r` -> 13
+			- `\f` -> 12
+			- `\b` -> 8
+			- `\t` -> 9
+			- `\v` -> 11
+		- Other more advanced escape patterns that Dart itself supports are not implemented at this time.
+	- ### Lists
+		- PL lists are wrappers around Dart lists.
+		- Lists are just data, not code. Parentheses are used to specify invocations of invocable things; parentheses are _not_ used to write literal lists.
+		- Unlike Dart lists, PL lists **do** support meaningful equality checks via `=`. If all values being compared are lists, and if all items are `=` and in the same order across those lists, then `=` returns `true`.
+		- PL lists **do not** currently support _comparison_ and thus cannot be sorted. This may be extended to match Clojure's comparison semantics for vectors in the future.
+	- ### Maps
+		- PL maps are wrappers around Dart maps.
+		- Map keys may be any PL value.
+			- However, any maps that are used for calls to the Shortcut API must be JSON-compatible, meaning that their keys must be trivially serializable to string values.
+	- ### Evaluation Environment
+		- A single global environment is available to top-level programs and within function definitions.
+		- New global bindings can be introduced with `def`
+			- `def a 42`
+			- `def my-fn value (fn [] 42)`
+				- _NB: Without `value` here, the function would be invoked immediately. See above discussion about functions._
+		- Currently, you can overwrite any existing binding. Take care that you don't overwrite a built-in one you need.
+- ## Embedded Documentation
+  collapsed:: true
+	- Evaluate `?` to see all current bindings.
+	- Evaluate `? <function-name>` to see detailed help for that function.
+	- Evaluate `? "example"` to search through both the names and the help text of available functions.
