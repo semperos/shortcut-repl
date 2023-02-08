@@ -286,7 +286,8 @@ class ScLiveClient extends ScClient {
     final taba = await authedCall(env, '/search',
         body: {
           'query': queryString.value,
-          'entity_types': ['story', 'epic', 'iteration', 'milestone']
+          'entity_types': ['story', 'epic', 'iteration', 'milestone'],
+          'detail': 'slim',
         },
         httpVerb: HttpVerb.get);
     return taba.search(env);
