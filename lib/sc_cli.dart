@@ -445,11 +445,13 @@ void maybeLoadFiles(ScEnv env, Options options) {
 /// states, members, or teams.
 Future loadCaches(ScEnv env, Repl repl) async {
   try {
-    await env.loadCachesFromDisk();
-    env.out
-        .write(env.style("\n;; [INFO] Finished loading caches.\n", styleInfo));
-    bindAllTheThings(env);
-    repl.rewriteBuffer();
+    if (File(cacheMembersFilePath).existsSync()) {
+      await env.loadCachesFromDisk();
+      env.out.write(
+          env.style("\n;; [INFO] Finished loading caches.\n", styleInfo));
+      bindAllTheThings(env);
+      repl.rewriteBuffer();
+    }
   } catch (_) {
     env.err.writeln(env.style(
         ";; [WARN] Failed to load caches. Delete the cache*.json files under your config direction (default is ~/.config/shortcut-cli/) and try again.",
