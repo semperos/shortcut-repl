@@ -279,6 +279,10 @@ void main() {
         expect(env.interpret('or %(just nil) %(just 1)'), ScNumber(1));
         expect(env.interpret('or %(just false) %(just 1)'), ScNumber(1));
         expect(env.interpret('or %(just 0) %(just 1)'), ScNumber(0));
+        expect(env.interpret('or 1 2'), ScNumber(1));
+        expect(env.interpret('or nil 2'), ScNumber(2));
+        expect(env.interpret('or nil %(id 3)'), ScNumber(3));
+        expect(env.interpret('or %(id 1) %(id 3)'), ScNumber(1));
       });
       test('when', () {
         expect(env.interpret('when true %(just 42)'), ScNumber(42));

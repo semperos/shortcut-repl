@@ -349,7 +349,7 @@ class ScEnv {
     ScSymbol('not'):
         ScString("Returns true if falsey; return false if truthy."),
     ScSymbol('or'): ScString(
-        "Returns the first argument that is truthy, or the last argument if none are truthy.`"),
+        "Returns the first argument that is truthy, or the last argument if none are truthy.\n\nThis is a function, not a macro, so as a workaround for short-circuiting behavior, if you pass functions of 0 arguments as arguments to `or`, it will invoke them and perform or logic on the return values, stopping at the first such function to return a truthy value."),
     ScSymbol('when'): ScString(
         "If the condition is truthy, invokes the function provided, else returns `nil`."),
     ScSymbol('first-where'): ScString(
@@ -659,8 +659,25 @@ def tenth   value (fn tenth [coll] (get coll 9))
 def last    value (fn last [coll] (get coll (- (count coll) 1)))
 
 ;; Conditionals
+def fn?         value (fn fn? [x]
+                        (if (= "function" (type x))
+                          %(id true)
+                          (fn []
+                            (if (= "anonymous function" (type x))
+                            %(id true)
+                            %(id false)))))
 def not         value (fn not [x] (if x %(value false) %(value true)))
-def or          value (fn or [this that] ((fn [this-res] (if this-res %(value this-res) that)) (this)))
+def or          value (fn or [this that]
+                        ((fn [this-res]
+                           (if this-res
+                             %(value this-res)
+                             (fn []
+                               (if (fn? that)
+                                 %(value (that))
+                                 %(value that)))))
+                          (if (fn? this)
+                            %(value (this))
+                            %(value this))))
 def when        value (fn when [condition then-branch] (if condition then-branch %(identity nil)))
 def first-where value (fn first-where [coll where-clause] (first (where coll where-clause)))
 
