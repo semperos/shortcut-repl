@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:chalkdart/chalk.dart';
 import 'package:chalkdart/colorutils.dart';
+import 'package:csv/csv.dart';
 import 'package:intl/intl.dart';
 import 'package:petitparser/petitparser.dart';
 import 'package:sc_cli/sc_static.dart';
@@ -244,6 +245,7 @@ class ScEnv {
     ScSymbol('load'): ScFnLoad(),
     ScSymbol('open'): ScFnOpen(),
     ScSymbol('edit'): ScFnEdit(),
+    ScSymbol('decode-csv'): ScFnDecodeCsv(),
 
     ScSymbol('color'): ScFnColor(),
 
@@ -1058,8 +1060,19 @@ def claim value (fn [entity] (! entity .owner_ids [ (whoami) ]))
 def own   value (fn [entity] (! entity .owner_ids [ (whoami) ]))
 def claim-for value (fn [entity mem] (! entity .owner_ids [ mem ]))
 def own-by    value (fn [entity mem] (! entity .owner_ids [ mem ]))
-def add-label value (fn add-label [story label-name] (! story .labels [{.name label-name}]))
-def add-labels value (fn add-labels [story label-names] (! story .labels (map label-names %(just {.name %}))))
+def add-label value (fn add-label
+  [story label]
+  (if (= "label" (type label))
+    (! story .labels [{.name (.name label)}])
+    (! story .labels [{.name label}])))
+def add-labels value (fn add-labels
+  [story label-names]
+  (! story .labels
+    (map label-names
+      (fn [label]
+        (if (= "label" (type label))
+          {.name (.name label)}
+          {.name label})))))
 
 def set-custom-field! value (fn set-custom-field! [story custom-field custom-field-value]
    (! story
@@ -6621,6 +6634,51 @@ class ScFnEdit extends ScBaseInvocable {
         final tempFile = newTempFile();
         tempFile.writeAsStringSync(contentStr);
         return execOpenInEditor(env, existingFile: tempFile);
+      }
+    } else {
+      throw BadArgumentsException(
+          "The `$canonicalName` function does not take any arguments, but received ${args.length} arguments.");
+    }
+  }
+}
+
+class ScFnDecodeCsv extends ScBaseInvocable {
+  static final ScFnDecodeCsv _instance = ScFnDecodeCsv._internal();
+  // TODO Extend signature of fn to allow user config at runtime.
+  static final defaultConverter =
+      CsvToListConverter(eol: '\n', shouldParseNumbers: false);
+  ScFnDecodeCsv._internal();
+  factory ScFnDecodeCsv() => _instance;
+
+  @override
+  String get canonicalName => 'decode-csv';
+
+  @override
+  Set<List<String>> get arities => {
+        [],
+        ["file-or-string"]
+      };
+
+  @override
+  String get help => 'Decode a string of CSV into a list of lists of strings.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    if (args.length == 1) {
+      final content = args[0];
+      if (content is ScFile) {
+        return defaultConverter
+            .convert(content.file.readAsStringSync())
+            .toScExpr();
+      } else if (content is ScString) {
+        return defaultConverter.convert(content.value).toScExpr();
+      } else {
+        throw BadArgumentsException(
+            'The `$canonicalName` function expects a file or string argument, but received a ${content.typeName()} value.');
       }
     } else {
       throw BadArgumentsException(

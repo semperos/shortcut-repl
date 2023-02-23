@@ -13,6 +13,7 @@ dependencies:
   build_cli_annotations: ^2.0.0
   chalkdart: ^2.0.8
   characters: ^1.2.0
+  csv: ^5.0.1
   intl: ^0.17.0
   petitparser: ^4.4.0
 

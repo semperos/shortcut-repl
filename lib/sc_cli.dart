@@ -452,10 +452,11 @@ Future loadCaches(ScEnv env, Repl repl) async {
       bindAllTheThings(env);
       repl.rewriteBuffer();
     }
-  } catch (_) {
+  } catch (e) {
     env.err.writeln(env.style(
         ";; [WARN] Failed to load caches. Delete the cache*.json files under your config direction (default is ~/.config/shortcut-cli/) and try again.",
         styleError));
+    env.err.writeln('Error: $e');
     exit(1);
   }
 }
