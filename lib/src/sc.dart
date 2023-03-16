@@ -7,7 +7,9 @@ import 'package:chalkdart/chalk.dart';
 import 'package:chalkdart/colorutils.dart';
 import 'package:csv/csv.dart';
 import 'package:intl/intl.dart';
+import 'package:markdown/markdown.dart';
 import 'package:petitparser/petitparser.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:sc_cli/sc_static.dart';
 import 'package:sc_cli/src/sc_api.dart' show ScClient, handleJsonNonEncodable;
 import 'package:sc_cli/src/sc_async.dart';
@@ -239,6 +241,7 @@ class ScEnv {
     ScSymbol('file'): ScFnFile(),
     ScSymbol('read-file'): ScFnReadFile(),
     ScSymbol('write-file'): ScFnWriteFile(),
+    ScSymbol('export-to'): ScFnExportTo(),
     ScSymbol('clip'): ScFnClipboard(),
     ScSymbol('clipboard'): ScFnClipboard(),
     ScSymbol('interpret'): ScFnInterpret(),
@@ -1708,7 +1711,7 @@ def edit-config value (fn edit-config [] (edit (file "env.json")))
   /// Tip: Check for args.isEmpty && env.parentEntity == null before calling this where needed (e.g., for fns that can do meaningful work in the absence of both an explicit arg or a parent entity).
   ScEntity resolveArgEntity(ScList args, String fnName,
       {forceFetch = false, nthArg = 'first', forceParent = false}) {
-    ScEntity entity;
+    ScEntity? entity;
     if (forceParent) {
       if (parentEntity == null) {
         throw BadArgumentsException(
@@ -1728,22 +1731,30 @@ def edit-config value (fn edit-config [] (edit (file "env.json")))
         if (forceFetch) waitOn(entity.fetch(this));
       }
     } else {
-      final maybeEntity = args[0];
-      if (maybeEntity is ScEntity) {
-        entity = maybeEntity;
-        if (entity.data.isEmpty && !forceFetch) waitOn(entity.fetch(this));
-        if (forceFetch) entity.fetch(this);
-        args.innerList.removeAt(0);
-      } else if (maybeEntity is ScNumber) {
-        entity = waitOn(fetchId(this, maybeEntity.value.toString()));
-        args.innerList.removeAt(0);
-      } else if (maybeEntity is ScString) {
-        entity = waitOn(fetchId(this, maybeEntity.value));
-        args.innerList.removeAt(0);
-      } else {
-        throw BadArgumentsException(
-            "The `$fnName` function's $nthArg argument must be an entity or its ID, but received a ${maybeEntity.typeName()}");
-      }
+      entity = resolveToEntity(args, forceFetch);
+    }
+    if (entity == null) {
+      throw BadArgumentsException(
+          "The `$fnName` function's $nthArg argument must be an entity or its ID, but received a ${args[0].typeName()}");
+    }
+    return entity;
+  }
+
+  /// MUTATES the [args]
+  ScEntity? resolveToEntity(ScList args, bool forceFetch) {
+    ScExpr maybeEntity = args[0];
+    ScEntity? entity;
+    if (maybeEntity is ScEntity) {
+      entity = maybeEntity;
+      if (entity.data.isEmpty && !forceFetch) waitOn(entity.fetch(this));
+      if (forceFetch) entity.fetch(this);
+      args.innerList.removeAt(0);
+    } else if (maybeEntity is ScNumber) {
+      entity = waitOn(fetchId(this, maybeEntity.value.toString()));
+      args.innerList.removeAt(0);
+    } else if (maybeEntity is ScString) {
+      entity = waitOn(fetchId(this, maybeEntity.value));
+      args.innerList.removeAt(0);
     }
     return entity;
   }
@@ -6417,6 +6428,120 @@ class ScFnWriteFile extends ScBaseInvocable {
   }
 }
 
+class ScFnExportTo extends ScBaseInvocable {
+  static final ScFnExportTo _instance = ScFnExportTo._internal();
+  ScFnExportTo._internal();
+  factory ScFnExportTo() => _instance;
+  static final supportedFileTypes = {
+    ScDottedSymbol('html'),
+    ScDottedSymbol('pdf'),
+  };
+
+  @override
+  String get canonicalName => 'export-to';
+
+  @override
+  Set<List<String>> get arities => {
+        ["entity", "file-type", "file-or-file-name"]
+      };
+
+  @override
+  // TODO: implement help
+  String get help =>
+      'Export an entity in a file-type format to the given file-or-file-name.';
+
+  @override
+  // TODO: implement helpFull
+  String get helpFull => help;
+
+  @override
+  ScExpr invoke(ScEnv env, ScList args) {
+    final e = env.resolveArgEntity(args, canonicalName);
+    ScFile f = ScFile(File('/tmp/entity.html'));
+    ScDottedSymbol ft = ScDottedSymbol('html');
+    if (args.length == 2) {
+      final fileType = args[0];
+      if (!ScFnExportTo.supportedFileTypes.contains(fileType)) {
+        throw BadArgumentsException(
+            'The `$canonicalName` function only supports PDF exports at this time. Supply .pdf as the first argument.');
+      } else {
+        ft = fileType as ScDottedSymbol;
+      }
+      final file = args[1];
+      if (file is ScFile) {
+        f = file;
+      } else if (file is ScString) {
+        f = ScFile(File(file.value));
+      } else {
+        throw BadArgumentsException(
+            'The `$canonicalName` function expects its second argument to be a string or file, but received a ${file.typeName()} value.');
+      }
+      if (e is ScStory) {
+        if (ft == ScDottedSymbol('html')) {
+          final data = e.data;
+          final isAnsiEnabled = env.isAnsiEnabled;
+          // NB. We never want ANSI codes in the HTML output, and shouldn't require
+          //     restarting sc just to turn them off for this function.
+          env.isAnsiEnabled = false;
+          try {
+            final content = StringBuffer('# Export of Story ${e.idString}\n\n');
+            final ks = data.keys.toList();
+            ks.sort();
+            for (final k in ks) {
+              final v = data[k];
+              String kstr = '';
+              if (k is ScString) {
+                kstr = k.value;
+              } else {
+                kstr = k.toString();
+              }
+              content.write('## $kstr\n\n');
+              if (v is ScString) {
+                content.write(v.value);
+              } else if (v is ScList) {
+                for (final item in v.innerList) {
+                  content.write('${item.printToString(env)}\n\n');
+                }
+              } else if (v != null) {
+                content.write(v.printToString(env));
+              }
+              content.write('\n\n');
+            }
+            f.file.writeAsStringSync(markdownToHtml(content.toString()));
+          } finally {
+            // NB. Restore after writing to StringBuffer without ANSI codes.
+            env.isAnsiEnabled = isAnsiEnabled;
+          }
+        } else if (ft == ScDottedSymbol('pdf')) {
+          env.err
+              .writeln('[WARNING] PDF rendering is still under development.');
+          final pdf = pw.Document();
+          final description = e.getField(ScString('description'));
+          var descriptionString = '<not found>';
+          if (description is ScString) {
+            descriptionString = description.value;
+          }
+          pdf.addPage(pw.Page(
+              build: (pw.Context ctx) =>
+                  pw.Center(child: pw.Text(descriptionString))));
+
+          final pdfSaved = waitOn(pdf.save());
+          f.file.writeAsBytesSync(pdfSaved);
+        }
+        return f;
+      } else {
+        throw UnimplementedError(
+            'The `$canonicalName` function only supports exporting stories at this time, but received a ${e.typeName()} entity.');
+      }
+    } else {
+      throw BadArgumentsException(
+          'The `$canonicalName` function expects 2 or 3 arguments, but received ${args.length} arguments.');
+    }
+  }
+}
+
+void writePdfOfEntity(ScEntity entity, ScFile file) {}
+
 class ScFnClipboard extends ScBaseInvocable {
   static final ScFnClipboard _instance = ScFnClipboard._internal();
   ScFnClipboard._internal();
@@ -10319,7 +10444,7 @@ class ScMap extends ScExpr {
   Map<ScExpr, ScExpr> innerMap;
   ScMap(this.innerMap);
 
-  get keys => innerMap.keys;
+  Iterable<ScExpr> get keys => innerMap.keys;
 
   num get length => innerMap.length;
 
