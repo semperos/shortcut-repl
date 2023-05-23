@@ -11014,6 +11014,11 @@ class ScMember extends ScEntity {
     return null;
   }
 
+  bool isActive(ScEnv env) {
+    final member = waitOn(fetch(env));
+    return member.data[ScString('disabled')] != ScBoolean.veritas();
+  }
+
   @override
   String readableString(ScEnv env) {
     final lp = lParen(env);
@@ -11208,7 +11213,14 @@ class ScTeam extends ScEntity {
 
   @override
   Future<ScList> ls(ScEnv env, [Iterable<ScExpr>? args]) async {
-    return data[ScString('member_ids')] as ScList;
+    final members = data[ScString('member_ids')];
+    if (members is ScList) {
+      return ScList(members.innerList
+          .where((member) => member is ScMember && member.isActive(env))
+          .toList());
+    } else {
+      return ScList([]);
+    }
   }
 
   @override
